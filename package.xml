@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>arm_robots</name>
+  <version>0.0.0</version>
+  <description>The arm_robots package</description>
+
+  <maintainer email="peter@todo.todo">peter</maintainer>
+
+  <license>TODO</license>
+
+  <depend>arc_utilities</depend>
+  <depend>kuka_hardware_interface</depend>
+  <depend>victor_description</depend>
+  <buildtool_depend>catkin</buildtool_depend>
+
+</package>
