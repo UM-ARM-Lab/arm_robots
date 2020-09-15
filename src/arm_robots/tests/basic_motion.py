@@ -1,72 +1,54 @@
 #! /usr/bin/env python
-import time
-from math import pi
 
+import moveit_commander
+
+import geometry_msgs.msg
+import moveit_msgs.msg
 import rospy
 from arm_robots.victor import Victor
-from tf.transformations import compose_matrix
-from victor_hardware_interface_msgs.msg import ControlMode
-
-config1 = [1.60963234611, 0.533623140261, -0.742047506794, -1.16109858085, -0.323169964304, 1.0979096577, 0.21963411082]
-
-config3 = [1.3614709264, -1.17878472014, -1.00180420345, -1.20442928365, -0.917654439591, 1.39904650482, -1.04936635634]
-
-left_hand_start = compose_matrix(angles=[-pi / 2, -pi / 4, -pi],
-                                 translate=[.63, .33, .72])
-
-right_hand_start = compose_matrix(angles=[pi / 2, pi / 4, pi],
-                                  translate=[.63, -.33, .72])
 
 
 def run_mev():
-    global config1, config2, log_one_data
+    joint_state_topic = ['joint_states:=/victor/joint_states']
+    moveit_commander.roscpp_initialize(joint_state_topic)
+    rospy.init_node('basic_motion', anonymous=True)
 
-    rospy.init_node("motion_enabled_victor")
+    robot = Victor()
 
-    mev = Victor()
-    # TODO: replace with moveit call
-    # mev.or_model.env.GetCollisionChecker().SetCollisionOptions(rave.CollisionOptions.ActiveDOFs)
+    robot.close_right_gripper()
 
-    mev.open_gripper("left", blocking=False)
-    mev.open_gripper("right", blocking=False)
-    time.sleep(1)
+    # PLAN TO POSE
+    # robot.plan_to_pose(
+    group_name = "right_arm"
+    robot = moveit_commander.RobotCommander()
+    move_group = moveit_commander.MoveGroupCommander(group_name)
 
-    print("Using joint position mode")
-    mev.set_manipulator("left_arm")
-    mev.change_control_mode(ControlMode.JOINT_POSITION)
-    mev.plan_to_configuration(config1, execute=True)
-    mev.plan_to_pose(left_hand_start, execute=True)
+    # joint_goal = move_group.get_current_joint_values()
+    # joint_goal[0] = 0
+    # joint_goal[1] = 0.5
+    # joint_goal[2] = 0
+    # joint_goal[3] = 0.5
+    # joint_goal[4] = 0
+    # joint_goal[5] = 0.5
+    # joint_goal[6] = 0
+    # plan = move_group.go(joint_goal, wait=True)
+    pose_goal = move_group.get_current_pose()
+    pose_goal.pose.position.x = 0.9
+    pose_goal.pose.position.y = -0.6
+    pose_goal.pose.position.z = 1.0
 
-    mev.set_manipulator("right_arm")
-    mev.change_control_mode(ControlMode.JOINT_POSITION)
-    mev.plan_to_configuration(config3, execute=True)
-    mev.plan_to_pose(right_hand_start, execute=True)
+    move_group.set_pose_target(pose_goal)
+    plan = move_group.go(wait=True)
 
-    mev.close_gripper("left", blocking=False)
-    mev.close_gripper("right", blocking=False)
-    time.sleep(1)
+    display_trajectory = moveit_msgs.msg.DisplayTrajectory()
+    display_trajectory.trajectory_start = robot.get_current_state()
+    display_trajectory.trajectory.append(plan)
+    display_trajectory_publisher = rospy.Publisher('/move_group/display_planned_path',
+                                                   moveit_msgs.msg.DisplayTrajectory,
+                                                   queue_size=10)
+    display_trajectory_publisher.publish(display_trajectory)
 
-    mev.set_manipulator("left_arm")
-    mev.plan_to_relative_pose(compose_matrix(translate=[0, -.1, 0]), execute=True)
-    mev.plan_to_pose(left_hand_start, execute=True)
-
-    mev.set_manipulator("right_arm")
-    mev.plan_to_relative_pose(compose_matrix(translate=[-.1, 0, 0]), execute=True)
-    mev.plan_to_pose(right_hand_start, execute=True)
-
-    print("Switching to Impedance mode")
-
-    mev.set_manipulator("left_arm")
-    mev.change_control_mode(ControlMode.JOINT_IMPEDANCE)
-    mev.plan_to_relative_pose(compose_matrix(translate=[0, -.1, 0]), execute=True)
-    mev.plan_to_pose(left_hand_start, execute=True)
-
-    mev.set_manipulator("right_arm")
-    mev.change_control_mode(ControlMode.JOINT_IMPEDANCE)
-    mev.plan_to_relative_pose(compose_matrix(translate=[-.1, 0, 0]), execute=True)
-    mev.plan_to_pose(right_hand_start, execute=True)
-
-    print("plan complete")
+    move_group.stop()
 
 
 if __name__ == "__main__":

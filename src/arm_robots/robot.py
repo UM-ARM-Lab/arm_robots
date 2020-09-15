@@ -1,10 +1,13 @@
 #! /usr/bin/env python
-
+import actionlib
 import rospy
+from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, JointTolerance
+from trajectory_msgs.msg import JointTrajectoryPoint
 
 
 class ARMRobot:
     def __init__(self):
+        # NOTE: where do topic names really come from?
         rospy.loginfo("MotionEnabledRobot ready")
 
     def traj_from_path_msg(self, path_msg):
@@ -38,13 +41,77 @@ class ARMRobot:
     def wait_gripper(self, gripper):
         raise NotImplementedError()
 
-    def close_gripper(self, gripper_name, blocking=True, continuous=False):
+    def close_right_gripper(self, blocking=True):
+        moveit_client = actionlib.SimpleActionClient('/victor/right_hand_controller/follow_joint_trajectory',
+                                                     FollowJointTrajectoryAction)
+        moveit_client.wait_for_server()
+        goal = FollowJointTrajectoryGoal()
+        goal.trajectory.joint_names = [
+            "victor_right_gripper_fingerA_joint_2",
+            "victor_right_gripper_fingerA_joint_3",
+            "victor_right_gripper_fingerA_joint_4",
+            "victor_right_gripper_fingerB_knuckle",
+            "victor_right_gripper_fingerB_joint_2",
+            "victor_right_gripper_fingerB_joint_3",
+            "victor_right_gripper_fingerB_joint_4",
+            "victor_right_gripper_fingerC_knuckle",
+            "victor_right_gripper_fingerC_joint_2",
+            "victor_right_gripper_fingerC_joint_3",
+            "victor_right_gripper_fingerC_joint_4",
+        ]
+        closed_point = JointTrajectoryPoint()
+        closed_point.time_from_start.secs = 1
+        # where else are these things defined? surely this is repeated elsewhere
+        closed_point.positions = [
+            1.1,
+            -0.3,
+            -0.5,
+            0,
+            1.1,
+            -0.3,
+            -0.5,
+            0,
+            1.1,
+            -0.3,
+            -0.5,
+        ]
+        goal.trajectory.header.stamp = rospy.Time.now()
+        goal.trajectory.points.append(closed_point)
+        goal.goal_time_tolerance.nsecs = 10**8
+
+        def _j(pos, name):
+            j = JointTolerance()
+            j.position = pos
+            j.name = name
+            return j
+
+        goal.goal_tolerance = [
+            _j(0.05, "victor_right_gripper_fingerA_joint_2"),
+            _j(0.05, "victor_right_gripper_fingerA_joint_3"),
+            _j(0.05, "victor_right_gripper_fingerA_joint_4"),
+            _j(0.05, "victor_right_gripper_fingerB_knuckle"),
+            _j(0.05, "victor_right_gripper_fingerB_joint_2"),
+            _j(0.05, "victor_right_gripper_fingerB_joint_3"),
+            _j(0.05, "victor_right_gripper_fingerB_joint_4"),
+            _j(0.05, "victor_right_gripper_fingerC_knuckle"),
+            _j(0.05, "victor_right_gripper_fingerC_joint_2"),
+            _j(0.05, "victor_right_gripper_fingerC_joint_3"),
+            _j(0.05, "victor_right_gripper_fingerC_joint_4"),
+        ]
+        moveit_client.send_goal(goal)
+        if blocking:
+            moveit_client.wait_for_result()
+            result = moveit_client.get_result()
+            print(result.error_code)
+            # print("Error! code " + str(result.error_code.val))
+
+    def close_left_gripper(self, blocking=True):
         raise NotImplementedError()
 
-    def open_gripper(self, gripper_name, blocking=True, continuous=False):
+    def open_gripper(self, gripper_name, blocking=True):
         raise NotImplementedError()
 
-    def set_gripper(self, gripper_name, pos, blocking=True, continuous=False):
+    def set_gripper(self, gripper_name, pos, blocking=True):
         """
         Sets the gripper position
 
