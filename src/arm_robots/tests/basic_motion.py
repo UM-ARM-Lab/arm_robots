@@ -18,7 +18,7 @@ def run_mev():
     robot.close_right_gripper()
 
     # PLAN TO POSE
-    # robot.plan_to_pose(
+    # robot.plan_to_pose()
     group_name = "right_arm"
     robot = moveit_commander.RobotCommander()
     move_group = moveit_commander.MoveGroupCommander(group_name)

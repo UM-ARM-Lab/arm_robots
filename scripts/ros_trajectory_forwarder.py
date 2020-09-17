@@ -1,113 +1,146 @@
 #! /usr/bin/env python
+from typing import List
 
-"""
-ros_trajectory_follower.py
+import numpy as np
 
-Executes a ROS JointTrajectory as a message or action on Victor.
-
-Author: Andrew Price
-Date: 2018-06-06
-"""
-
-import sys
-import rospy
 import actionlib
-from std_srvs.srv import SetBool, SetBoolResponse
-from trajectory_msgs.msg import JointTrajectory
-import control_msgs.msg
-import arm_or_robots.motion_victor
+import rospy
+from arc_utilities.ros_helpers import Listener
+from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, FollowJointTrajectoryFeedback, \
+    FollowJointTrajectoryResult
+from trajectory_msgs.msg import JointTrajectoryPoint
+from victor_hardware_interface.victor_utils import list_to_jvq
+from victor_hardware_interface_msgs.msg import MotionCommand, MotionStatus, ControlMode
 
-import openravepy as rave
+
+def waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint, tolerance: List[float]):
+    actual = np.array(actual.positions)
+    desired = np.array(desired.positions)
+    tolerance = np.array(tolerance)
+    return np.all((actual - desired) < tolerance)
+
+
+joint_map = {
+    'victor_left_arm_joint_1': 'joint_1',
+    'victor_left_arm_joint_2': 'joint_2',
+    'victor_left_arm_joint_3': 'joint_3',
+    'victor_left_arm_joint_4': 'joint_4',
+    'victor_left_arm_joint_5': 'joint_5',
+    'victor_left_arm_joint_6': 'joint_6',
+    'victor_left_arm_joint_7': 'joint_7',
+    'victor_right_arm_joint_1': 'joint_1',
+    'victor_right_arm_joint_2': 'joint_2',
+    'victor_right_arm_joint_3': 'joint_3',
+    'victor_right_arm_joint_4': 'joint_4',
+    'victor_right_arm_joint_5': 'joint_5',
+    'victor_right_arm_joint_6': 'joint_6',
+    'victor_right_arm_joint_7': 'joint_7',
+}
 
 
 class TrajectoryForwarder(object):
-    def __init__(self, world_frame, plan_to_start):
+    def __init__(self):
         self._action_name = "follow_joint_trajectory"
-        self.plan_to_start = plan_to_start
-
-        self.srv = rospy.Service("set_plan_to_start_config", SetBool, self.handle_set_planning)
-
-        self._victor = arm_or_robots.motion_victor.MotionEnabledVictor(world_frame=world_frame, viewer=False)
-        self._victor.or_model.env.GetCollisionChecker().SetCollisionOptions(rave.CollisionOptions.ActiveDOFs)
-
-        self._chain_joint_names = dict()
-        self._chain_joint_names["all_arms"] = set()
-
-        # self._victor.or_model.robot.GetManipulators()
-        self._manipulator_names = ["left_arm", "right_arm"]
-        joints = self._victor.or_model.robot.GetJoints()
-        for manip_name in self._manipulator_names:
-            manip = self._victor.or_model.robot.GetManipulator(manip_name)
-            self._chain_joint_names[manip_name] = set()
-            indices = manip.GetArmIndices()
-            for idx in indices:
-                jnt = joints[idx]
-                self._chain_joint_names[manip_name].add(jnt.GetName())
-            self._chain_joint_names["all_arms"] |= self._chain_joint_names[manip_name]
-
-        self.sub = rospy.Subscriber("joint_trajectory", JointTrajectory, self.joint_trajectory_callback)
-
-        self._as = actionlib.SimpleActionServer(self._action_name, control_msgs.msg.FollowJointTrajectoryAction,
+        self._as = actionlib.SimpleActionServer(self._action_name, FollowJointTrajectoryAction,
                                                 execute_cb=self.execute_cb, auto_start=False)
+        self.left_arm_motion_command_pub = rospy.Publisher("left_arm/motion_command", MotionCommand, queue_size=10)
+        self.right_arm_motion_command_pub = rospy.Publisher("right_arm/motion_command", MotionCommand, queue_size=10)
+        self.left_arm_motion_command_listener = Listener("left_arm/motion_status", MotionStatus)
+        self.right_arm_motion_command_listener = Listener("right_arm/motion_status", MotionStatus)
         self._as.start()
 
-    def handle_set_planning(self, req):
-        self.plan_to_start = req.data
-        rospy.loginfo("Set self.plan_to_start to " + str(self.plan_to_start))
-        return SetBoolResponse(success=True)
+    def execute_cb(self, traj_msg: FollowJointTrajectoryGoal):
+        trajectory_point_idx = 0
 
-    def execute_cb(self, goal):
-        res = control_msgs.msg.FollowJointTrajectoryResult()
-        if self.execute_trajectory(goal.trajectory):
-            res.error_code = control_msgs.msg.FollowJointTrajectoryResult.SUCCESSFUL
-            self._as.set_succeeded(res)
-        else:
-            rospy.logerr("Trajectory forwarding failed.")
-            res.error_code = control_msgs.msg.FollowJointTrajectoryResult.INVALID_JOINTS
-            self._as.set_aborted(res)
+        tolerance = []
+        for name in traj_msg.trajectory.joint_names:
+            tolerance_position = 0.01
+            for tolerance_for_name in traj_msg.path_tolerance:
+                if tolerance_for_name.name == name:
+                    tolerance_position = tolerance_for_name.position
+                    break
+            tolerance.append(tolerance_position)
+        print(tolerance)
 
-    def joint_trajectory_callback(self, traj_msg):
-        self.execute_trajectory(traj_msg)
+        while True:
+            desired_point = traj_msg.trajectory.points[trajectory_point_idx]
 
-    def execute_trajectory(self, traj_msg):
-        names = set(traj_msg.joint_names)
-        if names == self._chain_joint_names["left_arm"]:
-            self._victor.enable_only_left_arm()
-        elif names == self._chain_joint_names["right_arm"]:
-            self._victor.enable_only_right_arm()
-        elif names == self._chain_joint_names["all_arms"]:
-            self._victor.enable_both_arms()
-        else:
-            rospy.logerr("Names mismatch: the list of joint names does not match either arm or the combination")
-            return False
+            # command waypoint
+            left_arm_command = MotionCommand()
+            left_arm_command.header.stamp = rospy.Time.now()
+            left_arm_command.joint_position = list_to_jvq(desired_point.positions)
+            left_arm_command.control_mode.mode = ControlMode.JOINT_POSITION
+            self.left_arm_motion_command_pub.publish(left_arm_command)
 
-        if self.plan_to_start:
-            self._victor.plan_to_configuration(traj_msg.points[0].positions, execute=True)
-        else:
-            start_matches_current = True
-            q = self._victor.or_model.robot.GetDOFValues()
-            for i, joint_name in enumerate(traj_msg.joint_names):
-                idx = self._victor.or_model.robot.GetJoint(joint_name).GetDOFIndex()
-                if abs(traj_msg.points[0].positions[i] - q[idx]) > 0.05:
-                    rospy.logerr("Joint " + joint_name + " does not match trajectory start. (" + str(traj_msg.points[0].positions[i]) + " vs " + str(q[idx]) + ")")
-                    start_matches_current = False
-            if not start_matches_current:
-                return False
+            # get feedback
+            actual_point = self.get_actual_point(traj_msg)
 
-        or_traj = self._victor.traj_from_path_msg(traj_msg)
-        self._victor.execute_trajectory(or_traj, blocking=True)
+            # check if we're close enough to advance
+            if waypoint_reached(desired_point, actual_point, tolerance):
+                trajectory_point_idx += 1
+                if trajectory_point_idx == len(traj_msg.trajectory.points):
+                    break
 
-        return True
+            feedback = FollowJointTrajectoryFeedback()
+            feedback.header.stamp = rospy.Time.now()
+            feedback.joint_names = traj_msg.trajectory.joint_names
+            feedback.desired = desired_point
+            feedback.actual = actual_point
+            self._as.publish_feedback(feedback)
+
+        success_result = FollowJointTrajectoryResult()
+        success_result.error_code = actionlib.GoalStatus.SUCCEEDED
+        self._as.set_succeeded(success_result)
+
+    def get_actual_point(self, traj_msg):
+        left_status = self.left_arm_motion_command_listener.get()
+        right_status = self.right_arm_motion_command_listener.get()
+        # This method of converting status messages to a list ensure the order matches in the trajectory
+        current_joint_positions = []
+        for name in traj_msg.trajectory.joint_names:
+            if name == 'victor_left_arm_joint_1':
+                pos = left_status.measured_joint_position.joint_1
+            elif name == 'victor_left_arm_joint_2':
+                pos = left_status.measured_joint_position.joint_2
+            elif name == 'victor_left_arm_joint_3':
+                pos = left_status.measured_joint_position.joint_3
+            elif name == 'victor_left_arm_joint_4':
+                pos = left_status.measured_joint_position.joint_4
+            elif name == 'victor_left_arm_joint_5':
+                pos = left_status.measured_joint_position.joint_5
+            elif name == 'victor_left_arm_joint_6':
+                pos = left_status.measured_joint_position.joint_6
+            elif name == 'victor_left_arm_joint_7':
+                pos = left_status.measured_joint_position.joint_7
+            elif name == 'victor_right_arm_joint_1':
+                pos = right_status.measured_joint_position.joint_1
+            elif name == 'victor_right_arm_joint_2':
+                pos = right_status.measured_joint_position.joint_2
+            elif name == 'victor_right_arm_joint_3':
+                pos = right_status.measured_joint_position.joint_3
+            elif name == 'victor_right_arm_joint_4':
+                pos = right_status.measured_joint_position.joint_4
+            elif name == 'victor_right_arm_joint_5':
+                pos = right_status.measured_joint_position.joint_5
+            elif name == 'victor_right_arm_joint_6':
+                pos = right_status.measured_joint_position.joint_6
+            elif name == 'victor_right_arm_joint_7':
+                pos = right_status.measured_joint_position.joint_7
+            else:
+                raise NotImplementedError()
+            current_joint_positions.append(pos)
+        actual_point = JointTrajectoryPoint()
+        actual_point.positions = current_joint_positions
+        return actual_point
 
 
-def main(argv):
-    rospy.init_node('victor_ros_trajectory_forwarder', argv=argv)
+def main():
+    rospy.init_node('victor_ros_trajectory_forwarder')
 
-    fwd = TrajectoryForwarder(rospy.get_param('world_frame', None),
-                              rospy.get_param('plan_to_start_config', False))
+    fwd = TrajectoryForwarder()
 
     rospy.spin()
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    main()
