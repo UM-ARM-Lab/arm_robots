@@ -2,7 +2,6 @@
 
 import moveit_commander
 
-import geometry_msgs.msg
 import moveit_msgs.msg
 import rospy
 from arm_robots.victor import Victor
@@ -22,6 +21,7 @@ def run_mev():
     group_name = "right_arm"
     robot = moveit_commander.RobotCommander()
     move_group = moveit_commander.MoveGroupCommander(group_name)
+    print(move_group.get_current_pose())
 
     # joint_goal = move_group.get_current_joint_values()
     # joint_goal[0] = 0
