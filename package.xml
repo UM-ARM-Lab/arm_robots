@@ -11,6 +11,7 @@
   <depend>arc_utilities</depend>
   <depend>kuka_hardware_interface</depend>
   <depend>victor_description</depend>
+  <depend>jacobian_follower</depend>
   <buildtool_depend>catkin</buildtool_depend>
 
 </package>

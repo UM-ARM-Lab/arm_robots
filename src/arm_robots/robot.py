@@ -1,10 +1,19 @@
 #! /usr/bin/env python
-import actionlib
-import rospy
+from typing import Optional
+
 import moveit_commander
+import numpy as np
+import pyjacobian_follower
+import pyrosmsg
+
+import actionlib
+import ros_numpy
+import rospy
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, JointTolerance, \
     FollowJointTrajectoryFeedback
+from geometry_msgs.msg import Point
 from moonshine.moonshine_utils import listify
+from moveit_msgs.msg import RobotTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 
@@ -48,6 +57,9 @@ class ARMRobot:
     def __init__(self, execute_by_default: bool = False, wait_for_action_servers=True):
         self.execute_by_default = execute_by_default
         self.robot = moveit_commander.RobotCommander()
+        self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.002, minimize_rotation=True)
+        self.right_arm_client = actionlib.SimpleActionClient('/victor/right_arm_trajectory_controller/follow_joint_trajectory',
+                                                             FollowJointTrajectoryAction)
         self.right_hand_client = actionlib.SimpleActionClient('/victor/right_hand_controller/follow_joint_trajectory',
                                                               FollowJointTrajectoryAction)
         if wait_for_action_servers:
@@ -192,23 +204,36 @@ class ARMRobot:
     def open_right_gripper(self):
         pass
 
-    def follow_jacobian_to_position(self, target_position,
-                                    ee_link_name: str,
-                                    minimize_rotation: bool = True,
-                                    execute: bool = None):
-        if execute is None:
-            execute = self.execute_by_default
-        print("Not implemented correctly")
-        return self.plan_to_position("right_arm", ee_link_name, target_position, execute=execute)
+    def distance(self,
+                 group_name: str,
+                 ee_link_name: str,
+                 target_position):
+        current_pose = self.get_group_end_effector_pose(group_name, ee_link_name)
+        error = np.linalg.norm(ros_numpy.numpify(current_pose.position) - target_position)
+        return error
 
-    def follow_jacobian_to_position(self, target_position,
+    def follow_jacobian_to_position(self,
+                                    group_name: str,
                                     ee_link_name: str,
+                                    target_position,
                                     minimize_rotation: bool = True,
-                                    execute: bool = None):
-        if execute is None:
-            execute = self.execute_by_default
-        print("Not implemented correctly")
-        return self.plan_to_position("right_arm", ee_link_name, target_position, execute=execute)
+                                    blocking: Optional[bool] = True
+                                    ):
+        if isinstance(target_position, Point):
+            waypoint = ros_numpy.numpify(target_position)
+        else:
+            waypoint = target_position
+
+        gripper_points = [waypoint]
+
+        group_name = group_name
+        speed = 0.01
+        tool_names = [ee_link_name]
+        grippers = [gripper_points]
+        robot_trajectory_msg = self.jacobian_follower.plan(group_name, tool_names, grippers, speed)
+        move_group = moveit_commander.MoveGroupCommander(group_name)
+        # TODO: optional execution
+        move_group.execute(robot_trajectory_msg, blocking)
 
     def close_left_gripper(self, blocking=True):
         raise NotImplementedError()
