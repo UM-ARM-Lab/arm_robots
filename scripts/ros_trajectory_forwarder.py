@@ -38,6 +38,7 @@ joint_map = {
 }
 
 
+# TODO: make this work with val too
 class TrajectoryForwarder(object):
     def __init__(self):
         self._action_name = "follow_joint_trajectory"
