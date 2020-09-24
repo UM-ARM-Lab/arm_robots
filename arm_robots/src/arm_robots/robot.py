@@ -5,7 +5,6 @@ from typing import Optional
 import numpy as np
 import pyjacobian_follower
 import ros_numpy
-from moonshine.moonshine_utils import listify
 
 import actionlib
 import moveit_commander
@@ -145,7 +144,7 @@ class ARMRobot:
             execute = self.execute_by_default
         move_group = moveit_commander.MoveGroupCommander(group_name)
         move_group.set_end_effector_link(ee_link_name)
-        move_group.set_position_target(listify(target_position))
+        move_group.set_position_target(list(target_position))
         if execute:
             return move_group.go(wait=blocking)
         else:
@@ -233,7 +232,7 @@ class ARMRobot:
         if execute is None:
             execute = self.execute_by_default
         move_group = moveit_commander.MoveGroupCommander(group_name)
-        move_group.set_joint_value_target(listify(joint_config))
+        move_group.set_joint_value_target(list(joint_config))
         if execute:
             return move_group.go(wait=blocking)
         else:

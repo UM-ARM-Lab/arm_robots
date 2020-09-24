@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>jacobian_follower</name>
+  <version>0.0.0</version>
+  <description>Files for shim between link_bot execution code and Victor or Val</description>
+  <maintainer email="pmitrano@umich.edu">Peter Mitrano</maintainer>
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>arc_utilities</depend>
+  <depend>moveit_ros_planning</depend>
+  <depend>arm_robots_msgs</depend>
+  <depend>roscpp</depend>
+  <depend>pyrosmsg</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_msgs</depend>
+  <depend>victor_hardware_interface</depend>
+  <depend>moveit_visual_tools</depend>
+  <depend>pybind11_catkin</depend>
+</package>
