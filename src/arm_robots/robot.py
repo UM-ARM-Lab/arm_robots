@@ -227,7 +227,7 @@ class ARMRobot:
         gripper_points = [waypoint]
 
         group_name = group_name
-        speed = 0.01
+        speed = 0.2
         tool_names = [ee_link_name]
         grippers = [gripper_points]
         robot_trajectory_msg = self.jacobian_follower.plan(group_name, tool_names, grippers, speed)
