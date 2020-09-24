@@ -1672,25 +1672,25 @@ trajectory:
 path_tolerance:
   -
     name: victor_left_arm_joint_1
-    position: 0.01
+    position: 0.1
   -
     name: victor_left_arm_joint_2
-    position: 0.01
+    position: 0.1
   -
     name: victor_left_arm_joint_3
-    position: 0.01
+    position: 0.1
   -
     name: victor_left_arm_joint_4
-    position: 0.01
+    position: 0.1
   -
     name: victor_left_arm_joint_5
-    position: 0.01
+    position: 0.1
   -
     name: victor_left_arm_joint_6
-    position: 0.01
+    position: 0.1
   -
     name: victor_left_arm_joint_7
-    position: 0.01
+    position: 0.1
 goal_tolerance: []
 goal_time_tolerance: 
   secs: 0

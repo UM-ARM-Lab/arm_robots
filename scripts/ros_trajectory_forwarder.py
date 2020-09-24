@@ -1,24 +1,15 @@
 #! /usr/bin/env python
-from typing import List
-
 import numpy as np
 
 import actionlib
 import rospy
 from arc_utilities.ros_helpers import Listener
+from arm_robots.robot import interpolate_joint_trajectory_points, waypoint_reached
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, FollowJointTrajectoryFeedback, \
     FollowJointTrajectoryResult
 from trajectory_msgs.msg import JointTrajectoryPoint
 from victor_hardware_interface.victor_utils import list_to_jvq
 from victor_hardware_interface_msgs.msg import MotionCommand, MotionStatus, ControlMode
-
-
-def waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint, tolerance: List[float]):
-    actual = np.array(actual.positions)
-    desired = np.array(desired.positions)
-    tolerance = np.array(tolerance)
-    return np.all((actual - desired) < tolerance)
-
 
 joint_map = {
     'victor_left_arm_joint_1': 'joint_1',
@@ -53,6 +44,7 @@ class TrajectoryForwarder(object):
     def execute_cb(self, traj_msg: FollowJointTrajectoryGoal):
         trajectory_point_idx = 0
 
+        # construct a list of the tolerances in order of the joint names
         tolerance = []
         for name in traj_msg.trajectory.joint_names:
             tolerance_position = 0.01
@@ -61,10 +53,12 @@ class TrajectoryForwarder(object):
                     tolerance_position = tolerance_for_name.position
                     break
             tolerance.append(tolerance_position)
-        print(tolerance)
+
+        # Interpolate the trajectory to a fine resolution
+        interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.001)
 
         while True:
-            desired_point = traj_msg.trajectory.points[trajectory_point_idx]
+            desired_point = interpolated_points[trajectory_point_idx]
 
             # command waypoint
             left_arm_command = MotionCommand()
@@ -74,12 +68,14 @@ class TrajectoryForwarder(object):
             self.left_arm_motion_command_pub.publish(left_arm_command)
 
             # get feedback
-            actual_point = self.get_actual_point(traj_msg)
+            actual_point = self.get_actual_trajectory_point(traj_msg)
 
-            # check if we're close enough to advance
+            # TODO: set the control mode speed so that we move the expected distance at the expected speed?
+
+            # If we're close enough, advance
             if waypoint_reached(desired_point, actual_point, tolerance):
                 trajectory_point_idx += 1
-                if trajectory_point_idx == len(traj_msg.trajectory.points):
+                if trajectory_point_idx == len(interpolated_points):
                     break
 
             feedback = FollowJointTrajectoryFeedback()
@@ -93,9 +89,9 @@ class TrajectoryForwarder(object):
         success_result.error_code = actionlib.GoalStatus.SUCCEEDED
         self._as.set_succeeded(success_result)
 
-    def get_actual_point(self, traj_msg):
-        left_status = self.left_arm_motion_command_listener.get()
-        right_status = self.right_arm_motion_command_listener.get()
+    def get_actual_trajectory_point(self, traj_msg):
+        left_status = self.left_arm_motion_command_listener.get(block_until_data=True)
+        right_status = self.right_arm_motion_command_listener.get(block_until_data=True)
         # This method of converting status messages to a list ensure the order matches in the trajectory
         current_joint_positions = []
         for name in traj_msg.trajectory.joint_names:
@@ -136,6 +132,7 @@ class TrajectoryForwarder(object):
 
 
 def main():
+    np.set_printoptions(linewidth=200, suppress=True, precision=4)
     rospy.init_node('victor_ros_trajectory_forwarder')
 
     fwd = TrajectoryForwarder()

@@ -1,13 +1,24 @@
 #! /usr/bin/env python
 import pathlib
+import unittest
 
 import rospkg
 import yaml
 
 import actionlib
 import rospy
+from arm_robots.robot import interpolate_joint_trajectory_points
 from control_msgs.msg import FollowJointTrajectoryGoal, FollowJointTrajectoryAction
 from genpy.message import fill_message_args
+
+
+class TestRosTrajectoryForwarder(unittest.TestCase):
+
+    def test_interpolate_joint_trajectory_points(self):
+        interpolated_points = interpolate_joint_trajectory_points()
+        expected_points = [
+        ]
+        self.assertAlmostEqual(interpolated_points, expected_points)
 
 
 def main():
@@ -18,7 +29,7 @@ def main():
 
     rospack = rospkg.RosPack()
     arm_robots_path = pathlib.Path(rospack.get_path('arm_robots'))
-    yaml_filename = arm_robots_path / "src/arm_robots/tests/m_trajectory.yaml"
+    yaml_filename = arm_robots_path / "src/arm_robots/tests/test_trajectory1.yaml"
     with yaml_filename.open('r') as f:
         msg_data = yaml.safe_load(f)
 

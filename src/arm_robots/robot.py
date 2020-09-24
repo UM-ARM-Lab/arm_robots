@@ -1,20 +1,17 @@
 #! /usr/bin/env python
+from typing import List
 from typing import Optional
 
-import moveit_commander
 import numpy as np
 import pyjacobian_follower
-import pyrosmsg
+import ros_numpy
+from moonshine.moonshine_utils import listify
 
 import actionlib
-import ros_numpy
+import moveit_commander
 import rospy
-from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, JointTolerance, \
-    FollowJointTrajectoryFeedback
+from control_msgs.msg import FollowJointTrajectoryFeedback
 from geometry_msgs.msg import Point
-from moonshine.moonshine_utils import listify
-from moveit_msgs.msg import RobotTrajectory
-from trajectory_msgs.msg import JointTrajectoryPoint
 
 
 def make_joint_tolerance(pos, name):
@@ -52,14 +49,55 @@ right_gripper_joint_names = [
     "victor_right_gripper_fingerC_knuckle",
 ]
 
+from arc_utilities.algorithms import consecutive_pairs
+from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, JointTolerance
+from trajectory_msgs.msg import JointTrajectoryPoint
+
+
+def waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint, tolerance: List[float]):
+    actual = np.array(actual.positions)
+    desired = np.array(desired.positions)
+    tolerance = np.array(tolerance)
+    return np.all((actual - desired) < tolerance)
+
+
+def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_step_size: float):
+    # TODO: support arbitrarily weighted norms, probably on a fixed-per-robot basis. So this could become a method
+    # of the victor/val class, which has that weight as a class field
+    if len(points) == 1:
+        raise ValueError("cannot interpolate a single point")
+    elif len(points) == 2:
+        p1 = np.array(points[0].positions)
+        p2 = np.array(points[1].positions)
+        t0 = points[0].time_from_start.to_sec()
+        t1 = points[1].time_from_start.to_sec()
+        total_distance = np.linalg.norm(p1 - p2)
+        n_steps = int(np.ceil(total_distance / max_step_size))
+        interpolated_points_np = np.linspace(p1, p2, n_steps)
+        interpolated_times = np.linspace(t0, t1, n_steps)
+        interpolated_points = []
+        for p_t, t in zip(interpolated_points_np, interpolated_times):
+            p_msg = JointTrajectoryPoint()
+            p_msg.positions = p_t
+            p_msg.time_from_start = rospy.Duration(t)
+            interpolated_points.append(p_msg)
+        return interpolated_points
+    else:
+        interpolated_points = []
+        for p1, p2 in consecutive_pairs(points):
+            interpolated_points.extend(interpolate_joint_trajectory_points([p1, p2], max_step_size))
+        return interpolated_points
+
 
 class ARMRobot:
     def __init__(self, execute_by_default: bool = False, wait_for_action_servers=True):
         self.execute_by_default = execute_by_default
         self.robot = moveit_commander.RobotCommander()
-        self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.002, minimize_rotation=True)
-        self.right_arm_client = actionlib.SimpleActionClient('/victor/right_arm_trajectory_controller/follow_joint_trajectory',
-                                                             FollowJointTrajectoryAction)
+        self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.002,
+                                                                      minimize_rotation=True)
+        self.right_arm_client = actionlib.SimpleActionClient(
+            '/victor/right_arm_trajectory_controller/follow_joint_trajectory',
+            FollowJointTrajectoryAction)
         self.right_hand_client = actionlib.SimpleActionClient('/victor/right_hand_controller/follow_joint_trajectory',
                                                               FollowJointTrajectoryAction)
         if wait_for_action_servers:
