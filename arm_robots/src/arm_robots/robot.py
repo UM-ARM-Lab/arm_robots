@@ -9,8 +9,34 @@ import ros_numpy
 import actionlib
 import moveit_commander
 import rospy
+from arc_utilities.algorithms import consecutive_pairs
+from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, JointTolerance
 from control_msgs.msg import FollowJointTrajectoryFeedback
 from geometry_msgs.msg import Point
+from trajectory_msgs.msg import JointTrajectoryPoint
+
+# These may be different because by making path tolerance larger,
+# you might get smoother execution but still keep goal precision
+from victor_hardware_interface_msgs.msg import MotionStatus
+
+DEFAULT_PATH_TOLERANCE_POSITION = 0.01
+DEFAULT_GOAL_TOLERANCE_POSITION = 0.1
+
+
+def get_ordered_tolerance_list(joint_names, tolerance: List[JointTolerance], is_goal: bool = False):
+    tolerance_list = []
+    for name in joint_names:
+        default_tolerance_position = 0.01 if is_goal else 0.1
+        tolerance_position = None
+        for tolerance_for_name in tolerance:
+            if tolerance_for_name.name == name:
+                tolerance_position = tolerance_for_name.position
+                break
+        if tolerance_position is None:
+            tolerance_position = default_tolerance_position
+            rospy.logwarn_throttle(1, f"using default path tolerance {default_tolerance_position}")
+        tolerance_list.append(tolerance_position)
+    return tolerance_list
 
 
 def make_joint_tolerance(pos, name):
@@ -47,10 +73,6 @@ right_gripper_joint_names = [
     "victor_right_gripper_fingerC_joint_4",
     "victor_right_gripper_fingerC_knuckle",
 ]
-
-from arc_utilities.algorithms import consecutive_pairs
-from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, JointTolerance
-from trajectory_msgs.msg import JointTrajectoryPoint
 
 
 def waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint, tolerance: List[float]):
@@ -91,7 +113,7 @@ def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_
 class ARMRobot:
     def __init__(self, execute_by_default: bool = False, wait_for_action_servers=True):
         self.execute_by_default = execute_by_default
-        self.robot = moveit_commander.RobotCommander()
+        self.robot_commander = moveit_commander.RobotCommander()
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.002,
                                                                       minimize_rotation=True)
         self.right_arm_client = actionlib.SimpleActionClient(
@@ -309,3 +331,49 @@ class ARMRobot:
 
     def object_grasped(self, gripper):
         raise NotImplementedError()
+
+    def get_joint_positions(self,
+                            joint_names: List[str],
+                            left_status: MotionStatus,
+                            right_status: MotionStatus):
+        # This method of converting status messages to a list ensure the order matches in the trajectory
+        current_joint_positions = []
+        for name in joint_names:
+            pos = self.get_joint_position_from_status_messages(left_status, right_status, name)
+            current_joint_positions.append(pos)
+        actual_point = JointTrajectoryPoint()
+        actual_point.positions = current_joint_positions
+        return actual_point
+
+    def get_joint_position_from_status_messages(self, left_status: MotionStatus, right_status: MotionStatus, name: str):
+        if name == 'victor_left_arm_joint_1':
+            pos = left_status.measured_joint_position.joint_1
+        elif name == 'victor_left_arm_joint_2':
+            pos = left_status.measured_joint_position.joint_2
+        elif name == 'victor_left_arm_joint_3':
+            pos = left_status.measured_joint_position.joint_3
+        elif name == 'victor_left_arm_joint_4':
+            pos = left_status.measured_joint_position.joint_4
+        elif name == 'victor_left_arm_joint_5':
+            pos = left_status.measured_joint_position.joint_5
+        elif name == 'victor_left_arm_joint_6':
+            pos = left_status.measured_joint_position.joint_6
+        elif name == 'victor_left_arm_joint_7':
+            pos = left_status.measured_joint_position.joint_7
+        elif name == 'victor_right_arm_joint_1':
+            pos = right_status.measured_joint_position.joint_1
+        elif name == 'victor_right_arm_joint_2':
+            pos = right_status.measured_joint_position.joint_2
+        elif name == 'victor_right_arm_joint_3':
+            pos = right_status.measured_joint_position.joint_3
+        elif name == 'victor_right_arm_joint_4':
+            pos = right_status.measured_joint_position.joint_4
+        elif name == 'victor_right_arm_joint_5':
+            pos = right_status.measured_joint_position.joint_5
+        elif name == 'victor_right_arm_joint_6':
+            pos = right_status.measured_joint_position.joint_6
+        elif name == 'victor_right_arm_joint_7':
+            pos = right_status.measured_joint_position.joint_7
+        else:
+            raise NotImplementedError()
+        return pos

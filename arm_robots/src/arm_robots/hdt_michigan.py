@@ -5,9 +5,10 @@ from arm_robots.robot import ARMRobot
 
 
 class Val(ARMRobot):
-    def __init__(self):
-        super().__init__()
-        rospy.loginfo("Val ready!")
+
+    def __init__(self, execute_by_default: bool = False):
+        super().__init__(execute_by_default=execute_by_default)
+        rospy.loginfo("Val ready !")
 
 
 if __name__ == "__main__":
