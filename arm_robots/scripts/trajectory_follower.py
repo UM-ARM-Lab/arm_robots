@@ -79,7 +79,7 @@ def delegate_positions_to_arms(positions, joint_names: List[str]):
 # TODO: make this work with val too
 class TrajectoryForwarder(object):
     def __init__(self, arm_robot: ARMRobot):
-        self._action_name = "follow_joint_trajectory"
+        self._action_name = arm_robot.robot_namespace + "/both_arms_trajectory_controller/follow_joint_trajectory"
         self.action_server = actionlib.SimpleActionServer(self._action_name, FollowJointTrajectoryAction,
                                                           execute_cb=self.execute_cb,
                                                           auto_start=False)

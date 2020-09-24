@@ -14,7 +14,6 @@ from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryG
 from control_msgs.msg import FollowJointTrajectoryFeedback
 from geometry_msgs.msg import Point
 from trajectory_msgs.msg import JointTrajectoryPoint
-
 # These may be different because by making path tolerance larger,
 # you might get smoother execution but still keep goal precision
 from victor_hardware_interface_msgs.msg import MotionStatus
@@ -111,16 +110,19 @@ def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_
 
 
 class ARMRobot:
-    def __init__(self, execute_by_default: bool = False, wait_for_action_servers=True):
+    def __init__(self, execute_by_default: bool = False, wait_for_action_servers=False):
+        self.robot_namespace = ''
         self.execute_by_default = execute_by_default
         self.robot_commander = moveit_commander.RobotCommander()
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.002,
                                                                       minimize_rotation=True)
+        # todo a "use smart combine path" thing for handling empty string
         self.right_arm_client = actionlib.SimpleActionClient(
-            '/victor/right_arm_trajectory_controller/follow_joint_trajectory',
+            self.robot_namespace + '/right_arm_trajectory_controller/follow_joint_trajectory',
             FollowJointTrajectoryAction)
-        self.right_hand_client = actionlib.SimpleActionClient('/victor/right_hand_controller/follow_joint_trajectory',
-                                                              FollowJointTrajectoryAction)
+        self.right_hand_client = actionlib.SimpleActionClient(
+            self.robot_namespace + '/right_hand_controller/follow_joint_trajectory',
+            FollowJointTrajectoryAction)
         if wait_for_action_servers:
             self.right_hand_client.wait_for_server()
 
@@ -341,9 +343,7 @@ class ARMRobot:
         for name in joint_names:
             pos = self.get_joint_position_from_status_messages(left_status, right_status, name)
             current_joint_positions.append(pos)
-        actual_point = JointTrajectoryPoint()
-        actual_point.positions = current_joint_positions
-        return actual_point
+        return current_joint_positions
 
     def get_joint_position_from_status_messages(self, left_status: MotionStatus, right_status: MotionStatus, name: str):
         if name == 'victor_left_arm_joint_1':
