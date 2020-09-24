@@ -124,8 +124,8 @@ class TrajectoryForwarder(object):
             tolerance.append(tolerance_position)
 
         # Interpolate the trajectory to a fine resolution
-        # interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.001)
-        interpolated_points = traj_msg.trajectory.points
+        interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.001)
+        # interpolated_points = traj_msg.trajectory.points
 
         trajectory_point_idx = 0
         while True:
