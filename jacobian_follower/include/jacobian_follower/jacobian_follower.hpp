@@ -19,7 +19,6 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <trajectory_msgs/JointTrajectory.h>
 
-
 using Matrix6Xd = Eigen::Matrix<double, 6, Eigen::Dynamic>;
 
 class JacobianFollower

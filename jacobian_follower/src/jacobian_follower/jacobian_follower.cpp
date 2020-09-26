@@ -1,17 +1,22 @@
+#include <boost/range/combine.hpp>
+
 #include <arc_utilities/arc_helpers.hpp>
 #include <arc_utilities/eigen_helpers.hpp>
+#include <arc_utilities/eigen_ros_conversions.hpp>
+#include <arc_utilities/eigen_transforms.hpp>
 #include <arc_utilities/enumerate.h>
+#include <arc_utilities/moveit_pose_type.hpp>
+#include <arc_utilities/ostream_operators.hpp>
 #include <arc_utilities/ros_helpers.hpp>
 #include <arc_utilities/trajectory_utils.h>
-#include <boost/range/combine.hpp>
+
 #include <moveit/kinematic_constraints/utils.h>
 #include <moveit_msgs/DisplayTrajectory.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
+
 #include <std_msgs/String.h>
+
 #include <jacobian_follower/jacobian_follower.hpp>
-#include <arc_utilities/eigen_ros_conversions.hpp>
-#include <arc_utilities/eigen_transforms.hpp>
-#include <arc_utilities/ostream_operators.hpp>
 
 namespace ps = planning_scene;
 namespace psm = planning_scene_monitor;

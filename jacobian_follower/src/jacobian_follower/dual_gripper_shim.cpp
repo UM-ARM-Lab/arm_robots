@@ -1,8 +1,9 @@
 #include <std_msgs/String.h>
+
 #include <arc_utilities/ros_helpers.hpp>
+#include <arc_utilities/eigen_ros_conversions.hpp>
 
 #include <jacobian_follower/dual_gripper_shim.hpp>
-#include <arc_utilities/eigen_ros_conversions.hpp>
 
 
 
