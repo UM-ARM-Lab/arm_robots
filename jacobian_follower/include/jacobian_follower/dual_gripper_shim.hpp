@@ -3,8 +3,9 @@
 #include <memory>
 
 #include <actionlib/client/simple_action_client.h>
-#include <control_msgs/FollowJointTrajectoryAction.h>
+#include <arc_utilities/listener.hpp>
 #include <arm_robots_msgs/GrippersTrajectory.h>
+#include <control_msgs/FollowJointTrajectoryAction.h>
 #include <moveit_msgs/RobotTrajectory.h>
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
@@ -12,7 +13,6 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 
-#include <jacobian_follower/listener.hpp>
 #include <jacobian_follower/jacobian_follower.hpp>
 
 class DualGripperShim

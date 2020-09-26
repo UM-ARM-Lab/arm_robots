@@ -1,0 +1,26 @@
+<launch>
+    <arg name="use_sim_time"    default="false"/>
+    <arg name="use_victor"      default="false"/>
+    <arg name="use_val"         default="false"/>
+
+    <!--  publish val or victo root as "robto_root" -->
+    <group if="$(arg use_victor)">
+        <node pkg="arm_robots" type="trajectory_follower.py" name="victor_trajectory_follower" args="_robot:=victor"/>
+        <group ns="static_transform_publishers">
+            <node pkg="tf2_ros" type="static_transform_publisher" name="active_robot_root_broadcaster" required="true"
+                  args="0 0 0 0 0 0 victor_root robot_root">
+                <param name="use_sim_time" value="$(arg use_sim_time)"/>
+            </node>
+        </group>
+    </group>
+
+    <group if="$(arg use_val)">
+        <node pkg="arm_robots" type="trajectory_follower.py" name="victor_trajectory_follower" args="_robot:=val"/>
+        <group ns="static_transform_publishers">
+            <node pkg="tf2_ros" type="static_transform_publisher" name="active_robot_root_broadcaster" required="true"
+                  args="0 0 0 0 0 0 val_root robot_root">
+                <param name="use_sim_time" value="$(arg use_sim_time)"/>
+            </node>
+        </group>
+    </group>
+</launch>

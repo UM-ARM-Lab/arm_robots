@@ -97,21 +97,25 @@ class TrajectoryForwarder(object):
 
     def execute_cb(self, traj_msg: FollowJointTrajectoryGoal):
         # TODO: set the control mode speed so that we move the expected distance at the expected speed?
-        left_control_mode = self.left_arm_get_control_mode_srv(GetControlModeRequest())
-        right_control_mode = self.right_arm_get_control_mode_srv(GetControlModeRequest())
+        left_control_mode_res = self.left_arm_get_control_mode_srv(GetControlModeRequest())
+        right_control_mode_res = self.right_arm_get_control_mode_srv(GetControlModeRequest())
 
         set_left_control_mode = SetControlModeRequest()
-        if left_control_mode.has_active_control_mode:
-            set_left_control_mode.new_control_mode = left_control_mode.active_control_mode
+        if left_control_mode_res.has_active_control_mode:
+            left_arm_active_control_mode = left_control_mode_res.active_control_mode.control_mode
+            set_left_control_mode.new_control_mode = left_control_mode_res.active_control_mode
         else:
+            left_arm_active_control_mode = ControlMode.JOINT_POSITION
             rospy.logerr("Left arm has no active control mode. Refusing to set control mode.")
         set_left_control_mode.new_control_mode.joint_path_execution_params.joint_relative_velocity = 0.5
         set_left_control_mode.new_control_mode.joint_path_execution_params.joint_relative_acceleration = 0.5
 
         set_right_control_mode = SetControlModeRequest()
-        if right_control_mode.has_active_control_mode:
-            set_right_control_mode.new_control_mode = right_control_mode.active_control_mode
+        if right_control_mode_res.has_active_control_mode:
+            right_arm_active_control_mode = right_control_mode_res.active_control_mode.control_mode
+            set_right_control_mode.new_control_mode = right_control_mode_res.active_control_mode
         else:
+            right_arm_active_control_mode = ControlMode.JOINT_POSITION
             rospy.logerr("Left arm has no active control mode. Refusing to set control mode.")
 
         self.left_arm_set_control_mode_srv(set_left_control_mode)
@@ -124,6 +128,10 @@ class TrajectoryForwarder(object):
 
         # Interpolate the trajectory to a fine resolution
         # if you set max_step_size to be large and position tolerance to be small, then things will be jerky
+        if len(traj_msg.trajectory.points) == 0:
+            rospy.loginfo("Ignoring empty trajectory")
+            return
+
         interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.1)
 
         trajectory_point_idx = 0
@@ -148,7 +156,7 @@ class TrajectoryForwarder(object):
                 left_arm_command = MotionCommand()
                 left_arm_command.header.stamp = now
                 left_arm_command.joint_position = list_to_jvq(left_arm_positions)
-                left_arm_command.control_mode.mode = ControlMode.JOINT_POSITION
+                left_arm_command.control_mode = left_arm_active_control_mode
                 self.left_arm_motion_command_pub.publish(left_arm_command)
                 waypoint_joint_state.name.extend(left_arm_joints)
                 waypoint_joint_state.position.extend(left_arm_positions)
@@ -157,7 +165,7 @@ class TrajectoryForwarder(object):
                 right_arm_command = MotionCommand()
                 right_arm_command.header.stamp = now
                 right_arm_command.joint_position = list_to_jvq(right_arm_positions)
-                right_arm_command.control_mode.mode = ControlMode.JOINT_POSITION
+                right_arm_command.control_mode = right_arm_active_control_mode
                 self.right_arm_motion_command_pub.publish(right_arm_command)
                 waypoint_joint_state.name.extend(right_arm_joints)
                 waypoint_joint_state.position.extend(right_arm_positions)

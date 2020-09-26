@@ -2,11 +2,11 @@
 #include <arc_utilities/ros_helpers.hpp>
 
 #include <jacobian_follower/dual_gripper_shim.hpp>
-#include <jacobian_follower/eigen_ros_conversions.hpp>
+#include <arc_utilities/eigen_ros_conversions.hpp>
 
-namespace pm = arm_robots_msgs;
 
-std::vector<std::vector<Eigen::Vector3d>> convert(std::vector<pm::Points> const &grippers)
+
+std::vector<std::vector<Eigen::Vector3d>> convert(std::vector<arm_robots_msgs::Points> const &grippers)
 {
   std::vector<std::vector<Eigen::Vector3d>> stl_grippers;
   for (auto const& gripper : grippers)
@@ -29,10 +29,11 @@ DualGripperShim::DualGripperShim(ros::NodeHandle const &nh, ros::NodeHandle cons
       talker_(nh_.advertise<std_msgs::String>("polly", 10, false)),
       traj_goal_time_tolerance_(ROSHelpers::GetParam(ph_, "traj_goal_time_tolerance", 0.05))
 {
-  auto const traj_server_name = ROSHelpers::GetParam<std::string>(nh, "shim_traj_server_name",
-                                                                  "both_arms_controller/follow_joint_trajectory");
-  ROS_INFO_STREAM("waiting for trajectory client " << traj_server_name);
-  trajectory_client_ = std::make_unique<TrajectoryClient>(traj_server_name, true);
+  auto const traj_name = ROSHelpers::GetParam<std::string>(ph,
+                                                          "traj_name",
+                                                          "both_arms_controller/follow_joint_trajectory");
+  ROS_INFO_STREAM("waiting for trajectory client " << traj_name);
+  trajectory_client_ = std::make_unique<TrajectoryClient>(traj_name, true);
   trajectory_client_->waitForServer();
   ROS_INFO_STREAM("trajectory client connected");
   auto const translation_step_size = ROSHelpers::GetParam<double>(ph_, "translation_step_size", 0.002);
@@ -40,8 +41,8 @@ DualGripperShim::DualGripperShim(ros::NodeHandle const &nh, ros::NodeHandle cons
   planner_ = std::make_shared<JacobianFollower>(translation_step_size, minimize_rotation);
 }
 
-bool DualGripperShim::executeDualGripperTrajectory(pm::GrippersTrajectory::Request &req,
-                                                   pm::GrippersTrajectory::Response &res)
+bool DualGripperShim::executeDualGripperTrajectory(arm_robots_msgs::GrippersTrajectory::Request &req,
+                                                   arm_robots_msgs::GrippersTrajectory::Response &res)
 {
   // Validity checks
   auto const grippers = convert(req.grippers);
@@ -71,9 +72,13 @@ bool DualGripperShim::executeDualGripperTrajectory(pm::GrippersTrajectory::Reque
 
 void DualGripperShim::followJointTrajectory(trajectory_msgs::JointTrajectory const &traj)
 {
-  std_msgs::String executing_action_str;
-  executing_action_str.data = "Moving";
-  talker_.publish(executing_action_str);
+  // TODO: param
+  if (talk_)
+  {
+      std_msgs::String executing_action_str;
+      executing_action_str.data = "Moving";
+      talker_.publish(executing_action_str);
+  }
 
   control_msgs::FollowJointTrajectoryGoal goal;
   goal.trajectory = traj;

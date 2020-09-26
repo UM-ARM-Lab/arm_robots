@@ -85,7 +85,7 @@ def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_
     # TODO: support arbitrarily weighted norms, probably on a fixed-per-robot basis. So this could become a method
     # of the victor/val class, which has that weight as a class field
     if len(points) == 1:
-        raise ValueError("cannot interpolate a single point")
+        return points
     elif len(points) == 2:
         p1 = np.array(points[0].positions)
         p2 = np.array(points[1].positions)
@@ -226,6 +226,20 @@ class ARMRobot:
         move_group.set_end_effector_link(ee_link_name)
         left_end_effector_pose_stamped = move_group.get_current_pose()
         return left_end_effector_pose_stamped.pose
+
+    def set_left_gripper(self, positions, blocking=True):
+        point = JointTrajectoryPoint()
+        point.time_from_start.secs = 1
+        point.positions = positions
+        points = [point]
+        goal = self.make_follow_joint_trajectory_goal(left_gripper_joint_names, points)
+
+        # TODO: debug code -5, goal_tolerance not met
+        self.left_hand_client.send_goal(goal)
+        if blocking:
+            self.left_hand_client.wait_for_result()
+            result = self.left_hand_client.get_result()
+            print(result.error_code, result.error_string)
 
     def set_right_gripper(self, positions, blocking=True):
         point = JointTrajectoryPoint()

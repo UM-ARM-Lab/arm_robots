@@ -9,9 +9,9 @@
 #include <moveit_visual_tools/moveit_visual_tools.h>
 #include <std_msgs/String.h>
 #include <jacobian_follower/jacobian_follower.hpp>
-#include <jacobian_follower/eigen_ros_conversions.hpp>
-#include <jacobian_follower/eigen_transforms.hpp>
-#include <jacobian_follower/ostream_operators.hpp>
+#include <arc_utilities/eigen_ros_conversions.hpp>
+#include <arc_utilities/eigen_transforms.hpp>
+#include <arc_utilities/ostream_operators.hpp>
 
 namespace ps = planning_scene;
 namespace psm = planning_scene_monitor;
@@ -696,7 +696,7 @@ bool JacobianFollower::jacobianIK(
     collisionResult.clear();
   }
 
-  std::cerr << "Iteration limit reached\n";
+  ROS_ERROR("Iteration limit reached");
   return false;
 }
 

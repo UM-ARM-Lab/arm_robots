@@ -4,10 +4,12 @@
 #include <string>
 #include <vector>
 
+#include <arc_utilities/eigen_typedefs.hpp>
+#include <arc_utilities/moveit_pose_type.hpp>
+#include <arm_robots_msgs/Points.h>
 #include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
-#include <arm_robots_msgs/Points.h>
 #include <moveit/robot_state/robot_state.h>
 #include <moveit_msgs/DisplayRobotState.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
@@ -16,15 +18,15 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <trajectory_msgs/JointTrajectory.h>
-#include <arc_utilities/eigen_typedefs.hpp>
 
-#include <jacobian_follower//moveit_pose_type.hpp>
 
 using Matrix6Xd = Eigen::Matrix<double, 6, Eigen::Dynamic>;
 
 class JacobianFollower
 {
  public:
+  bool talk_{false};
+
   enum
   {
     NeedsToAlign = ((sizeof(Pose) % 16) == 0)
