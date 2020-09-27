@@ -1,9 +1,17 @@
 #! /usr/bin/env python
+from enum import Enum
 
 import rospy
 from arm_robots.robot import ARMRobot
+from victor_hardware_interface.victor_utils import get_joint_impedance_params, get_joint_position_params
 from victor_hardware_interface_msgs.msg import ControlModeParameters, ControlMode
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode
+
+
+class Stiffness(Enum):
+    STIFF = 1
+    MEDIUM = 3
+    SOFT = 2
 
 
 class Victor(ARMRobot):
@@ -21,19 +29,35 @@ class Victor(ARMRobot):
         self.set_left_arm_control_mode(control_mode)
         self.set_right_arm_control_mode(control_mode)
 
-    def set_right_arm_control_mode(self, control_mode: ControlMode):
+    def set_right_arm_control_mode(self, control_mode: ControlMode, stiffness=Stiffness.MEDIUM, vel=0.1, accel=0.1):
         new_control_mode = ControlModeParameters()
+
+        if control_mode == ControlMode.JOINT_IMPEDANCE:
+            new_control_mode = get_joint_position_params(vel, accel)
+        elif control_mode == ControlMode.JOINT_IMPEDANCE:
+            new_control_mode = get_joint_impedance_params(stiffness, vel, accel)
+
+        # only change the contol mode itself
         new_control_mode.control_mode.mode = control_mode
         res = self.right_set_control_mode_srv(new_control_mode)
         if not res.success:
             rospy.logerr("Failed to switch right arm to control mode: " + str(control_mode))
+            rospy.logerr(res.message)
 
-    def set_left_arm_control_mode(self, control_mode: ControlMode):
+    def set_left_arm_control_mode(self, control_mode: ControlMode, stiffness=Stiffness.MEDIUM, vel=0.1, accel=0.1):
         new_control_mode = ControlModeParameters()
+
+        if control_mode == ControlMode.JOINT_IMPEDANCE:
+            new_control_mode = get_joint_position_params(vel, accel)
+        elif control_mode == ControlMode.JOINT_IMPEDANCE:
+            new_control_mode = get_joint_impedance_params(stiffness, vel, accel)
+
         new_control_mode.control_mode.mode = control_mode
         res = self.left_set_control_mode_srv(new_control_mode)
+
         if not res.success:
             rospy.logerr("Failed to switch left arm to control mode: " + str(control_mode))
+            rospy.logerr(res.message)
 
 
 if __name__ == "__main__":

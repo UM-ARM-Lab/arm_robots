@@ -18,6 +18,7 @@
 class DualGripperShim
 {
  public:
+  bool talk_{false};
   ros::NodeHandle nh_;
   ros::NodeHandle ph_;
   std::shared_ptr<JacobianFollower> planner_;

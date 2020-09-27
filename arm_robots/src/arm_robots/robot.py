@@ -142,11 +142,6 @@ class ARMRobot:
     def move_to_home(self, blocking=True):
         raise NotImplementedError()
 
-    def plan_to_configuration(self, target_config, execute=False, steplength=0.01, blocking=True, **kwargs):
-        if execute is None:
-            execute = self.execute_by_default
-        raise NotImplementedError()
-
     def plan_to_configuration_both_arms(self, right_config, left_config, execute=False, steplength=0.01, blocking=True):
         if execute is None:
             execute = self.execute_by_default

@@ -24,8 +24,6 @@ using Matrix6Xd = Eigen::Matrix<double, 6, Eigen::Dynamic>;
 class JacobianFollower
 {
  public:
-  bool talk_{false};
-
   enum
   {
     NeedsToAlign = ((sizeof(Pose) % 16) == 0)

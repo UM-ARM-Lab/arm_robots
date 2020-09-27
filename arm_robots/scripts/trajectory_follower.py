@@ -107,8 +107,8 @@ class TrajectoryForwarder(object):
         else:
             left_arm_active_control_mode = ControlMode.JOINT_POSITION
             rospy.logerr("Left arm has no active control mode. Refusing to set control mode.")
-        set_left_control_mode.new_control_mode.joint_path_execution_params.joint_relative_velocity = 0.5
-        set_left_control_mode.new_control_mode.joint_path_execution_params.joint_relative_acceleration = 0.5
+        set_left_control_mode.new_control_mode.joint_path_execution_params.joint_relative_velocity = 0.1
+        set_left_control_mode.new_control_mode.joint_path_execution_params.joint_relative_acceleration = 0.1
 
         set_right_control_mode = SetControlModeRequest()
         if right_control_mode_res.has_active_control_mode:
