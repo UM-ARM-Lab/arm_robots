@@ -1,17 +1,15 @@
 #! /usr/bin/env python
-from typing import List
+from typing import List, Union, Callable
 from typing import Optional
 
 import numpy as np
 import pyjacobian_follower
-import ros_numpy
 
-import actionlib
 import moveit_commander
+import ros_numpy
 import rospy
 from arc_utilities.algorithms import consecutive_pairs
-from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, JointTolerance
-from control_msgs.msg import FollowJointTrajectoryFeedback
+from control_msgs.msg import FollowJointTrajectoryGoal, JointTolerance
 from geometry_msgs.msg import Point
 from trajectory_msgs.msg import JointTrajectoryPoint
 # These may be different because by making path tolerance larger,
@@ -110,48 +108,12 @@ def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_
 
 
 class ARMRobot:
-    def __init__(self, execute_by_default: bool = False, wait_for_action_servers=False):
+    def __init__(self, execute_by_default: bool = False):
         self.robot_namespace = ''
         self.execute_by_default = execute_by_default
         self.robot_commander = moveit_commander.RobotCommander()
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.002,
                                                                       minimize_rotation=True)
-        # todo a "use smart combine path" thing for handling empty string
-        self.right_arm_client = actionlib.SimpleActionClient(
-            self.robot_namespace + '/right_arm_trajectory_controller/follow_joint_trajectory',
-            FollowJointTrajectoryAction)
-        self.right_hand_client = actionlib.SimpleActionClient(
-            self.robot_namespace + '/right_hand_controller/follow_joint_trajectory',
-            FollowJointTrajectoryAction)
-        if wait_for_action_servers:
-            self.right_hand_client.wait_for_server()
-
-        self.right_hand_client.feedback_cb = self.right_hand_follow_joint_trajectory_feedback
-
-        rospy.loginfo("MotionEnabledRobot ready")
-
-    def right_hand_follow_joint_trajectory_feedback(feedback: FollowJointTrajectoryFeedback):
-        print(feedback.error)
-
-    def traj_from_path_msg(self, path_msg):
-        raise NotImplementedError()
-
-    def execute_trajectory(self, trajectory, blocking=True):
-        raise NotImplementedError()
-
-    def move_to_home(self, blocking=True):
-        raise NotImplementedError()
-
-    def plan_to_configuration_both_arms(self, right_config, left_config, execute=False, steplength=0.01, blocking=True):
-        if execute is None:
-            execute = self.execute_by_default
-        raise NotImplementedError()
-
-    def plan_to_configuration_whole_body(self, right_config, left_config, other_config=None, execute=False,
-                                         steplength=0.01, blocking=True):
-        if execute is None:
-            execute = self.execute_by_default
-        raise NotImplementedError()
 
     def plan_to_relative_pose(self, relative_pose, execute=False, **kwargs):
         if execute is None:
@@ -172,7 +134,7 @@ class ARMRobot:
     def plan_to_position_cartesian(self,
                                    group_name: str,
                                    ee_link_name: str,
-                                   target_position,
+                                   target_position: Union[Point, List, np.array],
                                    execute=None,
                                    blocking=True):
         if execute is None:
@@ -182,11 +144,14 @@ class ARMRobot:
 
         # by starting with the current pose, we will be preserving the orientation
         waypoint_pose = move_group.get_current_pose().pose
-        waypoint_pose.position.x = 0.8
-        waypoint_pose.position.y = -0.2
-        waypoint_pose.position.z = 0.65
+        if isinstance(target_position, Point):
+            waypoint_pose.position = target_position
+        else:
+            waypoint_pose.position.x = target_position[0]
+            waypoint_pose.position.y = target_position[1]
+            waypoint_pose.position.z = target_position[2]
         waypoints = [waypoint_pose]
-        plan, fraction = move_group.compute_cartesian_path(waypoints=waypoints, eef_step=0.002, jump_threshold=1.0)
+        plan, fraction = move_group.compute_cartesian_path(waypoints=waypoints, eef_step=0.02, jump_threshold=0.0)
         if fraction != 1.0:
             raise RuntimeError("Failed to find a cartesian path that is complete!")
 
@@ -196,6 +161,7 @@ class ARMRobot:
             return plan
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose, execute=None, blocking=True):
+        self.check_inputs(group_name, ee_link_name)
         if execute is None:
             execute = self.execute_by_default
         move_group = moveit_commander.MoveGroupCommander(group_name)
@@ -208,47 +174,15 @@ class ARMRobot:
         else:
             return move_group.plan()
 
-    def plan_to_pose_both_arms(self, right_pose, left_pose, execute=None, blocking=True, **kwargs):
-        if execute is None:
-            execute = self.execute_by_default
-        raise NotImplementedError()
-
     def wait_gripper(self, gripper):
         raise NotImplementedError()
 
     def get_group_end_effector_pose(self, group_name: str, ee_link_name: str):
+        self.check_inputs(group_name, ee_link_name)
         move_group = moveit_commander.MoveGroupCommander(group_name)
         move_group.set_end_effector_link(ee_link_name)
         left_end_effector_pose_stamped = move_group.get_current_pose()
         return left_end_effector_pose_stamped.pose
-
-    def set_left_gripper(self, positions, blocking=True):
-        point = JointTrajectoryPoint()
-        point.time_from_start.secs = 1
-        point.positions = positions
-        points = [point]
-        goal = self.make_follow_joint_trajectory_goal(left_gripper_joint_names, points)
-
-        # TODO: debug code -5, goal_tolerance not met
-        self.left_hand_client.send_goal(goal)
-        if blocking:
-            self.left_hand_client.wait_for_result()
-            result = self.left_hand_client.get_result()
-            print(result.error_code, result.error_string)
-
-    def set_right_gripper(self, positions, blocking=True):
-        point = JointTrajectoryPoint()
-        point.time_from_start.secs = 1
-        point.positions = positions
-        points = [point]
-        goal = self.make_follow_joint_trajectory_goal(right_gripper_joint_names, points)
-
-        # TODO: debug code -5, goal_tolerance not met
-        self.right_hand_client.send_goal(goal)
-        if blocking:
-            self.right_hand_client.wait_for_result()
-            result = self.right_hand_client.get_result()
-            print(result.error_code, result.error_string)
 
     def make_follow_joint_trajectory_goal(self, joint_names, points):
         goal = FollowJointTrajectoryGoal()
@@ -261,11 +195,27 @@ class ARMRobot:
         goal.goal_time_tolerance = rospy.Duration(nsecs=500_000_000)
         return goal
 
-    def plan_to_joint_config(self, group_name: str, joint_config, execute: bool = None, blocking=True):
+    def plan_to_joint_config(self,
+                             group_name: str,
+                             joint_config,
+                             execute: bool = None,
+                             blocking=True,
+                             stop_condition: Optional[Callable] = None):
         if execute is None:
             execute = self.execute_by_default
         move_group = moveit_commander.MoveGroupCommander(group_name)
         move_group.set_joint_value_target(list(joint_config))
+        if stop_condition and execute:
+            _, plan, _, _ = move_group.plan()
+            # TODO: how could we know which controller/trajectory follower client to use? moveit should know this...
+            #  or we could just not use moveit execution at all. The major down side is then you can't use the RViz plugin to
+            #  move the robot.
+            goal = FollowJointTrajectoryGoal()
+            goal.trajectory = plan.joint_trajectory
+            self.client.send_goal(goal)
+            self.client.feedback_cb = lambda feedback: stop_condition(self.client, feedback)
+            self.client.wait_for_result()
+            return plan
         if execute:
             return move_group.go(wait=blocking)
         else:
@@ -386,3 +336,14 @@ class ARMRobot:
         else:
             raise NotImplementedError()
         return pos
+
+    def check_inputs(self, group_name: str, ee_link_name: str):
+        links = self.robot_commander.get_link_names()
+        if ee_link_name not in links:
+            rospy.logwarn_throttle(1, f"Link [{ee_link_name}] does not exist. Existing links are:")
+            rospy.logwarn_throttle(1, links)
+
+        groups = self.robot_commander.get_group_names()
+        if group_name not in groups:
+            rospy.logwarn_throttle(1, f"Group [{group_name}] does not exist. Existing groups are:")
+            rospy.logwarn_throttle(1, groups)

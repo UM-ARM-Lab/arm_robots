@@ -1,8 +1,10 @@
 #! /usr/bin/env python
 from enum import Enum
 
+import actionlib
 import rospy
 from arm_robots.robot import ARMRobot
+from control_msgs.msg import FollowJointTrajectoryAction
 from victor_hardware_interface.victor_utils import get_joint_impedance_params, get_joint_position_params
 from victor_hardware_interface_msgs.msg import ControlModeParameters, ControlMode
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode
@@ -24,6 +26,10 @@ class Victor(ARMRobot):
         self.right_set_control_mode_srv = rospy.ServiceProxy("/right_arm/set_control_mode_service", SetControlMode)
         self.left_get_control_mode_srv = rospy.ServiceProxy("/left_arm/get_control_mode_service", GetControlMode)
         self.right_get_control_mode_srv = rospy.ServiceProxy("/right_arm/get_control_mode_service", GetControlMode)
+
+        name = self.robot_namespace + '/right_arm_trajectory_controller/follow_joint_trajectory'
+        self.client = actionlib.SimpleActionClient(name, FollowJointTrajectoryAction)
+        self.client.wait_for_server()
 
     def set_control_mode(self, control_mode: ControlMode):
         self.set_left_arm_control_mode(control_mode)
