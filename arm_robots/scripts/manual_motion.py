@@ -15,6 +15,7 @@ import numpy as np
 
 import rospy
 from arc_utilities import ros_helpers as rh
+from arm_robots.victor import Victor
 from victor_hardware_interface import victor_utils as vu
 from victor_hardware_interface_msgs.msg import MotionCommand, MotionStatus, ControlMode, ControlModeParameters
 
@@ -112,36 +113,18 @@ def main():
     use_left_arm = rospy.get_param("~use_left_arm", True)
     use_right_arm = rospy.get_param("~use_right_arm", True)
 
+    victor = Victor()
+
     if use_left_arm:
         rospy.loginfo("initializing left arm ...")
-        l_cm = rh.Listener("left_arm/control_mode_status", ControlModeParameters)
-        cur_mode = l_cm.get(block_until_data=True)
-        control_mode_params = vu.get_joint_impedance_params(vu.Stiffness.MEDIUM)
-        current_joint_velocity = cur_mode.joint_path_execution_params.joint_relative_velocity
-        current_joint_acceleration = cur_mode.joint_path_execution_params.joint_relative_acceleration
-        control_mode_params.joint_path_execution_params.joint_relative_velocity = current_joint_velocity
-        control_mode_params.joint_path_execution_params.joint_relative_acceleration = current_joint_acceleration
-
-        result = vu.send_new_control_mode("left_arm", control_mode_params)
-        while not result.success:
-            result = vu.send_new_control_mode("left_arm", control_mode_params)
+        victor.set_left_arm_control_mode(ControlMode.JOINT_IMPEDANCE)
         rospy.loginfo("done")
     else:
         rospy.loginfo("not using left arm")
 
     if use_right_arm:
         rospy.loginfo("initializing right arm ...", )
-        r_cm = rh.Listener("right_arm/control_mode_status", ControlModeParameters)
-        cur_mode = r_cm.get(block_until_data=True)
-        control_mode_params = vu.get_joint_impedance_params(vu.Stiffness.MEDIUM)
-        current_joint_velocity = cur_mode.joint_path_execution_params.joint_relative_velocity
-        current_joint_acceleration = cur_mode.joint_path_execution_params.joint_relative_acceleration
-        control_mode_params.joint_path_execution_params.joint_relative_velocity = current_joint_velocity
-        control_mode_params.joint_path_execution_params.joint_relative_acceleration = current_joint_acceleration
-
-        result = vu.send_new_control_mode("right_arm", control_mode_params)
-        while not result.success:
-            result = vu.send_new_control_mode("right_arm", control_mode_params)
+        victor.set_right_arm_control_mode(ControlMode.JOINT_IMPEDANCE)
         rospy.loginfo("done")
     else:
         rospy.loginfo("not using right arm")

@@ -11,7 +11,8 @@ import moveit_commander
 import rospy
 from actionlib import SimpleActionServer
 from arc_utilities import ros_helpers
-from arc_utilities.ros_helpers import Listener, prepend_namespace
+from arc_utilities.conversions import convert_to_pose_msg
+from arc_utilities.ros_helpers import Listener, prepend_namespace, TF2Wrapper
 from control_msgs.msg import FollowJointTrajectoryGoal, JointTolerance
 from geometry_msgs.msg import Point
 from sensor_msgs.msg import JointState
@@ -121,6 +122,8 @@ class ARMRobot:
         joint_states_topic = prepend_namespace(self.robot_namespace, 'joint_states')
         self.joint_state_listener = Listener(joint_states_topic, JointState)
 
+        self.tf_wrapper = TF2Wrapper()
+
     def plan_to_relative_pose(self, relative_pose, execute=False, **kwargs):
         if execute is None:
             execute = self.execute_by_default
@@ -174,7 +177,8 @@ class ARMRobot:
             execute = self.execute_by_default
         move_group = moveit_commander.MoveGroupCommander(group_name)
         move_group.set_end_effector_link(ee_link_name)
-        move_group.set_pose_target(target_pose)
+        target_pose_stamped = convert_to_pose_msg(target_pose)
+        move_group.set_pose_target(target_pose_stamped)
         move_group.set_goal_position_tolerance(0.002)
         move_group.set_goal_orientation_tolerance(0.02)
         if execute:
@@ -213,17 +217,18 @@ class ARMRobot:
             execute = self.execute_by_default
         move_group = moveit_commander.MoveGroupCommander(group_name)
         move_group.set_joint_value_target(list(joint_config))
-        if stop_condition and execute:
-            _, plan, _, _ = move_group.plan()
-            # TODO: how could we know which controller/trajectory follower client to use? moveit should know this...
-            #  or we could just not use moveit execution at all. The major down side is then you can't use the RViz plugin to
-            #  move the robot.
-            goal = FollowJointTrajectoryGoal()
-            goal.trajectory = plan.joint_trajectory
-            self.client.send_goal(goal)
-            self.client.feedback_cb = lambda feedback: stop_condition(self.client, feedback)
-            self.client.wait_for_result()
-            return plan
+        # TODO: implement me
+        # if stop_condition and execute:
+        #     _, plan, _, _ = move_group.plan()
+        #     # TODO: how could we know which controller/trajectory follower client to use? moveit should know this...
+        #     #  or we could just not use moveit execution at all. The major down side is then you can't use the RViz plugin to
+        #     #  move the robot.
+        #     goal = FollowJointTrajectoryGoal()
+        #     goal.trajectory = plan.joint_trajectory
+        #     self.client.send_goal(goal)
+        #     self.client.feedback_cb = lambda feedback: stop_condition(self.client, feedback)
+        #     self.client.wait_for_result()
+        #     return plan
         if execute:
             return move_group.go(wait=blocking)
         else:

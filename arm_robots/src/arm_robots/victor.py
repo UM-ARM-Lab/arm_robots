@@ -1,10 +1,11 @@
 #! /usr/bin/env python
-from typing import List
+from typing import List, Dict
 
 from colorama import Fore
 
 import actionlib
 import rospy
+from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
 from arc_utilities.extra_functions_to_be_put_in_the_right_place import make_color
 from arc_utilities.ros_helpers import Listener, prepend_namespace
 from arm_robots.robot import ARMRobot
@@ -100,7 +101,7 @@ class Victor(ARMRobot):
         self.client = actionlib.SimpleActionClient(name, FollowJointTrajectoryAction)
         rospy.loginfo(Fore.GREEN + "Victor ready!")
 
-    def get_motion_status(self):
+    def get_motion_status(self) -> Dict[str, MotionStatus]:
         return {'left': self.left_motion_status_listener.get(), 'right': self.right_motion_status_listener.get()}
 
     def get_right_motion_status(self):
@@ -111,18 +112,18 @@ class Victor(ARMRobot):
         left_status = self.left_motion_status_listener.get()
         return left_status
 
-    def get_control_mode(self):
+    def get_control_mode(self) -> Dict[str, ControlMode]:
         return {'left': self.get_left_arm_control_mode(), 'right': self.get_right_arm_control_mode()}
 
     def set_control_mode(self, control_mode: ControlMode, **kwargs):
         self.set_left_arm_control_mode(control_mode, **kwargs)
         self.set_right_arm_control_mode(control_mode, **kwargs)
 
-    def get_left_arm_control_mode(self):
+    def get_left_arm_control_mode(self) -> ControlMode:
         left_control_mode_res: GetControlModeResponse = self.left_get_control_mode_srv(GetControlModeRequest())
         return left_control_mode_res.active_control_mode.control_mode
 
-    def get_right_arm_control_mode(self):
+    def get_right_arm_control_mode(self) -> ControlMode:
         right_control_mode_res: GetControlModeResponse = self.right_get_control_mode_srv(GetControlModeRequest())
         return right_control_mode_res.active_control_mode.control_mode
 
@@ -148,8 +149,35 @@ class Victor(ARMRobot):
         if actually_switch:
             self.set_control_mode(ControlMode.JOINT_IMPEDANCE)
 
-    def left_arm_cartesian_control(self, pose):
-        raise NotImplementedError()
+    def send_cartesian_command(self, poses: Dict):
+        self.send_left_arm_cartesian_command(poses['left'])
+        self.send_right_arm_cartesian_command(poses['right'])
+
+    def send_left_arm_cartesian_command(self, pose_stamped):
+        pose_stamped = convert_to_pose_msg(pose_stamped)
+        pose_stamped.pose.orientation = normalize_quaternion(pose_stamped.pose.orientation)
+
+        left_arm_command = MotionCommand()
+        left_arm_command.header.frame_id = 'victor_left_arm_world_frame_kuka'
+        left_arm_command.cartesian_pose = pose_stamped.pose
+        left_arm_command.control_mode = self.get_left_arm_control_mode()
+        while self.left_arm_motion_command_pub.get_num_connections() < 1:
+            rospy.sleep(0.01)
+
+        self.left_arm_motion_command_pub.publish(left_arm_command)
+
+    def send_right_arm_cartesian_command(self, pose_stamped):
+        pose_stamped = convert_to_pose_msg(pose_stamped)
+        pose_stamped.pose.orientation = normalize_quaternion(pose_stamped.pose.orientation)
+
+        right_arm_command = MotionCommand()
+        right_arm_command.header.frame_id = 'victor_right_arm_world_frame_kuka'
+        right_arm_command.cartesian_pose = pose_stamped.pose
+        right_arm_command.control_mode = self.get_right_arm_control_mode()
+        while self.right_arm_motion_command_pub.get_num_connections() < 1:
+            rospy.sleep(0.01)
+
+        self.right_arm_motion_command_pub.publish(right_arm_command)
 
     def send_setpoint_to_controller(self,
                                     action_server: actionlib.SimpleActionServer,
@@ -198,6 +226,28 @@ class Victor(ARMRobot):
             waypoint_state.highlight_links.append(object_color)
 
         self.waypoint_state_pub.publish(waypoint_state)
+
+    def send_delta_cartesian_command(self, delta_positions):
+        delta_positions = convert_to_positions(delta_positions)
+        motion_status = self.get_motion_status()
+
+        current_left_pose = motion_status['left'].measured_cartesian_pose
+        desired_left_pose = current_left_pose
+        desired_left_pose.position.x += delta_positions['left'].x
+        desired_left_pose.position.y += delta_positions['left'].y
+        desired_left_pose.position.z += delta_positions['left'].z
+
+        current_right_pose = motion_status['right'].measured_cartesian_pose
+        desired_right_pose = current_right_pose
+        desired_right_pose.position.x += delta_positions['right'].x
+        desired_right_pose.position.y += delta_positions['right'].y
+        desired_right_pose.position.z += delta_positions['right'].z
+
+        poses = {
+            'left': desired_left_pose,
+            'right': desired_right_pose,
+        }
+        self.send_cartesian_command(poses)
 
 
 if __name__ == "__main__":
