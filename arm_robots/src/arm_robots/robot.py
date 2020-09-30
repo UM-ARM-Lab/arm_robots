@@ -4,13 +4,16 @@ from typing import Optional
 
 import numpy as np
 import pyjacobian_follower
+import ros_numpy
 from more_itertools import pairwise
 
 import moveit_commander
-import ros_numpy
 import rospy
+from arc_utilities import ros_helpers
+from arc_utilities.ros_helpers import Listener, prepend_namespace
 from control_msgs.msg import FollowJointTrajectoryGoal, JointTolerance
 from geometry_msgs.msg import Point
+from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 # These may be different because by making path tolerance larger,
 # you might get smoother execution but still keep goal precision
@@ -114,6 +117,8 @@ class ARMRobot:
         self.robot_commander = moveit_commander.RobotCommander()
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.002,
                                                                       minimize_rotation=True)
+        joint_states_topic = prepend_namespace(self.robot_namespace, 'joint_states')
+        self.joint_state_listener = Listener(joint_states_topic, JointState)
 
     def plan_to_relative_pose(self, relative_pose, execute=False, **kwargs):
         if execute is None:
@@ -155,7 +160,7 @@ class ARMRobot:
         waypoints = [waypoint_pose]
         plan, fraction = move_group.compute_cartesian_path(waypoints=waypoints, eef_step=step_size, jump_threshold=0.0)
         if fraction != 1.0:
-            raise RuntimeError("Failed to find a cartesian path that is complete!")
+            raise RuntimeError(f"Cartesian path is only {fraction * 100}% complete")
 
         if execute:
             return move_group.execute(plan, wait=blocking)
@@ -295,14 +300,17 @@ class ARMRobot:
     def object_grasped(self, gripper):
         raise NotImplementedError()
 
-    def get_joint_positions(self,
-                            joint_names: List[str],
-                            left_status: MotionStatus,
-                            right_status: MotionStatus):
-        # This method of converting status messages to a list ensure the order matches in the trajectory
+    def get_joint_positions(self, joint_names: Optional[List[str]] = None):
+        """
+        :args joint_names an optional list of names if you want to have a specific order or a subset
+        """
+        joint_state: JointState = self.joint_state_listener.get()
         current_joint_positions = []
         for name in joint_names:
-            pos = self.get_joint_position_from_status_messages(left_status, right_status, name)
+            if name not in joint_state.name:
+                ros_helpers.logfatal(ValueError, f"Joint {name} not found in joint states")
+            idx = joint_state.name.index(name)
+            pos = joint_state.position[idx]
             current_joint_positions.append(pos)
         return current_joint_positions
 

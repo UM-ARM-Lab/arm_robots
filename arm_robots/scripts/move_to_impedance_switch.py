@@ -2,30 +2,31 @@
 
 """
 This moves Victor's arms to a configuration where impedance validations tends to work well.
-
+if you want to actually change the control mode, not just move to the position, set "_actually_switch:=true"
 """
-from arm_robots.victor import Victor
+import colorama
+from colorama import Fore
+
 import rospy
-from std_msgs.msg import String
-
-left = [-0.694, 0.14, -0.229, -1.11, -0.512, 1.272, 0.077]
-
-right = [0.724, 0.451, 0.94, -1.425, 0.472, 0.777, -0.809]
+from arm_robots.victor import Victor
 
 if __name__ == "__main__":
+    colorama.init(autoreset=True)
     rospy.init_node("move_to_impedance_switch")
-    rospy.logerr("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-    rospy.logerr("")
-    rospy.logerr("    WARNING: THIS IGNORES OBSTACLES. WATCH CLOSELY")
-    rospy.logerr("")
-    rospy.logerr("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    rospy.logwarn("Make sure you set up a conservative set of obstacles in gazebo")
+    rospy.logwarn("View the planning scene in RViz to see what the planner is aware of")
+    k = input("Did you set up a conservative set of obstacles in gazebo? [y/N]")
+    if k == 'Y' or k == 'y':
+        rospy.loginfo(Fore.CYAN + "you better not be lying...")
 
-    pub = rospy.Publisher("/polly", String, queue_size=10)
-    rospy.sleep(0.4)  # Hardcoded so pub can connect. Less annoying than other checks
-    pub.publish("I am ignoring obstacles. Be careful")
+        victor = Victor(execute_by_default=True)
 
-    victor = Victor(execute_by_default=True)
-    victor.plan_to_joint_config("left_arm", left)
-    victor.plan_to_joint_config("right_arm", right)
+        actually_switch = rospy.get_param("~actually_switch", False)
+        if actually_switch:
+            rospy.loginfo("switching to impedance mode")
 
-    rospy.loginfo("Ready to be set to impedance mode")
+        victor.move_to_impedance_switch(actually_switch=actually_switch)
+
+        rospy.loginfo("Done")
+    else:
+        rospy.loginfo("Answered 'no', aborting")

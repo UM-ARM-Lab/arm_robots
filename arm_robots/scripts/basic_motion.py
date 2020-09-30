@@ -54,6 +54,7 @@ effort_thresholds = np.array([
 debug = False
 
 
+
 def myinput(msg):
     global debug
     if not debug:
@@ -70,14 +71,14 @@ def main():
 
     joint_state_listener = Listener("/victor/joint_states", JointState)
 
-    robot = Victor(execute_by_default=True)
+    victor = Victor(execute_by_default=True)
 
     rospy.loginfo("If you're using gazebo, make sure you hit play or nothing will happen :)")
 
     # Plan to joint config
     print("press enter when prompted...")
     myinput("Plan to joint config?")
-    robot.plan_to_joint_config("right_arm", [0.2, 1, 0, -1, 0.2, 0, 0])
+    victor.plan_to_joint_config("right_arm", [0.2, 1, 0, -1, 0.2, 0, 0])
 
     # Plan to joint config with a stop condition
     myinput("Plan to joint config, with max force?")
@@ -92,11 +93,11 @@ def main():
             rospy.loginfo(f"Force on joints {offending_joint_names} exceeded threshold! Canceling all goals.")
             action_client.cancel_all_goals()
 
-    robot.plan_to_joint_config("right_arm", [-0.2, 1, -1, -1.2, 0.2, 0, 0], stop_condition=_stop_condition)
+    victor.plan_to_joint_config("right_arm", [-0.2, 1, -1, -1.2, 0.2, 0, 0], stop_condition=_stop_condition)
 
     # Plan to pose
     myinput("Plan to pose 1?")
-    robot.plan_to_pose("right_arm", "right_tool_placeholder", [0.6, -0.2, 1.0, 4, 1, 0])
+    victor.plan_to_pose("right_arm", "right_tool_placeholder", [0.6, -0.2, 1.0, 4, 1, 0])
 
     # Or you can use a geometry msgs Pose
     myinput("Plan to pose 2?")
@@ -109,15 +110,18 @@ def main():
     pose.orientation.y = q[1]
     pose.orientation.z = q[2]
     pose.orientation.w = q[3]
-    robot.plan_to_pose("right_arm", "right_tool_placeholder", pose)
+    victor.plan_to_pose("right_arm", "right_tool_placeholder", pose)
 
     # # Or with cartesian planning
     myinput("Cartersian motion back to pose 3?")
-    robot.plan_to_position_cartesian("right_arm", "right_tool_placeholder", [0.9, -0.4, 0.9], step_size=0.04)
+    victor.plan_to_position_cartesian("right_arm", "right_tool_placeholder", [0.9, -0.4, 0.9], step_size=0.04)
 
     # Move hand straight works either with jacobian following
     myinput("Follow jacobian to pose 2?")
-    robot.follow_jacobian_to_position("right_arm", "right_tool_placeholder", [1.05, 0.15, 1.0])
+    victor.follow_jacobian_to_position("right_arm", "right_tool_placeholder", [1.05, 0.15, 1.0])
+
+    # move to impedance switch
+    victor.move_to_impedance_switch(actually_switch=True)
 
 
 if __name__ == "__main__":
