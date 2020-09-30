@@ -2,17 +2,11 @@
 import colorama
 import numpy as np
 
-import actionlib
 import moveit_commander
 import rospy
-from arc_utilities.ros_helpers import Listener
 from arm_robots.victor import Victor
-from control_msgs.msg import FollowJointTrajectoryFeedback
 from geometry_msgs.msg import Pose
-from sensor_msgs.msg import JointState
 from tf.transformations import quaternion_from_euler
-from victor_hardware_interface.victor_utils import Stiffness
-from victor_hardware_interface_msgs.msg import ControlMode
 
 effort_thresholds = np.array([
     150,  # victor_left_arm_joint_1
@@ -70,33 +64,12 @@ def main():
     moveit_commander.roscpp_initialize(joint_state_topic)
     rospy.init_node('basic_motion', anonymous=True)
 
-    victor = Victor(execute_by_default=True)
-
-    # victor.move_to_impedance_switch(actually_switch=True)
-    victor.set_right_arm_control_mode(ControlMode.JOINT_IMPEDANCE, stiffness=Stiffness.STIFF, vel=0.5)
+    victor = Victor()
 
     # Plan to joint config
     print("press enter when prompted...")
     myinput("Plan to joint config?")
     victor.plan_to_joint_config("right_arm", [0.35, 1, 0.2, -1, 0.2, -1, 0])
-
-    # Plan to joint config with a stop condition
-    myinput("Plan to joint config, with max force?")
-
-    ext_wrench = victor.get_right_motion_status().estimated_external_wrench
-    start_force = np.array([ext_wrench.x, ext_wrench.y, ext_wrench.z])
-    force_trigger = 8.0
-
-    def _stop_condition(feedback: FollowJointTrajectoryFeedback):
-        wrench = victor.get_right_motion_status().estimated_external_wrench
-        cur_force = np.array([wrench.x, wrench.y, wrench.z])
-        new_force = np.linalg.norm(start_force - cur_force)
-        msg = f"New force {new_force} exceeded threshold {force_trigger}! Canceling all goals."
-        stop = new_force > force_trigger
-        return stop, msg
-
-    victor.plan_to_joint_config("right_arm", [-0.27, 1, 0.2, -1, 0.2, -1, 0], stop_condition=_stop_condition)
-    return
 
     # Plan to pose
     myinput("Plan to pose 1?")

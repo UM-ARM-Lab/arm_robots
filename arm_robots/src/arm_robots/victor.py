@@ -1,16 +1,14 @@
 #! /usr/bin/env python
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 from colorama import Fore
 
-import actionlib
 import rospy
 from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
-from arc_utilities.extra_functions_to_be_put_in_the_right_place import make_color
-from arc_utilities.ros_helpers import Listener, prepend_namespace
-from arm_robots.robot import ARMRobot
-from control_msgs.msg import FollowJointTrajectoryAction
-from moveit_msgs.msg import DisplayRobotState, ObjectColor
+from arc_utilities.ros_helpers import Listener
+from arm_robots.base_robot import BaseRobot
+from arm_robots.robot import MoveitEnabledRobot
+from moveit_msgs.msg import DisplayRobotState
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 from victor_hardware_interface.victor_utils import get_new_control_mode, list_to_jvq
@@ -74,7 +72,8 @@ def delegate_positions_to_arms(positions, joint_names: List[str]):
     Given the list of positions, assumed to be in the same order as the list of joint names,
     determine whether it's meant for the left arm, right arm, or both arms, and error if it doesn't perfectly match any
     """
-    abort_msg = None
+    msg = ""
+    abort = False
     left_arm_positions = None
     right_arm_positions = None
     # set equality ignores order
@@ -98,18 +97,20 @@ def delegate_positions_to_arms(positions, joint_names: List[str]):
             if joint_name in right_arm_joints:
                 right_arm_positions.append(joint_value)
     else:
-        abort_msg = "Invalid joint_names, didn't match the left arm joints, right arm joints, or all joints"
-    return right_arm_positions, left_arm_positions, abort_msg
+        msg = "Invalid joint_names, didn't match the left arm joints, right arm joints, or all joints"
+        abort = True
+    return right_arm_positions, left_arm_positions, abort, msg
 
 
 left_impedance_switch_config = [-0.694, 0.14, -0.229, -1.11, -0.512, 1.272, 0.077]
 right_impedance_switch_config = [0.724, 0.451, 0.94, -1.425, 0.472, 0.777, -0.809]
 
 
-class Victor(ARMRobot):
+class BaseVictor(BaseRobot):
 
-    def __init__(self, execute_by_default: bool = False, robot_namespace: str = 'victor'):
-        super().__init__(execute_by_default=execute_by_default, robot_namespace=robot_namespace)
+    def __init__(self, robot_namespace: str = 'victor'):
+        super().__init__(robot_namespace=robot_namespace)
+
         self.left_arm_motion_command_pub = rospy.Publisher("left_arm/motion_command", MotionCommand, queue_size=10)
         self.right_arm_motion_command_pub = rospy.Publisher("right_arm/motion_command", MotionCommand, queue_size=10)
 
@@ -124,13 +125,59 @@ class Victor(ARMRobot):
 
         self.waypoint_state_pub = rospy.Publisher("waypoint_robot_state", DisplayRobotState, queue_size=10)
 
-        # TODO: don't hard-code this
-        name = prepend_namespace(self.robot_namespace, 'both_arms_trajectory_controller/follow_joint_trajectory')
-        self.follow_joint_trajectory_client = actionlib.SimpleActionClient(name, FollowJointTrajectoryAction)
-        rospy.loginfo(Fore.GREEN + "Victor ready!")
+    def send_joint_command_to_controller(self,
+                                         now: rospy.Time,
+                                         joint_names: List[str],
+                                         trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
+        # TODO: in victor's impedance mode, we want to modify the setpoint so that there is a limit
+        #  on the force we will apply
+        right_arm_positions, left_arm_positions, abort, msg = delegate_positions_to_arms(trajectory_point.positions,
+                                                                                         joint_names)
+        if abort is not None:
+            return False, msg
+
+        # Get the current control mode
+        control_mode = self.get_control_mode()
+        left_arm_control_mode = control_mode['left']
+        right_arm_control_mode = control_mode['right']
+
+        # command waypoint
+        waypoint_joint_state = JointState()
+        waypoint_joint_state.header.stamp = now
+        if left_arm_positions is not None:
+            left_arm_command = MotionCommand()
+            left_arm_command.header.stamp = now
+            left_arm_command.joint_position = list_to_jvq(left_arm_positions)
+            left_arm_command.control_mode = left_arm_control_mode
+            self.left_arm_motion_command_pub.publish(left_arm_command)
+            waypoint_joint_state.name.extend(left_arm_joints)
+            waypoint_joint_state.position.extend(left_arm_positions)
+
+        if right_arm_positions is not None:
+            right_arm_command = MotionCommand()
+            right_arm_command.header.stamp = now
+            right_arm_command.joint_position = list_to_jvq(right_arm_positions)
+            right_arm_command.control_mode = right_arm_control_mode
+            self.right_arm_motion_command_pub.publish(right_arm_command)
+            waypoint_joint_state.name.extend(right_arm_joints)
+            waypoint_joint_state.position.extend(right_arm_positions)
+
+        # waypoint_state = DisplayRobotState()
+        # waypoint_state.state.joint_state = waypoint_joint_state
+        # # TODO: need a non-moveit way to get list of links... urdf_py from rosparam?
+        # for link_name in self.robot_commander.get_link_names():
+        #     object_color = ObjectColor()
+        #     object_color.id = link_name
+        #     object_color.color = make_color(0, 1, 0, 1)
+        #     waypoint_state.highlight_links.append(object_color)
+        #
+        # self.waypoint_state_pub.publish(waypoint_state)
+
+        return True, ""
 
     def get_motion_status(self) -> Dict[str, MotionStatus]:
-        return {'left': self.left_motion_status_listener.get(), 'right': self.right_motion_status_listener.get()}
+        return {'left': self.left_motion_status_listener.get(),
+                'right': self.right_motion_status_listener.get()}
 
     def get_right_motion_status(self) -> MotionStatus:
         right_status = self.right_motion_status_listener.get()
@@ -171,12 +218,6 @@ class Victor(ARMRobot):
             rospy.logerr("Failed to switch left arm to control mode: " + str(control_mode))
             rospy.logerr(res.message)
 
-    def move_to_impedance_switch(self, actually_switch: bool = True):
-        self.plan_to_joint_config("right_arm", right_impedance_switch_config)
-        self.plan_to_joint_config("left_arm", left_impedance_switch_config)
-        if actually_switch:
-            self.set_control_mode(ControlMode.JOINT_IMPEDANCE)
-
     def send_cartesian_command(self, poses: Dict):
         """ absolute """
         self.send_left_arm_cartesian_command(poses['left'])
@@ -208,54 +249,6 @@ class Victor(ARMRobot):
 
         self.right_arm_motion_command_pub.publish(right_arm_command)
 
-    def send_joint_command_to_controller(self,
-                                         action_server: actionlib.SimpleActionServer,
-                                         now: rospy.Time,
-                                         joint_names: List[str],
-                                         trajectory_point: JointTrajectoryPoint):
-        # TODO: in victor's impedance mode, we want to modify the setpoint so that there is a limit
-        #  on the force we will apply
-        right_arm_positions, left_arm_positions, abort_msg = delegate_positions_to_arms(trajectory_point.positions,
-                                                                                        joint_names)
-        if abort_msg is not None:
-            action_server.set_aborted(text=abort_msg)
-
-        # Get the current control mode
-        control_mode = self.get_control_mode()
-        left_arm_control_mode = control_mode['left']
-        right_arm_control_mode = control_mode['right']
-
-        # command waypoint
-        waypoint_joint_state = JointState()
-        waypoint_joint_state.header.stamp = now
-        if left_arm_positions is not None:
-            left_arm_command = MotionCommand()
-            left_arm_command.header.stamp = now
-            left_arm_command.joint_position = list_to_jvq(left_arm_positions)
-            left_arm_command.control_mode = left_arm_control_mode
-            self.left_arm_motion_command_pub.publish(left_arm_command)
-            waypoint_joint_state.name.extend(left_arm_joints)
-            waypoint_joint_state.position.extend(left_arm_positions)
-
-        if right_arm_positions is not None:
-            right_arm_command = MotionCommand()
-            right_arm_command.header.stamp = now
-            right_arm_command.joint_position = list_to_jvq(right_arm_positions)
-            right_arm_command.control_mode = right_arm_control_mode
-            self.right_arm_motion_command_pub.publish(right_arm_command)
-            waypoint_joint_state.name.extend(right_arm_joints)
-            waypoint_joint_state.position.extend(right_arm_positions)
-
-        waypoint_state = DisplayRobotState()
-        waypoint_state.state.joint_state = waypoint_joint_state
-        for link_name in self.robot_commander.get_link_names():
-            object_color = ObjectColor()
-            object_color.id = link_name
-            object_color.color = make_color(0, 1, 0, 1)
-            waypoint_state.highlight_links.append(object_color)
-
-        self.waypoint_state_pub.publish(waypoint_state)
-
     def send_delta_cartesian_command(self, delta_positions):
         delta_positions = convert_to_positions(delta_positions)
         motion_status = self.get_motion_status()
@@ -279,7 +272,15 @@ class Victor(ARMRobot):
         self.send_cartesian_command(poses)
 
 
-if __name__ == "__main__":
-    rospy.init_node("motion_enabled_victor")
-    mev = Victor()
-    rospy.spin()
+class Victor(MoveitEnabledRobot):
+
+    def __init__(self):
+        self.base_victor = BaseVictor()
+        super().__init__(self.base_victor)
+        rospy.loginfo(Fore.GREEN + "Victor ready!")
+
+    def move_to_impedance_switch(self, actually_switch: bool = True):
+        self.plan_to_joint_config("right_arm", right_impedance_switch_config)
+        self.plan_to_joint_config("left_arm", left_impedance_switch_config)
+        if actually_switch:
+            self.base_victor.set_control_mode(ControlMode.JOINT_IMPEDANCE)
