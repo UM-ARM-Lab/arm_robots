@@ -44,18 +44,23 @@ class TrajectoryFollower:
             # tiny sleep lets the listeners process messages better, results in smoother following
             rospy.sleep(1e-6)
 
-            if self.action_server.is_preempt_requested():
-                rospy.loginfo("Preempt requested, aborting.")
-                break
-
             now = rospy.Time.now()
+
             desired_point = interpolated_points[trajectory_point_idx]
 
-            # still too specific, only works for joint trajectories
-            self.robot.send_setpoint_to_controller(self.action_server, now, trajectory_joint_names, desired_point)
+            self.robot.send_joint_command_to_controller(self.action_server, now, trajectory_joint_names, desired_point)
 
             # get feedback
             actual_point = self.get_actual_trajectory_point(trajectory_joint_names)
+
+            if self.action_server.is_preempt_requested():
+                # command the current configuration
+                self.robot.send_joint_command_to_controller(self.action_server,
+                                                            now,
+                                                            trajectory_joint_names,
+                                                            actual_point)
+                rospy.loginfo("Preempt requested, aborting.")
+                break
 
             # If we're close enough, advance
             if trajectory_point_idx == len(interpolated_points) - 1:

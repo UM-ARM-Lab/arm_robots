@@ -18,6 +18,34 @@ from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, Motion
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
     GetControlModeResponse
 
+left_gripper_joint_names = [
+    "victor_left_gripper_fingerA_joint_2",
+    "victor_left_gripper_fingerA_joint_3",
+    "victor_left_gripper_fingerA_joint_4",
+    "victor_left_gripper_fingerB_joint_2",
+    "victor_left_gripper_fingerB_joint_3",
+    "victor_left_gripper_fingerB_joint_4",
+    "victor_left_gripper_fingerB_knuckle",
+    "victor_left_gripper_fingerC_joint_2",
+    "victor_left_gripper_fingerC_joint_3",
+    "victor_left_gripper_fingerC_joint_4",
+    "victor_left_gripper_fingerC_knuckle",
+]
+
+right_gripper_joint_names = [
+    "victor_right_gripper_fingerA_joint_2",
+    "victor_right_gripper_fingerA_joint_3",
+    "victor_right_gripper_fingerA_joint_4",
+    "victor_right_gripper_fingerB_joint_2",
+    "victor_right_gripper_fingerB_joint_3",
+    "victor_right_gripper_fingerB_joint_4",
+    "victor_right_gripper_fingerB_knuckle",
+    "victor_right_gripper_fingerC_joint_2",
+    "victor_right_gripper_fingerC_joint_3",
+    "victor_right_gripper_fingerC_joint_4",
+    "victor_right_gripper_fingerC_knuckle",
+]
+
 left_arm_joints = [
     'victor_left_arm_joint_1',
     'victor_left_arm_joint_2',
@@ -98,17 +126,17 @@ class Victor(ARMRobot):
 
         # TODO: don't hard-code this
         name = prepend_namespace(self.robot_namespace, 'both_arms_trajectory_controller/follow_joint_trajectory')
-        self.client = actionlib.SimpleActionClient(name, FollowJointTrajectoryAction)
+        self.follow_joint_trajectory_client = actionlib.SimpleActionClient(name, FollowJointTrajectoryAction)
         rospy.loginfo(Fore.GREEN + "Victor ready!")
 
     def get_motion_status(self) -> Dict[str, MotionStatus]:
         return {'left': self.left_motion_status_listener.get(), 'right': self.right_motion_status_listener.get()}
 
-    def get_right_motion_status(self):
+    def get_right_motion_status(self) -> MotionStatus:
         right_status = self.right_motion_status_listener.get()
         return right_status
 
-    def get_left_motion_status(self):
+    def get_left_motion_status(self) -> MotionStatus:
         left_status = self.left_motion_status_listener.get()
         return left_status
 
@@ -144,12 +172,13 @@ class Victor(ARMRobot):
             rospy.logerr(res.message)
 
     def move_to_impedance_switch(self, actually_switch: bool = True):
-        self.plan_to_joint_config("left_arm", left_impedance_switch_config)
         self.plan_to_joint_config("right_arm", right_impedance_switch_config)
+        self.plan_to_joint_config("left_arm", left_impedance_switch_config)
         if actually_switch:
             self.set_control_mode(ControlMode.JOINT_IMPEDANCE)
 
     def send_cartesian_command(self, poses: Dict):
+        """ absolute """
         self.send_left_arm_cartesian_command(poses['left'])
         self.send_right_arm_cartesian_command(poses['right'])
 
@@ -179,11 +208,11 @@ class Victor(ARMRobot):
 
         self.right_arm_motion_command_pub.publish(right_arm_command)
 
-    def send_setpoint_to_controller(self,
-                                    action_server: actionlib.SimpleActionServer,
-                                    now: rospy.Time,
-                                    joint_names: List[str],
-                                    trajectory_point: JointTrajectoryPoint):
+    def send_joint_command_to_controller(self,
+                                         action_server: actionlib.SimpleActionServer,
+                                         now: rospy.Time,
+                                         joint_names: List[str],
+                                         trajectory_point: JointTrajectoryPoint):
         # TODO: in victor's impedance mode, we want to modify the setpoint so that there is a limit
         #  on the force we will apply
         right_arm_positions, left_arm_positions, abort_msg = delegate_positions_to_arms(trajectory_point.positions,

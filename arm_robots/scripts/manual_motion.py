@@ -14,10 +14,8 @@ from threading import Lock
 import numpy as np
 
 import rospy
-from arc_utilities import ros_helpers as rh
 from arm_robots.victor import Victor
-from victor_hardware_interface import victor_utils as vu
-from victor_hardware_interface_msgs.msg import MotionCommand, MotionStatus, ControlMode, ControlModeParameters
+from victor_hardware_interface_msgs.msg import MotionCommand, MotionStatus, ControlMode
 
 joint_names = ['joint_' + str(i) for i in range(1, 8)]
 

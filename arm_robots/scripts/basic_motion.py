@@ -11,6 +11,7 @@ from control_msgs.msg import FollowJointTrajectoryFeedback
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
 from tf.transformations import quaternion_from_euler
+from victor_hardware_interface.victor_utils import Stiffness
 from victor_hardware_interface_msgs.msg import ControlMode
 
 effort_thresholds = np.array([
@@ -52,7 +53,7 @@ effort_thresholds = np.array([
     1,  # victor_right_gripper_fingerC_knuckle
 ])
 
-debug = False
+debug = True
 
 
 def myinput(msg):
@@ -69,39 +70,33 @@ def main():
     moveit_commander.roscpp_initialize(joint_state_topic)
     rospy.init_node('basic_motion', anonymous=True)
 
-    joint_state_listener = Listener("/victor/joint_states", JointState)
-
     victor = Victor(execute_by_default=True)
 
-    victor.set_control_mode(ControlMode.JOINT_IMPEDANCE)
-    j = [-0.675, 1.409, -0.569, 1.341, 2.451, 1.281, 2.539, -2.364, -1.366, 0.391, -1.567, -2.448, -1.137, -1.428]
-    victor.plan_to_joint_config("both_arms", j)
-
-    victor.set_control_mode(ControlMode.CARTESIAN_IMPEDANCE, vel=40)
-
-    delta = [0, 0, 0.1]
-    victor.send_delta_cartesian_command({'left': delta, 'right': delta})
-    return
+    # victor.move_to_impedance_switch(actually_switch=True)
+    victor.set_right_arm_control_mode(ControlMode.JOINT_IMPEDANCE, stiffness=Stiffness.STIFF, vel=0.5)
 
     # Plan to joint config
     print("press enter when prompted...")
     myinput("Plan to joint config?")
-    victor.plan_to_joint_config("right_arm", [0.2, 1, 0, -1, 0.2, 0, 0])
+    victor.plan_to_joint_config("right_arm", [0.35, 1, 0.2, -1, 0.2, -1, 0])
 
     # Plan to joint config with a stop condition
     myinput("Plan to joint config, with max force?")
 
-    def _stop_condition(action_client: actionlib.SimpleActionClient, feedback: FollowJointTrajectoryFeedback):
-        joint_state = joint_state_listener.get()
-        effort = np.abs(np.array(joint_state.effort))
-        exceeds_threshold = effort > effort_thresholds
-        if np.any(exceeds_threshold):
-            offending_joints = np.where(exceeds_threshold)[0].tolist()
-            offending_joint_names = [joint_state.name[j] for j in offending_joints]
-            rospy.loginfo(f"Force on joints {offending_joint_names} exceeded threshold! Canceling all goals.")
-            action_client.cancel_all_goals()
+    ext_wrench = victor.get_right_motion_status().estimated_external_wrench
+    start_force = np.array([ext_wrench.x, ext_wrench.y, ext_wrench.z])
+    force_trigger = 8.0
 
-    victor.plan_to_joint_config("right_arm", [-0.2, 1, -1, -1.2, 0.2, 0, 0], stop_condition=_stop_condition)
+    def _stop_condition(feedback: FollowJointTrajectoryFeedback):
+        wrench = victor.get_right_motion_status().estimated_external_wrench
+        cur_force = np.array([wrench.x, wrench.y, wrench.z])
+        new_force = np.linalg.norm(start_force - cur_force)
+        msg = f"New force {new_force} exceeded threshold {force_trigger}! Canceling all goals."
+        stop = new_force > force_trigger
+        return stop, msg
+
+    victor.plan_to_joint_config("right_arm", [-0.27, 1, 0.2, -1, 0.2, -1, 0], stop_condition=_stop_condition)
+    return
 
     # Plan to pose
     myinput("Plan to pose 1?")
@@ -127,9 +122,6 @@ def main():
     # Move hand straight works either with jacobian following
     myinput("Follow jacobian to pose 2?")
     victor.follow_jacobian_to_position("right_arm", "right_tool_placeholder", [1.05, 0.15, 1.0])
-
-    # move to impedance switch
-    victor.move_to_impedance_switch(actually_switch=True)
 
 
 if __name__ == "__main__":

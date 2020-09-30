@@ -48,40 +48,11 @@ def make_joint_tolerance(pos, name):
     return j
 
 
-left_gripper_joint_names = [
-    "victor_left_gripper_fingerA_joint_2",
-    "victor_left_gripper_fingerA_joint_3",
-    "victor_left_gripper_fingerA_joint_4",
-    "victor_left_gripper_fingerB_joint_2",
-    "victor_left_gripper_fingerB_joint_3",
-    "victor_left_gripper_fingerB_joint_4",
-    "victor_left_gripper_fingerB_knuckle",
-    "victor_left_gripper_fingerC_joint_2",
-    "victor_left_gripper_fingerC_joint_3",
-    "victor_left_gripper_fingerC_joint_4",
-    "victor_left_gripper_fingerC_knuckle",
-]
-
-right_gripper_joint_names = [
-    "victor_right_gripper_fingerA_joint_2",
-    "victor_right_gripper_fingerA_joint_3",
-    "victor_right_gripper_fingerA_joint_4",
-    "victor_right_gripper_fingerB_joint_2",
-    "victor_right_gripper_fingerB_joint_3",
-    "victor_right_gripper_fingerB_joint_4",
-    "victor_right_gripper_fingerB_knuckle",
-    "victor_right_gripper_fingerC_joint_2",
-    "victor_right_gripper_fingerC_joint_3",
-    "victor_right_gripper_fingerC_joint_4",
-    "victor_right_gripper_fingerC_knuckle",
-]
-
-
 def waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint, tolerance: List[float]):
     actual = np.array(actual.positions)
     desired = np.array(desired.positions)
     tolerance = np.array(tolerance)
-    return np.all((actual - desired) < tolerance)
+    return np.all(np.abs(actual - desired) < tolerance)
 
 
 def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_step_size: float):
@@ -114,6 +85,7 @@ def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_
 
 class ARMRobot:
     def __init__(self, execute_by_default: bool = False, robot_namespace: str = ''):
+        self.follow_joint_trajectory_client = None
         self.robot_namespace = robot_namespace
         self.execute_by_default = execute_by_default
         self.robot_commander = moveit_commander.RobotCommander()
@@ -218,17 +190,23 @@ class ARMRobot:
         move_group = moveit_commander.MoveGroupCommander(group_name)
         move_group.set_joint_value_target(list(joint_config))
         # TODO: implement me
-        # if stop_condition and execute:
-        #     _, plan, _, _ = move_group.plan()
-        #     # TODO: how could we know which controller/trajectory follower client to use? moveit should know this...
-        #     #  or we could just not use moveit execution at all. The major down side is then you can't use the RViz plugin to
-        #     #  move the robot.
-        #     goal = FollowJointTrajectoryGoal()
-        #     goal.trajectory = plan.joint_trajectory
-        #     self.client.send_goal(goal)
-        #     self.client.feedback_cb = lambda feedback: stop_condition(self.client, feedback)
-        #     self.client.wait_for_result()
-        #     return plan
+        if stop_condition and execute:
+            _, plan, _, _ = move_group.plan()
+            # TODO: how could we know which controller/trajectory follower follow_joint_trajectory_client to use? moveit should know this...
+            #  or we could just not use moveit execution at all. The major down side is then you can't use the RViz plugin to
+            #  move the robot.
+            goal = FollowJointTrajectoryGoal()
+            goal.trajectory = plan.joint_trajectory
+
+            def _stop_condition(feedback):
+                stop, msg = stop_condition(feedback)
+                if stop:
+                    rospy.loginfo(msg)
+                    self.follow_joint_trajectory_client.cancel_all_goals()
+
+            self.follow_joint_trajectory_client.send_goal(goal, feedback_cb=_stop_condition)
+            self.follow_joint_trajectory_client.wait_for_result()
+            return plan
         if execute:
             return move_group.go(wait=blocking)
         else:
@@ -338,9 +316,9 @@ class ARMRobot:
             rospy.logwarn_throttle(1, f"Group [{group_name}] does not exist. Existing groups are:")
             rospy.logwarn_throttle(1, groups)
 
-    def send_setpoint_to_controller(self,
-                                    action_server: SimpleActionServer,
-                                    now: rospy.Time,
-                                    joint_names: List[str],
-                                    trajectory_point: JointTrajectoryPoint):
+    def send_joint_command_to_controller(self,
+                                         action_server: SimpleActionServer,
+                                         now: rospy.Time,
+                                         joint_names: List[str],
+                                         trajectory_point: JointTrajectoryPoint):
         raise NotImplementedError()
