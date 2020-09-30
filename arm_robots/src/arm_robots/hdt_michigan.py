@@ -6,8 +6,8 @@ from arm_robots.robot import ARMRobot
 
 class Val(ARMRobot):
 
-    def __init__(self, execute_by_default: bool = False):
-        super().__init__(execute_by_default=execute_by_default)
+    def __init__(self, execute_by_default: bool = False, robot_namespace: str = 'val'):
+        super().__init__(execute_by_default=execute_by_default, robot_namespace=robot_namespace)
         rospy.loginfo("Val ready !")
 
 

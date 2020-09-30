@@ -9,6 +9,7 @@ from more_itertools import pairwise
 
 import moveit_commander
 import rospy
+from actionlib import SimpleActionServer
 from arc_utilities import ros_helpers
 from arc_utilities.ros_helpers import Listener, prepend_namespace
 from control_msgs.msg import FollowJointTrajectoryGoal, JointTolerance
@@ -111,8 +112,8 @@ def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_
 
 
 class ARMRobot:
-    def __init__(self, execute_by_default: bool = False):
-        self.robot_namespace = ''
+    def __init__(self, execute_by_default: bool = False, robot_namespace: str = ''):
+        self.robot_namespace = robot_namespace
         self.execute_by_default = execute_by_default
         self.robot_commander = moveit_commander.RobotCommander()
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.002,
@@ -271,32 +272,6 @@ class ARMRobot:
     def set_gripper(self, gripper_name, pos, blocking=True):
         raise NotImplementedError("set_gripper is a abstract method. It should never be called.")
 
-    def move_both_hands_straight(self,
-                                 right_moving_direction=None,
-                                 left_moving_direction=None,
-                                 right_moving_distance=0.0,
-                                 left_moving_distance=0.0,
-                                 right_step_size=0.005,
-                                 left_step_size=0.005,
-                                 execute=None,
-                                 blocking=True):
-        if execute is None:
-            execute = self.execute_by_default
-        raise NotImplementedError()
-
-    def rotate_both_hands_straight(self,
-                                   right_moving_axis=None,
-                                   left_moving_axis=None,
-                                   right_moving_radians=0.0,
-                                   left_moving_radians=0.0,
-                                   right_step_size=0.005,
-                                   left_step_size=0.005,
-                                   execute=None,
-                                   blocking=True):
-        if execute is None:
-            execute = self.execute_by_default
-        raise NotImplementedError()
-
     def object_grasped(self, gripper):
         raise NotImplementedError()
 
@@ -357,3 +332,10 @@ class ARMRobot:
         if group_name not in groups:
             rospy.logwarn_throttle(1, f"Group [{group_name}] does not exist. Existing groups are:")
             rospy.logwarn_throttle(1, groups)
+
+    def send_setpoint_to_controller(self,
+                                    action_server: SimpleActionServer,
+                                    now: rospy.Time,
+                                    joint_names: List[str],
+                                    trajectory_point: JointTrajectoryPoint):
+        raise NotImplementedError()

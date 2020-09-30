@@ -5,85 +5,24 @@ import numpy as np
 
 import actionlib
 import rospy
-from arc_utilities.extra_functions_to_be_put_in_the_right_place import make_color
 from arm_robots.hdt_michigan import Val
-from arm_robots.robot import interpolate_joint_trajectory_points, waypoint_reached, get_ordered_tolerance_list
+from arm_robots.robot import interpolate_joint_trajectory_points, waypoint_reached, get_ordered_tolerance_list, ARMRobot
 from arm_robots.victor import Victor
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, FollowJointTrajectoryFeedback, \
     FollowJointTrajectoryResult
-from moveit_msgs.msg import DisplayRobotState, ObjectColor
-from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
-from victor_hardware_interface.victor_utils import list_to_jvq
-from victor_hardware_interface_msgs.msg import MotionCommand
-
-# TODO: make this work with val too
-left_arm_joints = [
-    'victor_left_arm_joint_1',
-    'victor_left_arm_joint_2',
-    'victor_left_arm_joint_3',
-    'victor_left_arm_joint_4',
-    'victor_left_arm_joint_5',
-    'victor_left_arm_joint_6',
-    'victor_left_arm_joint_7',
-]
-
-right_arm_joints = [
-    'victor_right_arm_joint_1',
-    'victor_right_arm_joint_2',
-    'victor_right_arm_joint_3',
-    'victor_right_arm_joint_4',
-    'victor_right_arm_joint_5',
-    'victor_right_arm_joint_6',
-    'victor_right_arm_joint_7',
-]
-
-both_arm_joints = left_arm_joints + right_arm_joints
 
 
-def delegate_positions_to_arms(positions, joint_names: List[str]):
-    """
-    Given the list of positions, assumed to be in the same order as the list of joint names,
-    determine wether it's meant for the left arm, right arm, or both arms, and error if it doesn't perfectly match any
-    """
-    abort_msg = None
-    left_arm_positions = None
-    right_arm_positions = None
-    # set equality ignores order
-    if set(joint_names) == set(left_arm_joints):
-        left_arm_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in left_arm_joints:
-                left_arm_positions.append(joint_value)
-    elif set(joint_names) == set(right_arm_joints):
-        right_arm_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in right_arm_joints:
-                right_arm_positions.append(joint_value)
-    elif set(joint_names) == set(both_arm_joints):
-        left_arm_positions = []
-        right_arm_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in left_arm_joints:
-                left_arm_positions.append(joint_value)
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in right_arm_joints:
-                right_arm_positions.append(joint_value)
-    else:
-        abort_msg = "Invalid joint_names, didn't match the left arm joints, right arm joints, or all joints"
-    return right_arm_positions, left_arm_positions, abort_msg
+# # TODO: make this work with val too
 
 
 class TrajectoryFollower:
-    def __init__(self, victor: Victor):
-        self.victor = victor
-        self._action_name = victor.robot_namespace + "/both_arms_trajectory_controller/follow_joint_trajectory"
+    def __init__(self, robot: ARMRobot):
+        self.robot = robot
+        self._action_name = self.robot.robot_namespace + "/both_arms_trajectory_controller/follow_joint_trajectory"
         self.action_server = actionlib.SimpleActionServer(self._action_name, FollowJointTrajectoryAction,
                                                           execute_cb=self.execute_cb,
                                                           auto_start=False)
-        self.left_arm_motion_command_pub = rospy.Publisher("left_arm/motion_command", MotionCommand, queue_size=10)
-        self.right_arm_motion_command_pub = rospy.Publisher("right_arm/motion_command", MotionCommand, queue_size=10)
-        self.waypoint_state_pub = rospy.Publisher("waypoint_robot_state", DisplayRobotState, queue_size=10)
         self.action_server.start()
 
     def execute_cb(self, traj_msg: FollowJointTrajectoryGoal):
@@ -92,9 +31,6 @@ class TrajectoryFollower:
         if len(traj_msg.trajectory.points) == 0:
             rospy.loginfo("Ignoring empty trajectory")
             return
-
-        # Get the current control mode
-        left_arm_control_mode, right_arm_control_mode = self.victor.get_control_mode()
 
         # construct a list of the tolerances in order of the joint names
         trajectory_joint_names = traj_msg.trajectory.joint_names
@@ -108,49 +44,15 @@ class TrajectoryFollower:
             # tiny sleep lets the listeners process messages better, results in smoother following
             rospy.sleep(1e-6)
 
-            now = rospy.Time.now()
-            desired_point = interpolated_points[trajectory_point_idx]
-
-            right_arm_positions, left_arm_positions, abort_msg = delegate_positions_to_arms(desired_point.positions,
-                                                                                            trajectory_joint_names)
-
             if self.action_server.is_preempt_requested():
                 rospy.loginfo("Preempt requested, aborting.")
                 break
 
-            if abort_msg is not None:
-                self.action_server.set_aborted(text=abort_msg)
+            now = rospy.Time.now()
+            desired_point = interpolated_points[trajectory_point_idx]
 
-            # command waypoint
-            waypoint_joint_state = JointState()
-            waypoint_joint_state.header.stamp = now
-            if left_arm_positions is not None:
-                left_arm_command = MotionCommand()
-                left_arm_command.header.stamp = now
-                left_arm_command.joint_position = list_to_jvq(left_arm_positions)
-                left_arm_command.control_mode = left_arm_control_mode
-                self.left_arm_motion_command_pub.publish(left_arm_command)
-                waypoint_joint_state.name.extend(left_arm_joints)
-                waypoint_joint_state.position.extend(left_arm_positions)
-
-            if right_arm_positions is not None:
-                right_arm_command = MotionCommand()
-                right_arm_command.header.stamp = now
-                right_arm_command.joint_position = list_to_jvq(right_arm_positions)
-                right_arm_command.control_mode = right_arm_control_mode
-                self.right_arm_motion_command_pub.publish(right_arm_command)
-                waypoint_joint_state.name.extend(right_arm_joints)
-                waypoint_joint_state.position.extend(right_arm_positions)
-
-            waypoint_state = DisplayRobotState()
-            waypoint_state.state.joint_state = waypoint_joint_state
-            for link_name in self.victor.robot_commander.get_link_names():
-                object_color = ObjectColor()
-                object_color.id = link_name
-                object_color.color = make_color(0, 1, 0, 1)
-                waypoint_state.highlight_links.append(object_color)
-
-            self.waypoint_state_pub.publish(waypoint_state)
+            # still too specific, only works for joint trajectories
+            self.robot.send_setpoint_to_controller(self.action_server, now, trajectory_joint_names, desired_point)
 
             # get feedback
             actual_point = self.get_actual_trajectory_point(trajectory_joint_names)
@@ -176,7 +78,7 @@ class TrajectoryFollower:
         self.action_server.set_succeeded(success_result)
 
     def get_actual_trajectory_point(self, trajectory_joint_names: List[str]):
-        current_joint_positions = self.victor.get_joint_positions(trajectory_joint_names)
+        current_joint_positions = self.robot.get_joint_positions(trajectory_joint_names)
         actual_point = JointTrajectoryPoint()
         actual_point.positions = current_joint_positions
         return actual_point

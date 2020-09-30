@@ -11,6 +11,8 @@ from control_msgs.msg import FollowJointTrajectoryFeedback
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
 from tf.transformations import quaternion_from_euler
+from victor_hardware_interface.victor_utils import Stiffness
+from victor_hardware_interface_msgs.msg import ControlMode
 
 effort_thresholds = np.array([
     150,  # victor_left_arm_joint_1
@@ -54,7 +56,6 @@ effort_thresholds = np.array([
 debug = False
 
 
-
 def myinput(msg):
     global debug
     if not debug:
@@ -73,7 +74,14 @@ def main():
 
     victor = Victor(execute_by_default=True)
 
+    victor.set_control_mode(ControlMode.JOINT_IMPEDANCE)
+    victor.plan_to_pose("left_arm", "left_tool_placeholder", [0.7, 0.9, 1.2, 0, np.pi / 2, 0])
     rospy.loginfo("If you're using gazebo, make sure you hit play or nothing will happen :)")
+
+    # victor.set_control_mode(ControlMode.CARTESIAN_IMPEDANCE)
+
+    # victor.left_arm_cartesian_control([0.7, 0.9, 1.2, 0, np.pi / 2, 0])
+    return
 
     # Plan to joint config
     print("press enter when prompted...")
