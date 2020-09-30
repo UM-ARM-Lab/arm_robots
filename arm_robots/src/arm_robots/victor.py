@@ -27,7 +27,7 @@ class Victor(ARMRobot):
         self.left_get_control_mode_srv = rospy.ServiceProxy("/left_arm/get_control_mode_service", GetControlMode)
         self.right_get_control_mode_srv = rospy.ServiceProxy("/right_arm/get_control_mode_service", GetControlMode)
 
-        name = self.robot_namespace + '/right_arm_trajectory_controller/follow_joint_trajectory'
+        name = self.robot_namespace + '/both_arms_trajectory_controller/follow_joint_trajectory'
         self.client = actionlib.SimpleActionClient(name, FollowJointTrajectoryAction)
         self.client.wait_for_server()
 

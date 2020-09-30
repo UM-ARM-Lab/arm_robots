@@ -4,11 +4,11 @@ from typing import Optional
 
 import numpy as np
 import pyjacobian_follower
+from more_itertools import pairwise
 
 import moveit_commander
 import ros_numpy
 import rospy
-from arc_utilities.algorithms import consecutive_pairs
 from control_msgs.msg import FollowJointTrajectoryGoal, JointTolerance
 from geometry_msgs.msg import Point
 from trajectory_msgs.msg import JointTrajectoryPoint
@@ -102,7 +102,7 @@ def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_
         return interpolated_points
     else:
         interpolated_points = []
-        for p1, p2 in consecutive_pairs(points):
+        for p1, p2 in pairwise(points):
             interpolated_points.extend(interpolate_joint_trajectory_points([p1, p2], max_step_size))
         return interpolated_points
 
@@ -136,7 +136,9 @@ class ARMRobot:
                                    ee_link_name: str,
                                    target_position: Union[Point, List, np.array],
                                    execute=None,
-                                   blocking=True):
+                                   blocking=True,
+                                   step_size: float = 0.02,
+                                   ):
         if execute is None:
             execute = self.execute_by_default
         move_group = moveit_commander.MoveGroupCommander(group_name)
@@ -151,7 +153,7 @@ class ARMRobot:
             waypoint_pose.position.y = target_position[1]
             waypoint_pose.position.z = target_position[2]
         waypoints = [waypoint_pose]
-        plan, fraction = move_group.compute_cartesian_path(waypoints=waypoints, eef_step=0.02, jump_threshold=0.0)
+        plan, fraction = move_group.compute_cartesian_path(waypoints=waypoints, eef_step=step_size, jump_threshold=0.0)
         if fraction != 1.0:
             raise RuntimeError("Failed to find a cartesian path that is complete!")
 
