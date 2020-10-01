@@ -8,45 +8,6 @@ from arm_robots.victor import Victor
 from geometry_msgs.msg import Pose
 from tf.transformations import quaternion_from_euler
 
-effort_thresholds = np.array([
-    150,  # victor_left_arm_joint_1
-    100,  # victor_left_arm_joint_2
-    100,  # victor_left_arm_joint_3
-    80,  # victor_left_arm_joint_4
-    80,  # victor_left_arm_joint_5
-    40,  # victor_left_arm_joint_6
-    10,  # victor_left_arm_joint_7
-    1,  # victor_left_gripper_fingerA_joint_2
-    1,  # victor_left_gripper_fingerA_joint_3
-    1,  # victor_left_gripper_fingerA_joint_4
-    1,  # victor_left_gripper_fingerB_joint_2
-    1,  # victor_left_gripper_fingerB_joint_3
-    1,  # victor_left_gripper_fingerB_joint_4
-    1,  # victor_left_gripper_fingerB_knuckle
-    1,  # victor_left_gripper_fingerC_joint_2
-    1,  # victor_left_gripper_fingerC_joint_3
-    1,  # victor_left_gripper_fingerC_joint_4
-    1,  # victor_left_gripper_fingerC_knuckle
-    150,  # victor_right_arm_joint_1
-    100,  # victor_right_arm_joint_2
-    100,  # victor_right_arm_joint_3
-    80,  # victor_right_arm_joint_4
-    80,  # victor_right_arm_joint_1
-    40,  # victor_right_arm_joint_6
-    10,  # victor_right_arm_joint_7
-    1,  # victor_right_gripper_fingerA_joint_2
-    1,  # victor_right_gripper_fingerA_joint_3
-    1,  # victor_right_gripper_fingerA_joint_4
-    1,  # victor_right_gripper_fingerB_joint_2
-    1,  # victor_right_gripper_fingerB_joint_3
-    1,  # victor_right_gripper_fingerB_joint_4
-    1,  # victor_right_gripper_fingerB_knuckle
-    1,  # victor_right_gripper_fingerC_joint_2
-    1,  # victor_right_gripper_fingerC_joint_3
-    1,  # victor_right_gripper_fingerC_joint_4
-    1,  # victor_right_gripper_fingerC_knuckle
-])
-
 debug = True
 
 
@@ -95,6 +56,8 @@ def main():
     # Move hand straight works either with jacobian following
     myinput("Follow jacobian to pose 2?")
     victor.follow_jacobian_to_position("right_arm", "right_tool_placeholder", [1.05, 0.15, 1.0])
+
+    moveit_commander.roscpp_shutdown()
 
 
 if __name__ == "__main__":

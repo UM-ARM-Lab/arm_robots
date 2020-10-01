@@ -125,10 +125,10 @@ class BaseVictor(BaseRobot):
 
         self.waypoint_state_pub = rospy.Publisher("waypoint_robot_state", DisplayRobotState, queue_size=10)
 
-    def send_joint_command_to_controller(self,
-                                         now: rospy.Time,
-                                         joint_names: List[str],
-                                         trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
+    def send_joint_command(self,
+                           now: rospy.Time,
+                           joint_names: List[str],
+                           trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         # TODO: in victor's impedance mode, we want to modify the setpoint so that there is a limit
         #  on the force we will apply
         right_arm_positions, left_arm_positions, abort, msg = delegate_positions_to_arms(trajectory_point.positions,
@@ -284,3 +284,6 @@ class Victor(MoveitEnabledRobot):
         self.plan_to_joint_config("left_arm", left_impedance_switch_config)
         if actually_switch:
             self.base_victor.set_control_mode(ControlMode.JOINT_IMPEDANCE)
+
+    def get_joint_trajectory_controller_name(self):
+        return "both_arms_trajectory_controller"

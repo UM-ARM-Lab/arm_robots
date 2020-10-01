@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+import pathlib
 from typing import List, Callable, Optional
 
 import actionlib
@@ -13,13 +14,16 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 class TrajectoryFollower:
     def __init__(self, robot: BaseRobot):
         self.robot = robot
-        self._action_name = self.robot.robot_namespace + "/both_arms_trajectory_controller/follow_joint_trajectory"
-        self.action_server = actionlib.SimpleActionServer(self._action_name, FollowJointTrajectoryAction,
-                                                          execute_cb=self.follow_trajectory_cb,
-                                                          auto_start=False)
+        controller_name = "both_arms_trajectory_controller"
+        self.action_name = pathlib.Path(self.robot.robot_namespace) / controller_name / "follow_joint_trajectory"
+        self.server = actionlib.SimpleActionServer(self.action_name, FollowJointTrajectoryAction,
+                                                   execute_cb=self.follow_trajectory_cb,
+                                                   auto_start=False)
+
+        self.client = actionlib.SimpleActionClient(self.action_name, FollowJointTrajectoryAction)
 
     def start_server(self):
-        self.action_server.start()
+        self.server.start()
 
     def follow_trajectory_goal(self,
                                traj_msg: FollowJointTrajectoryGoal,
@@ -47,9 +51,9 @@ class TrajectoryFollower:
 
             desired_point = interpolated_points[trajectory_point_idx]
 
-            command_failed, command_failed_msg = self.robot.send_joint_command_to_controller(now,
-                                                                                             trajectory_joint_names,
-                                                                                             desired_point)
+            command_failed, command_failed_msg = self.robot.send_joint_command(now,
+                                                                               trajectory_joint_names,
+                                                                               desired_point)
 
             # get feedback
             actual_point = self.get_actual_trajectory_point(trajectory_joint_names)
@@ -63,7 +67,7 @@ class TrajectoryFollower:
 
             if command_failed or stop:
                 # command the current configuration
-                self.robot.send_joint_command_to_controller(now, trajectory_joint_names, actual_point)
+                self.robot.send_joint_command(now, trajectory_joint_names, actual_point)
                 rospy.loginfo("Preempt requested, aborting.")
                 if command_failed_msg:
                     rospy.loginfo(command_failed_msg)
@@ -94,10 +98,10 @@ class TrajectoryFollower:
 
     def follow_trajectory_cb(self, traj_msg: FollowJointTrajectoryGoal):
         def _feedback_cb(feedback):
-            self.action_server.publish_feedback(feedback)
+            self.server.publish_feedback(feedback)
 
         def _stop_cb(**kwargs):
-            return self.action_server.is_preempt_requested()
+            return self.server.is_preempt_requested()
 
         self.follow_trajectory_goal(traj_msg, _feedback_cb, _stop_cb)
 

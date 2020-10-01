@@ -1,28 +1,49 @@
 #! /usr/bin/env python
-from typing import List, Union, Callable
-from typing import Optional
+import pathlib
+from typing import List, Union
 
 import numpy as np
 import pyjacobian_follower
-import ros_numpy
 
+import actionlib
 import moveit_commander
+import ros_numpy
 import rospy
 from arc_utilities.conversions import convert_to_pose_msg
 from arm_robots.base_robot import BaseRobot
 from arm_robots.robot_utils import make_follow_joint_trajectory_goal
-from arm_robots.trajectory_follower import TrajectoryFollower
+from control_msgs.msg import FollowJointTrajectoryAction
 from geometry_msgs.msg import Point
 from trajectory_msgs.msg import JointTrajectory
 from victor_hardware_interface_msgs.msg import MotionStatus
 
 
 class MoveitEnabledRobot:
-    def __init__(self, base_robot: BaseRobot):
-        self.trajectory_follower = TrajectoryFollower(base_robot)
+    def __init__(self, base_robot: BaseRobot, execute: bool = True, block: bool = True, force_trigger: float = 9.0):
+        self.execute = execute
+        self.block = block
+        self.force_trigger = 9.0
+
+        controller_name = self.get_joint_trajectory_controller_name()
+
+        follow_joint_trajectory_action_name = pathlib.Path(
+            base_robot.robot_namespace) / controller_name / "follow_joint_trajectory"
+        # self.joint_trajectory_follower_client = None
+        self.joint_trajectory_follower_client = actionlib.SimpleActionClient(follow_joint_trajectory_action_name.as_posix(),
+                                                                             FollowJointTrajectoryAction)
+        rospy.loginfo(f"Waiting for joint trajectory follower server {follow_joint_trajectory_action_name}...")
+        self.joint_trajectory_follower_client.wait_for_server()
+        rospy.loginfo(f"Connected.")
+
         self.robot_commander = moveit_commander.RobotCommander()
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.002,
                                                                       minimize_rotation=True)
+
+    def set_execute(self, execute: bool):
+        self.execute = execute
+
+    def set_block(self, block: bool):
+        self.block = block
 
     def plan_to_position(self,
                          group_name: str,
@@ -32,7 +53,7 @@ class MoveitEnabledRobot:
         move_group.set_end_effector_link(ee_link_name)
         move_group.set_position_target(list(target_position))
         plan = move_group.plan()[1]
-        self.follow_joint_trajectory(plan.joint_trajectory)
+        return self.follow_joint_trajectory(plan.joint_trajectory)
 
     def plan_to_position_cartesian(self,
                                    group_name: str,
@@ -55,7 +76,7 @@ class MoveitEnabledRobot:
         plan, fraction = move_group.compute_cartesian_path(waypoints=waypoints, eef_step=step_size, jump_threshold=0.0)
         if fraction != 1.0:
             raise RuntimeError(f"Cartesian path is only {fraction * 100}% complete")
-        self.follow_joint_trajectory(plan.joint_trajectory)
+        return self.follow_joint_trajectory(plan.joint_trajectory)
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose):
         self.check_inputs(group_name, ee_link_name)
@@ -67,7 +88,7 @@ class MoveitEnabledRobot:
         move_group.set_goal_orientation_tolerance(0.02)
 
         plan = move_group.plan()[1]
-        self.follow_joint_trajectory(plan.joint_trajectory)
+        return self.follow_joint_trajectory(plan.joint_trajectory)
 
     def get_group_end_effector_pose(self, group_name: str, ee_link_name: str):
         self.check_inputs(group_name, ee_link_name)
@@ -76,18 +97,21 @@ class MoveitEnabledRobot:
         left_end_effector_pose_stamped = move_group.get_current_pose()
         return left_end_effector_pose_stamped.pose
 
-    def plan_to_joint_config(self,
-                             group_name: str,
-                             joint_config,
-                             stop_condition: Optional[Callable] = None):
+    def plan_to_joint_config(self, group_name: str, joint_config):
         move_group = moveit_commander.MoveGroupCommander(group_name)
         move_group.set_joint_value_target(list(joint_config))
         plan = move_group.plan()[1]
-        self.follow_joint_trajectory(plan.joint_trajectory)
+        return self.follow_joint_trajectory(plan.joint_trajectory)
 
     def follow_joint_trajectory(self, trajectory: JointTrajectory):
-        goal = make_follow_joint_trajectory_goal(trajectory)
-        self.trajectory_follower.follow_trajectory_goal(goal)
+        result = None
+        if self.execute:
+            goal = make_follow_joint_trajectory_goal(trajectory)
+            self.joint_trajectory_follower_client.send_goal(goal)
+            if self.block:
+                self.joint_trajectory_follower_client.wait_for_result()
+                result = self.joint_trajectory_follower_client.get_result()
+        return trajectory, result
 
     def open_right_gripper(self):
         pass
@@ -121,7 +145,7 @@ class MoveitEnabledRobot:
                                                                                              tool_names,
                                                                                              grippers,
                                                                                              speed)
-        self.follow_joint_trajectory(robot_trajectory_msg.joint_trajectory)
+        return self.follow_joint_trajectory(robot_trajectory_msg.joint_trajectory)
 
     def close_left_gripper(self):
         raise NotImplementedError()
@@ -178,3 +202,8 @@ class MoveitEnabledRobot:
         if group_name not in groups:
             rospy.logwarn_throttle(1, f"Group [{group_name}] does not exist. Existing groups are:")
             rospy.logwarn_throttle(1, groups)
+
+    def get_joint_trajectory_controller_name(self):
+        """ This should match the *.yaml file, and you can also run rqt_controller_manager to check the names """
+        raise NotImplementedError
+        pass

@@ -1,8 +1,9 @@
+import pathlib
 from typing import List, Tuple, Optional
 
 import rospy
 from arc_utilities import ros_helpers
-from arc_utilities.ros_helpers import prepend_namespace, Listener, TF2Wrapper
+from arc_utilities.ros_helpers import Listener, TF2Wrapper
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
@@ -10,15 +11,15 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 class BaseRobot:
     def __init__(self, robot_namespace: str = ''):
         self.robot_namespace = robot_namespace
-        joint_states_topic = prepend_namespace(self.robot_namespace, 'joint_states')
-        self.joint_state_listener = Listener(joint_states_topic, JointState)
+        joint_states_topic = pathlib.Path(self.robot_namespace) / 'joint_states'
+        self.joint_state_listener = Listener(joint_states_topic.as_posix(), JointState)
 
         self.tf_wrapper = TF2Wrapper()
 
-    def send_joint_command_to_controller(self,
-                                         now: rospy.Time,
-                                         joint_names: List[str],
-                                         trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
+    def send_joint_command(self,
+                           now: rospy.Time,
+                           joint_names: List[str],
+                           trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         raise NotImplementedError()
 
     def get_joint_positions(self, joint_names: Optional[List[str]] = None):
