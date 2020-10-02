@@ -32,7 +32,7 @@ DualGripperShim::DualGripperShim(ros::NodeHandle const &nh, ros::NodeHandle cons
 {
   auto const traj_name = ROSHelpers::GetParam<std::string>(ph,
                                                           "traj_name",
-                                                          "both_arms_controller/follow_joint_trajectory");
+                                                          "both_arms_trajectory_controller/follow_joint_trajectory");
   ROS_INFO_STREAM("waiting for trajectory client " << traj_name);
   trajectory_client_ = std::make_unique<TrajectoryClient>(traj_name, true);
   trajectory_client_->waitForServer();

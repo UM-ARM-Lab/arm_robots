@@ -96,12 +96,6 @@ JacobianFollower::JacobianFollower(double const translation_step_size, bool cons
       translation_step_size_(translation_step_size),
       minimize_rotation_(minimize_rotation)
 {
-  if (!ros::isInitialized())
-  {
-    auto argc = 0;
-    ros::init(argc, nullptr, "jacobian_follower", ros::init_options::NoSigintHandler);
-  }
-
   nh_ = std::make_shared<ros::NodeHandle>();
   vis_pub_ = std::make_shared<ros::Publisher>(
       nh_->advertise<visualization_msgs::MarkerArray>("jacobian_waypoints", 10, true));

@@ -1,5 +1,4 @@
 #! /usr/bin/env python
-import pathlib
 from typing import List, Union
 
 import numpy as np
@@ -20,16 +19,16 @@ from victor_hardware_interface_msgs.msg import MotionStatus
 
 class MoveitEnabledRobot:
     def __init__(self, base_robot: BaseRobot, execute: bool = True, block: bool = True, force_trigger: float = 9.0):
+        self.base_robot = base_robot
         self.execute = execute
         self.block = block
-        self.force_trigger = 9.0
+        # TODO: implement stop-on-force
+        self.force_trigger = force_trigger
 
         controller_name = self.get_joint_trajectory_controller_name()
 
-        follow_joint_trajectory_action_name = pathlib.Path(
-            base_robot.robot_namespace) / controller_name / "follow_joint_trajectory"
-        # self.joint_trajectory_follower_client = None
-        self.joint_trajectory_follower_client = actionlib.SimpleActionClient(follow_joint_trajectory_action_name.as_posix(),
+        follow_joint_trajectory_action_name = controller_name + "/follow_joint_trajectory"
+        self.joint_trajectory_follower_client = actionlib.SimpleActionClient(follow_joint_trajectory_action_name,
                                                                              FollowJointTrajectoryAction)
         rospy.loginfo(f"Waiting for joint trajectory follower server {follow_joint_trajectory_action_name}...")
         self.joint_trajectory_follower_client.wait_for_server()
@@ -126,24 +125,13 @@ class MoveitEnabledRobot:
 
     def follow_jacobian_to_position(self,
                                     group_name: str,
-                                    ee_link_name: str,
-                                    target_position,
-                                    minimize_rotation: bool = True,
+                                    tool_names: List[str],
+                                    points: List[List],
+                                    speed: float,
                                     ):
-        if isinstance(target_position, Point):
-            waypoint = ros_numpy.numpify(target_position)
-        else:
-            waypoint = target_position
-
-        gripper_points = [waypoint]
-
-        group_name = group_name
-        speed = 0.2
-        tool_names = [ee_link_name]
-        grippers = [gripper_points]
         robot_trajectory_msg: moveit_commander.RobotTrajectory = self.jacobian_follower.plan(group_name,
                                                                                              tool_names,
-                                                                                             grippers,
+                                                                                             points,
                                                                                              speed)
         return self.follow_joint_trajectory(robot_trajectory_msg.joint_trajectory)
 
@@ -205,5 +193,4 @@ class MoveitEnabledRobot:
 
     def get_joint_trajectory_controller_name(self):
         """ This should match the *.yaml file, and you can also run rqt_controller_manager to check the names """
-        raise NotImplementedError
-        pass
+        raise

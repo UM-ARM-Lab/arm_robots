@@ -108,7 +108,7 @@ right_impedance_switch_config = [0.724, 0.451, 0.94, -1.425, 0.472, 0.777, -0.80
 
 class BaseVictor(BaseRobot):
 
-    def __init__(self, robot_namespace: str = 'victor'):
+    def __init__(self, robot_namespace: str):
         super().__init__(robot_namespace=robot_namespace)
 
         self.left_arm_motion_command_pub = rospy.Publisher("left_arm/motion_command", MotionCommand, queue_size=10)
@@ -274,8 +274,8 @@ class BaseVictor(BaseRobot):
 
 class Victor(MoveitEnabledRobot):
 
-    def __init__(self):
-        self.base_victor = BaseVictor()
+    def __init__(self, robot_namespace: str = 'victor'):
+        self.base_victor = BaseVictor(robot_namespace)
         super().__init__(self.base_victor)
         rospy.loginfo(Fore.GREEN + "Victor ready!")
 
