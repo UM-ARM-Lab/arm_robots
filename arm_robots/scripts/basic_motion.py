@@ -21,8 +21,7 @@ def main():
     np.set_printoptions(suppress=True, precision=0, linewidth=200)
     colorama.init(autoreset=True)
 
-    joint_state_topic = ['joint_states:=/victor/joint_states']
-    moveit_commander.roscpp_initialize(joint_state_topic)
+    moveit_commander.roscpp_initialize([])
     rospy.init_node('basic_motion', anonymous=True)
 
     victor = Victor()

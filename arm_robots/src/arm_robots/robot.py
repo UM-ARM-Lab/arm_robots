@@ -30,7 +30,9 @@ class MoveitEnabledRobot:
         follow_joint_trajectory_action_name = controller_name + "/follow_joint_trajectory"
         self.joint_trajectory_follower_client = actionlib.SimpleActionClient(follow_joint_trajectory_action_name,
                                                                              FollowJointTrajectoryAction)
-        rospy.loginfo(f"Waiting for joint trajectory follower server {follow_joint_trajectory_action_name}...")
+        resolved_follow_joint_trajectory_action_name = rospy.resolve_name(follow_joint_trajectory_action_name)
+        wait_msg = f"Waiting for joint trajectory follower server {resolved_follow_joint_trajectory_action_name}..."
+        rospy.loginfo(wait_msg)
         self.joint_trajectory_follower_client.wait_for_server()
         rospy.loginfo(f"Connected.")
 

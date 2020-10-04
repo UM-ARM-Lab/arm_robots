@@ -11,8 +11,9 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 class BaseRobot:
     def __init__(self, robot_namespace: str = ''):
         self.robot_namespace = robot_namespace
-        joint_states_topic = pathlib.Path(self.robot_namespace) / 'joint_states'
-        self.joint_state_listener = Listener(joint_states_topic.as_posix(), JointState)
+        # the robot namespace will be prepended by setting ROS_NAMESPACE environment variable or the ns="" in a roslaunch
+        joint_states_topic = 'joint_states'
+        self.joint_state_listener = Listener(joint_states_topic, JointState)
 
         self.tf_wrapper = TF2Wrapper()
 
