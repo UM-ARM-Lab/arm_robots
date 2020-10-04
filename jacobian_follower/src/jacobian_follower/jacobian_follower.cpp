@@ -100,8 +100,10 @@ JacobianFollower::JacobianFollower(double const translation_step_size, bool cons
   vis_pub_ = std::make_shared<ros::Publisher>(
       nh_->advertise<visualization_msgs::MarkerArray>("jacobian_waypoints", 10, true));
 
-  scene_monitor_->startSceneMonitor("/move_group/monitored_planning_scene");
-  scene_monitor_->requestPlanningSceneState("/get_planning_scene");
+  auto const scene_topic = "move_group/monitored_planning_scene";
+  auto const service_name = "get_planning_scene";
+  scene_monitor_->startSceneMonitor(scene_topic);
+  scene_monitor_->requestPlanningSceneState(service_name);
   auto const default_tool_names = std::vector<std::string>{"right_tool_placeholder"};
 
   Eigen::Quaterniond gripper_down{Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX())};

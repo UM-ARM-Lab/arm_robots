@@ -1,0 +1,4 @@
+<launch>
+    <node ns="hdt_michigan" pkg="jacobian_follower" type="jacobian_follower" name="jacobian_follower">
+    </node>
+</launch>
