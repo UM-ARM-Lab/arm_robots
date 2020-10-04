@@ -17,5 +17,7 @@ PYBIND11_MODULE(pyjacobian_follower, m)
            py::arg("group_name"),
            py::arg("tool_names"),
            py::arg("grippers"),
-           py::arg("speed"));
+           py::arg("max_velocity_scaling_factor"),
+           py::arg("max_acceleration_scaling_factor")
+      );
 }

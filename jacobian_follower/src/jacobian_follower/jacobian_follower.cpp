@@ -17,76 +17,18 @@
 #include <std_msgs/String.h>
 
 #include <jacobian_follower/jacobian_follower.hpp>
+#include <jacobian_follower/jacobian_utils.hpp>
 
-namespace ps = planning_scene;
-namespace psm = planning_scene_monitor;
-namespace eh = EigenHelpers;
 namespace gm = geometry_msgs;
 using ColorBuilder = arc_helpers::RGBAColorBuilder<std_msgs::ColorRGBA>;
 using ArrayXb = Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic>;
 using VecArrayXb = Eigen::Array<bool, Eigen::Dynamic, 1>;
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-static Pose lookupTransform(tf2_ros::Buffer const &buffer, std::string const &parent_frame,
-                            std::string const &child_frame, ros::Time const &target_time = ros::Time(0),
-                            ros::Duration const &timeout = ros::Duration(0))
-{
-  // Wait for up to timeout amount of time, then try to lookup the transform,
-  // letting TF2's exception handling throw if needed
-  if (!buffer.canTransform(parent_frame, child_frame, target_time, timeout))
-  {
-    ROS_WARN_STREAM("Unable to lookup transform between " << parent_frame << " and " << child_frame
-                                                          << ". Defaulting to Identity.");
-    return Pose::Identity();
-  }
-  auto const tform = buffer.lookupTransform(parent_frame, child_frame, target_time);
-  return ConvertTo<Pose>(tform.transform);
-}
-
-static PointSequence interpolate(Eigen::Vector3d const &from, Eigen::Vector3d const &to, int const steps)
-{
-  PointSequence sequence;
-  sequence.resize(steps);
-  for (int i = 0; i < steps; ++i)
-  {
-    const double t = i / static_cast<double>(steps - 1);
-    sequence[i] = ((1.0 - t) * from) + (t * to);
-  }
-  return sequence;
-}
-
-static PoseSequence calcPoseError(PoseSequence const &curr, PoseSequence const &goal)
-{
-  assert(curr.size() == goal.size());
-  auto const n = curr.size();
-  PoseSequence err(n);
-  for (auto idx = 0ul; idx < n; ++idx)
-  {
-    err[idx] = curr[idx].inverse(Eigen::Isometry) * goal[idx];
-  }
-  return err;
-}
-
-static std::pair<Eigen::VectorXd, Eigen::VectorXd> calcVecError(PoseSequence const &err)
-{
-  Eigen::VectorXd posVec(err.size() * 3);
-  Eigen::VectorXd rotVec(err.size() * 3);
-  for (auto idx = 0ul; idx < err.size(); ++idx)
-  {
-    auto const twist = EigenHelpers::TwistUnhat(err[idx].matrix().log());
-    posVec.segment<3>(static_cast<long>(3 * idx)) = err[idx].translation();
-    rotVec.segment<3>(static_cast<long>(3 * idx)) = twist.tail<3>();
-  }
-  return {posVec, rotVec};
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 JacobianFollower::JacobianFollower(double const translation_step_size, bool const minimize_rotation)
     : model_loader_(std::make_shared<robot_model_loader::RobotModelLoader>()),
       model_(model_loader_->getModel()),
-      scene_monitor_(std::make_shared<psm::PlanningSceneMonitor>(model_loader_)),
+      scene_monitor_(std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(model_loader_)),
       visual_tools_("robot_root", "/moveit_visual_markers"),
       tf_buffer_(std::make_shared<tf2_ros::Buffer>()),
       world_frame_("robot_root"),
@@ -114,10 +56,47 @@ JacobianFollower::JacobianFollower(double const translation_step_size, bool cons
   setDesiredToolOrientations(default_tool_names, default_tool_orientations);
 }
 
+moveit_msgs::RobotTrajectory JacobianFollower::plan(std::string const &group_name,
+                                                    std::vector<std::string> const &tool_names,
+                                                    std::vector<std::vector<Eigen::Vector3d>> const &grippers,
+                                                    double const max_velocity_scaling_factor,
+                                                    double const max_acceleration_scaling_factor)
+{
+  // Validity checks
+  auto const is_valid = isRequestValid(group_name, tool_names, grippers);
+  if (not is_valid)
+  {
+    return {};
+  }
+
+  // NOTE: positions are assumed to be in robot_root frame
+  auto const n_points = grippers[0].size();
+  robot_trajectory::RobotTrajectory robot_trajectory(model_, group_name);
+  PointSequence target_point_sequence;
+  for (size_t waypoint_idx = 0; waypoint_idx < n_points; ++waypoint_idx)
+  {
+    for (auto const &gripper : grippers)
+    {
+      target_point_sequence.emplace_back(gripper[waypoint_idx]);
+    }
+    auto const traj = moveInWorldFrame(group_name, tool_names, target_point_sequence);
+    robot_trajectory.append(traj, 0);
+  }
+
+  if (!time_param_.computeTimeStamps(robot_trajectory, max_velocity_scaling_factor, max_acceleration_scaling_factor))
+  {
+    ROS_ERROR("Time parametrization for the solution path failed.");
+  }
+
+  moveit_msgs::RobotTrajectory robot_trajectory_msg;
+  robot_trajectory.getRobotTrajectoryMsg(robot_trajectory_msg);
+  robot_trajectory_msg.joint_trajectory.header.frame_id = "robot_root";
+  return robot_trajectory_msg;
+}
+
 bool JacobianFollower::isRequestValid(std::string const &group_name,
                                       std::vector<std::string> const &tool_names,
-                                      std::vector<std::vector<Eigen::Vector3d>> const &grippers,
-                                      double const speed) const
+                                      std::vector<std::vector<Eigen::Vector3d>> const &grippers) const
 {
   if (not model_->hasJointModelGroup(group_name))
   {
@@ -152,11 +131,6 @@ bool JacobianFollower::isRequestValid(std::string const &group_name,
       return false;
     }
   }
-  if (speed <= 0)
-  {
-    ROS_WARN_STREAM("Speed is non-positive");
-    return false;
-  }
   return true;
 }
 
@@ -190,51 +164,19 @@ PoseSequence JacobianFollower::getToolTransforms(std::vector<std::string> const 
   return tool_poses;
 }
 
-moveit_msgs::RobotTrajectory JacobianFollower::plan(std::string const &group_name,
-                                                    std::vector<std::string> const &tool_names,
-                                                    std::vector<std::vector<Eigen::Vector3d>> const &grippers,
-                                                    double const speed)
-{
-  // Validity checks
-  auto const is_valid = isRequestValid(group_name, tool_names, grippers, speed);
-  if (not is_valid)
-  {
-    return {};
-  }
 
-  // NOTE: positions are assumed to be in robot_root frame
-  auto const n_points = grippers[0].size();
-  moveit_msgs::RobotTrajectory robot_trajectory_msg;
-  robot_trajectory_msg.joint_trajectory.header.frame_id = "robot_root";
-  PointSequence target_point_sequence;
-  for (size_t waypoint_idx = 0; waypoint_idx < n_points; ++waypoint_idx)
-  {
-    for (auto const &gripper : grippers)
-    {
-      target_point_sequence.emplace_back(gripper[waypoint_idx]);
-    }
-    auto const traj = moveInWorldFrame(group_name, tool_names, target_point_sequence, speed);
-    trajectory_utils::append(robot_trajectory_msg.joint_trajectory, traj);
-  }
-
-  return robot_trajectory_msg;
-}
-
-trajectory_msgs::JointTrajectory JacobianFollower::moveInRobotFrame(std::string const &group_name,
-                                                                    std::vector<std::string> const &tool_names,
-                                                                    PointSequence const &target_tool_positions,
-                                                                    double speed)
+robot_trajectory::RobotTrajectory JacobianFollower::moveInRobotFrame(std::string const &group_name,
+                                                                     std::vector<std::string> const &tool_names,
+                                                                     PointSequence const &target_tool_positions)
 {
   return moveInWorldFrame(group_name,
                           tool_names,
-                          Transform(worldTrobot, target_tool_positions),
-                          speed);
+                          Transform(worldTrobot, target_tool_positions));
 }
 
-trajectory_msgs::JointTrajectory JacobianFollower::moveInWorldFrame(std::string const &group_name,
-                                                                    std::vector<std::string> const &tool_names,
-                                                                    PointSequence const &target_tool_positions,
-                                                                    double const speed)
+robot_trajectory::RobotTrajectory JacobianFollower::moveInWorldFrame(std::string const &group_name,
+                                                                     std::vector<std::string> const &tool_names,
+                                                                     PointSequence const &target_tool_positions)
 {
   auto const *const jmg = model_->getJointModelGroup(group_name);
 
@@ -258,9 +200,9 @@ trajectory_msgs::JointTrajectory JacobianFollower::moveInWorldFrame(std::string 
   if (max_dist < translation_step_size_)
   {
     ROS_INFO("Motion of distance %f requested. Ignoring", max_dist);
-    return {};
+    return {model_, group_name};
   }
-  auto const steps = static_cast<int>(std::ceil(max_dist / translation_step_size_)) + 1;
+  auto const steps = static_cast<std::size_t>(std::ceil(max_dist / translation_step_size_)) + 1;
   std::vector<PointSequence> tool_paths;
   BOOST_FOREACH(boost::tie(start_transform, target_position),
                 boost::combine(start_tool_transforms, target_tool_positions))
@@ -292,10 +234,10 @@ trajectory_msgs::JointTrajectory JacobianFollower::moveInWorldFrame(std::string 
       auto const start_color = ColorBuilder::MakeFromFloatColors(0, 1, 0, 1);
       auto const end_color = ColorBuilder::MakeFromFloatColors(1, 1, 0, 1);
 
-      for (auto step_idx = 0; step_idx < steps; ++step_idx)
+      for (std::size_t step_idx = 0; step_idx < steps; ++step_idx)
       {
         m.points[step_idx] = ConvertTo<gm::Point>(path[step_idx]);
-        auto const ratio = static_cast<float>(step_idx) / static_cast<float>(std::max(steps - 1, 1));
+        auto const ratio = static_cast<float>(step_idx) / static_cast<float>(std::max<std::size_t>(steps - 1, 1));
         m.colors[step_idx] = arc_helpers::InterpolateColor(start_color, end_color, ratio);
       }
     }
@@ -303,8 +245,7 @@ trajectory_msgs::JointTrajectory JacobianFollower::moveInWorldFrame(std::string 
     vis_pub_->publish(msg);
   }
 
-  auto const seconds_per_step = translation_step_size_ / speed; // meters / (meters/second) = second
-  auto const cmd = jacobianPath3d(planning_scene, jmg, tool_names, tool_paths, seconds_per_step);
+  auto const cmd = jacobianPath3d(planning_scene, jmg, tool_names, tool_paths);
 
   // Debugging - visualize JacobiakIK result tip
   {
@@ -321,25 +262,24 @@ trajectory_msgs::JointTrajectory JacobianFollower::moveInWorldFrame(std::string 
       m.header.stamp = stamp;
       m.action = m.ADD;
       m.type = m.POINTS;
-      m.points.resize(cmd.points.size());
+      m.points.resize(cmd.getWayPointCount());
       m.scale.x = 0.01;
       m.scale.y = 0.01;
-      m.colors.resize(cmd.points.size());
+      m.colors.resize(cmd.getWayPointCount());
     }
 
-    auto &state = planning_scene->getCurrentStateNonConst();
     auto const start_color = ColorBuilder::MakeFromFloatColors(0, 0, 1, 1);
     auto const end_color = ColorBuilder::MakeFromFloatColors(1, 0, 1, 1);
-    for (size_t step_idx = 0; step_idx < cmd.points.size(); ++step_idx)
+    for (size_t step_idx = 0; step_idx < cmd.getWayPointCount(); ++step_idx)
     {
-      state.setJointGroupPositions(jmg, cmd.points[step_idx].positions);
-      state.updateLinkTransforms();
+      auto const &state = cmd.getWayPoint(step_idx);
       auto const tool_poses = getToolTransforms(tool_names, state);
       for (auto tool_idx = 0ul; tool_idx < num_ees; ++tool_idx)
       {
         auto &m = msg.markers[tool_idx];
         m.points[step_idx] = ConvertTo<gm::Point>(Eigen::Vector3d(tool_poses[tool_idx].translation()));
-        auto const ratio = static_cast<float>(step_idx) / static_cast<float>(std::max((cmd.points.size() - 1), 1ul));
+        auto const ratio =
+            static_cast<float>(step_idx) / static_cast<float>(std::max((cmd.getWayPointCount() - 1), 1ul));
         m.colors[step_idx] = arc_helpers::InterpolateColor(start_color, end_color, ratio);
       }
     }
@@ -349,12 +289,11 @@ trajectory_msgs::JointTrajectory JacobianFollower::moveInWorldFrame(std::string 
   return cmd;
 }
 
-trajectory_msgs::JointTrajectory
+robot_trajectory::RobotTrajectory
 JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
                                  moveit::core::JointModelGroup const *const jmg,
                                  std::vector<std::string> const &tool_names,
-                                 std::vector<PointSequence> const &tool_paths,
-                                 double const seconds_per_step)
+                                 std::vector<PointSequence> const &tool_paths)
 {
   auto const num_ees = tool_names.size();
   auto const steps = tool_paths[0].size();
@@ -363,11 +302,8 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
   auto const start_tool_transforms = getToolTransforms(tool_names, start_state);
 
   // Initialize the command with the current state for the first target point
-  trajectory_msgs::JointTrajectory cmd;
-  cmd.joint_names = jmg->getActiveJointModelNames();
-  cmd.points.resize(steps);
-  start_state.copyJointGroupPositions(jmg, cmd.points[0].positions);
-  cmd.points[0].time_from_start = ros::Duration(0);
+  robot_trajectory::RobotTrajectory cmd{model_, jmg};
+  cmd.addSuffixWayPoint(start_state, 0);
 
   // Iteratively follow the Jacobian to each other point in the path
   ROS_INFO("Following Jacobian along path for group %s", jmg->getName().c_str());
@@ -386,15 +322,12 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
     if (!iksoln)
     {
       ROS_WARN_STREAM("IK Stalled at idx " << step_idx << ", returning early");
-      cmd.points.resize(step_idx);
-      cmd.points.shrink_to_fit();
       break;
     }
-    planning_scene->getCurrentState().copyJointGroupPositions(jmg, cmd.points[step_idx].positions);
-    cmd.points[step_idx].time_from_start = ros::Duration(static_cast<double>(step_idx) * seconds_per_step);
+    cmd.addSuffixWayPoint(planning_scene->getCurrentState(), 0);
   }
 
-  ROS_INFO_STREAM("Jacobian IK path has " << cmd.points.size() << " points out of a requested " << steps);
+  ROS_INFO_STREAM("Jacobian IK path has " << cmd.getWayPointCount() << " points out of a requested " << steps);
   return cmd;
 }
 
@@ -407,7 +340,7 @@ bool JacobianFollower::jacobianIK(
 {
   constexpr bool bPRINT = false;
 
-  auto const num_ees = tool_names.size();
+  auto const num_ees = static_cast<long>(tool_names.size());
   robot_state::RobotState &state = planning_scene->getCurrentStateNonConst();
   Eigen::VectorXd currConfig;
   state.copyJointGroupPositions(jmg, currConfig);
@@ -484,17 +417,17 @@ bool JacobianFollower::jacobianIK(
 
       Eigen::MatrixXd matrix_output =
           std::numeric_limits<double>::infinity() * Eigen::MatrixXd::Ones(14, 5 * num_ees - 1);
-      for (auto idx = 0ul; idx < num_ees; ++idx)
+      for (auto idx = 0l; idx < num_ees; ++idx)
       {
-        matrix_output.block<4, 4>(0, 5 * idx) = robotTcurr[idx].matrix();
+        matrix_output.block<4, 4>(0, 5 * idx) = robotTcurr[static_cast<unsigned long>(idx)].matrix();
       }
-      for (auto idx = 0ul; idx < num_ees; ++idx)
+      for (auto idx = 0l; idx < num_ees; ++idx)
       {
-        matrix_output.block<4, 4>(5, 5 * idx) = robotTtargets[idx].matrix();
+        matrix_output.block<4, 4>(5, 5 * idx) = robotTtargets[static_cast<unsigned long>(idx)].matrix();
       }
-      for (auto idx = 0ul; idx < num_ees; ++idx)
+      for (auto idx = 0l; idx < num_ees; ++idx)
       {
-        matrix_output.block<4, 4>(10, 5 * idx) = poseError[idx].matrix();
+        matrix_output.block<4, 4>(10, 5 * idx) = poseError[static_cast<unsigned long>(idx)].matrix();
       }
       std::cerr << "         ee idx ----->\n"
                 << " current \n"
@@ -569,7 +502,7 @@ bool JacobianFollower::jacobianIK(
     Eigen::MatrixXd const fullJacobian = getJacobianServoFrame(jmg, tool_names, state, robotTcurr);
     Eigen::MatrixXd positionJacobian(3 * num_ees, ndof);
     Eigen::MatrixXd rotationJacobian(3 * num_ees, ndof);
-    for (auto idx = 0ul; idx < num_ees; ++idx)
+    for (auto idx = 0l; idx < num_ees; ++idx)
     {
       positionJacobian.block(3 * idx, 0, 3, ndof) = fullJacobian.block(6 * idx, 0, 3, ndof);
       rotationJacobian.block(3 * idx, 0, 3, ndof) = fullJacobian.block(6 * idx + 3, 0, 3, ndof);
@@ -718,71 +651,8 @@ Eigen::MatrixXd JacobianFollower::getJacobianServoFrame(moveit::core::JointModel
       ROS_FATAL_STREAM("Model has no link " << tool_names[idx]);
     }
     auto const ee_link_ = model_->getLinkModel(tool_names[idx]);
-    auto const block = getJacobianServoFrame(jmg, state, ee_link_, robotTservo[idx]);
+    auto const block = ::getJacobianServoFrame(jmg, state, ee_link_, robotTservo[idx]);
     jacobian.block(static_cast<long>(idx * 6), 0, 6, columns) = block;
-  }
-  return jacobian;
-}
-
-// See MLS Page 115-121
-// https://www.cds.caltech.edu/~murray/books/MLS/pdf/mls94-complete.pdf
-Matrix6Xd JacobianFollower::getJacobianServoFrame(moveit::core::JointModelGroup const *const jmg,
-                                                  robot_state::RobotState const &state,
-                                                  robot_model::LinkModel const *link, Pose const &robotTservo) const
-{
-  const Pose reference_transform = robotTservo.inverse(Eigen::Isometry);
-  const robot_model::JointModel *root_joint_model = jmg->getJointModels()[0];
-
-  auto const rows = 6;
-  auto const columns = jmg->getVariableCount();
-  Eigen::MatrixXd jacobian = Eigen::MatrixXd::Zero(rows, columns);
-
-  Eigen::Vector3d joint_axis;
-  Pose joint_transform;
-  while (link)
-  {
-    const robot_model::JointModel *pjm = link->getParentJointModel();
-    if (pjm->getVariableCount() > 0)
-    {
-      // TODO: confirm that variables map to unique joint indices
-      auto const joint_index = jmg->getVariableGroupIndex(pjm->getName());
-      if (pjm->getType() == robot_model::JointModel::REVOLUTE)
-      {
-        joint_transform = reference_transform * state.getGlobalLinkTransform(link);
-        joint_axis = joint_transform.rotation() * dynamic_cast<robot_model::RevoluteJointModel const *>(pjm)->getAxis();
-        jacobian.block<3, 1>(0, joint_index) = -joint_axis.cross(joint_transform.translation());
-        jacobian.block<3, 1>(3, joint_index) = joint_axis;
-      } else if (pjm->getType() == robot_model::JointModel::PRISMATIC)
-      {
-        joint_transform = reference_transform * state.getGlobalLinkTransform(link);
-        joint_axis =
-            joint_transform.rotation() * dynamic_cast<robot_model::PrismaticJointModel const *>(pjm)->getAxis();
-        jacobian.block<3, 1>(0, joint_index) = joint_axis;
-      } else if (pjm->getType() == robot_model::JointModel::PLANAR)
-      {
-        // This is an SE(2) joint
-        joint_transform = reference_transform * state.getGlobalLinkTransform(link);
-        joint_axis = joint_transform * Eigen::Vector3d::UnitX();
-        jacobian.block<3, 1>(0, joint_index) = joint_axis;
-        joint_axis = joint_transform * Eigen::Vector3d::UnitY();
-        jacobian.block<3, 1>(0, joint_index + 1) = joint_axis;
-        joint_axis = joint_transform * Eigen::Vector3d::UnitZ();
-        jacobian.block<3, 1>(0, joint_index + 2) = -joint_axis.cross(joint_transform.translation());
-        jacobian.block<3, 1>(3, joint_index + 2) = joint_axis;
-      } else
-      {
-        ROS_ERROR("Unknown type of joint in Jacobian computation");
-      }
-    }
-    // NB: this still works because we all joints that are not directly in
-    // the kinematic chain have 0s in the Jacobian as they should
-    if (pjm == root_joint_model)
-    {
-      break;
-    }
-    // NB: this still works because we all joints that are not directly in
-    // the kinematic chain have 0s in the Jacobian as they should
-    link = pjm->getParentLinkModel();
   }
   return jacobian;
 }

@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-from typing import List, Union
+from typing import List, Union, Optional
 
 import numpy as np
 import pyjacobian_follower
@@ -37,7 +37,7 @@ class MoveitEnabledRobot:
         rospy.loginfo(f"Connected.")
 
         self.robot_commander = moveit_commander.RobotCommander()
-        self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.002,
+        self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.04,
                                                                       minimize_rotation=True)
 
     def set_execute(self, execute: bool):
@@ -79,22 +79,24 @@ class MoveitEnabledRobot:
             raise RuntimeError(f"Cartesian path is only {fraction * 100}% complete")
         return self.follow_joint_trajectory(plan.joint_trajectory)
 
-    def plan_to_pose(self, group_name, ee_link_name, target_pose):
+    def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root'):
         self.check_inputs(group_name, ee_link_name)
         move_group = moveit_commander.MoveGroupCommander(group_name)
         move_group.set_end_effector_link(ee_link_name)
         target_pose_stamped = convert_to_pose_msg(target_pose)
+        target_pose_stamped.header.frame_id = frame_id
         move_group.set_pose_target(target_pose_stamped)
         move_group.set_goal_position_tolerance(0.002)
         move_group.set_goal_orientation_tolerance(0.02)
 
         plan = move_group.plan()[1]
-        return self.follow_joint_trajectory(plan.joint_trajectory)
+        result = self.follow_joint_trajectory(plan.joint_trajectory)
+        return result
 
-    def get_group_end_effector_pose(self, group_name: str, ee_link_name: str):
-        self.check_inputs(group_name, ee_link_name)
+    def get_link_pose(self, group_name: str, link_name: str):
+        self.check_inputs(group_name, link_name)
         move_group = moveit_commander.MoveGroupCommander(group_name)
-        move_group.set_end_effector_link(ee_link_name)
+        move_group.set_end_effector_link(link_name)
         left_end_effector_pose_stamped = move_group.get_current_pose()
         return left_end_effector_pose_stamped.pose
 
@@ -105,6 +107,7 @@ class MoveitEnabledRobot:
         return self.follow_joint_trajectory(plan.joint_trajectory)
 
     def follow_joint_trajectory(self, trajectory: JointTrajectory):
+        rospy.logdebug(f"sending trajectory goal with f{len(trajectory.points)} points")
         result = None
         if self.execute:
             goal = make_follow_joint_trajectory_goal(trajectory)
@@ -121,7 +124,7 @@ class MoveitEnabledRobot:
                  group_name: str,
                  ee_link_name: str,
                  target_position):
-        current_pose = self.get_group_end_effector_pose(group_name, ee_link_name)
+        current_pose = self.get_link_pose(group_name, ee_link_name)
         error = np.linalg.norm(ros_numpy.numpify(current_pose.position) - target_position)
         return error
 
@@ -129,16 +132,20 @@ class MoveitEnabledRobot:
                                     group_name: str,
                                     tool_names: List[str],
                                     points: List[List],
-                                    speed: float,
                                     ):
         robot_trajectory_msg: moveit_commander.RobotTrajectory = self.jacobian_follower.plan(group_name,
                                                                                              tool_names,
                                                                                              points,
-                                                                                             speed)
+                                                                                             max_velocity_scaling_factor=0.1,
+                                                                                             max_acceleration_scaling_factor=0.1,
+                                                                                             )
         return self.follow_joint_trajectory(robot_trajectory_msg.joint_trajectory)
 
     def close_left_gripper(self):
-        raise NotImplementedError()
+        pass
+
+    def close_right_gripper(self):
+        pass
 
     def open_gripper(self, gripper_name):
         raise NotImplementedError()

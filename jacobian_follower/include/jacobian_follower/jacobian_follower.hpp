@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include <moveit/trajectory_processing/iterative_time_parameterization.h>
 #include <arc_utilities/eigen_typedefs.hpp>
 #include <arc_utilities/moveit_pose_type.hpp>
 #include <arm_robots_msgs/Points.h>
@@ -11,6 +12,7 @@
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <moveit/robot_state/robot_state.h>
+#include <moveit/robot_trajectory/robot_trajectory.h>
 #include <moveit_msgs/DisplayRobotState.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
 #include <ros/ros.h>
@@ -18,8 +20,6 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <trajectory_msgs/JointTrajectory.h>
-
-using Matrix6Xd = Eigen::Matrix<double, 6, Eigen::Dynamic>;
 
 class JacobianFollower
 {
@@ -38,7 +38,6 @@ class JacobianFollower
   planning_scene_monitor::PlanningSceneMonitorPtr scene_monitor_;
 
   // Debugging
-  std::function<void(visualization_msgs::MarkerArray)> waypoints_vis_callback_;
   moveit_visual_tools::MoveItVisualTools visual_tools_;
 
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -53,45 +52,42 @@ class JacobianFollower
   // For use when moving the EE positions using moveIn[Robot/World]Frame
   double const translation_step_size_;
 
+  trajectory_processing::IterativeParabolicTimeParameterization time_param_;
+
   bool minimize_rotation_{true};
 
-  JacobianFollower(double translation_step_size, bool minimize_rotation = true);
+  explicit JacobianFollower(double translation_step_size, bool minimize_rotation = true);
 
-  void setWaypointsVisCallback(std::function<void(visualization_msgs::MarkerArray)> waypoints_vis_callback);
-
-  bool isRequestValid(std::string const &group_name,
-                      std::vector<std::string> const &tool_names,
-                      std::vector<std::vector<Eigen::Vector3d>>
-                      const &grippers,
-                      double speed) const;
+  [[nodiscard]] bool isRequestValid(std::string const &group_name,
+                                    std::vector<std::string> const &tool_names,
+                                    std::vector<std::vector<Eigen::Vector3d>>
+                                    const &grippers) const;
 
 
   void setDesiredToolOrientations(std::vector<std::string> const &tool_names,
                                   EigenHelpers::VectorQuaterniond const &nominal_tool_orientations);
 
-  PoseSequence getToolTransforms(std::vector<std::string> const &tool_names,
-                                 robot_state::RobotState const &state) const;
+  [[nodiscard]] PoseSequence getToolTransforms(std::vector<std::string> const &tool_names,
+                                               robot_state::RobotState const &state) const;
 
   moveit_msgs::RobotTrajectory plan(std::string const &group_name,
                                     std::vector<std::string> const &tool_names,
                                     std::vector<std::vector<Eigen::Vector3d>> const &grippers,
-                                    double speed);
+                                    double max_velocity_scaling_factor,
+                                    double max_acceleration_scaling_factor);
 
-  trajectory_msgs::JointTrajectory moveInRobotFrame(std::string const &group_name,
-                                                    std::vector<std::string> const &tool_names,
-                                                    PointSequence const &target_tool_positions,
-                                                    double speed);
+  robot_trajectory::RobotTrajectory moveInRobotFrame(std::string const &group_name,
+                                                     std::vector<std::string> const &tool_names,
+                                                     PointSequence const &target_tool_positions);
 
-  trajectory_msgs::JointTrajectory moveInWorldFrame(std::string const &group_name,
-                                                    std::vector<std::string> const &tool_names,
-                                                    PointSequence const &target_tool_positions,
-                                                    double speed);
+  robot_trajectory::RobotTrajectory moveInWorldFrame(std::string const &group_name,
+                                                     std::vector<std::string> const &tool_names,
+                                                     PointSequence const &target_tool_positions);
 
-  trajectory_msgs::JointTrajectory jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
-                                                  moveit::core::JointModelGroup const *jmg,
-                                                  std::vector<std::string> const &tool_names,
-                                                  std::vector<PointSequence> const &tool_paths,
-                                                  double seconds_per_step);
+  robot_trajectory::RobotTrajectory jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
+                                                   moveit::core::JointModelGroup const *jmg,
+                                                   std::vector<std::string> const &tool_names,
+                                                   std::vector<PointSequence> const &tool_paths);
 
   // Note that robot_goal_points is the target points for the tools, measured in robot frame
   bool jacobianIK(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
@@ -102,10 +98,5 @@ class JacobianFollower
   Eigen::MatrixXd getJacobianServoFrame(moveit::core::JointModelGroup const *jmg,
                                         std::vector<std::string> const &tool_names,
                                         robot_state::RobotState const &state, PoseSequence const &robotTservo);
-
-  Matrix6Xd getJacobianServoFrame(moveit::core::JointModelGroup const *jmg,
-                                  robot_state::RobotState const &state,
-                                  robot_model::LinkModel const *link,
-                                  Pose const &robotTservo) const;
 
 };

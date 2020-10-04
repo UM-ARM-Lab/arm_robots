@@ -6,14 +6,13 @@
 #include <jacobian_follower/dual_gripper_shim.hpp>
 
 
-
 std::vector<std::vector<Eigen::Vector3d>> convert(std::vector<arm_robots_msgs::Points> const &grippers)
 {
   std::vector<std::vector<Eigen::Vector3d>> stl_grippers;
-  for (auto const& gripper : grippers)
+  for (auto const &gripper : grippers)
   {
     std::vector<Eigen::Vector3d> stl_points;
-    for (auto const& point_msg : gripper.points)
+    for (auto const &point_msg : gripper.points)
     {
       auto const stl_point = ConvertTo<Eigen::Vector3d>(point_msg);
       stl_points.emplace_back(stl_point);
@@ -31,8 +30,8 @@ DualGripperShim::DualGripperShim(ros::NodeHandle const &nh, ros::NodeHandle cons
       traj_goal_time_tolerance_(ROSHelpers::GetParam(ph_, "traj_goal_time_tolerance", 0.05))
 {
   auto const traj_name = ROSHelpers::GetParam<std::string>(ph,
-                                                          "traj_name",
-                                                          "both_arms_trajectory_controller/follow_joint_trajectory");
+                                                           "traj_name",
+                                                           "both_arms_trajectory_controller/follow_joint_trajectory");
   ROS_INFO_STREAM("waiting for trajectory client " << traj_name);
   trajectory_client_ = std::make_unique<TrajectoryClient>(traj_name, true);
   trajectory_client_->waitForServer();
@@ -47,7 +46,7 @@ bool DualGripperShim::executeDualGripperTrajectory(arm_robots_msgs::GrippersTraj
 {
   // Validity checks
   auto const grippers = convert(req.grippers);
-  auto const is_valid = planner_->isRequestValid(req.group_name, req.tool_names, grippers, req.speed);
+  auto const is_valid = planner_->isRequestValid(req.group_name, req.tool_names, grippers);
   if (not is_valid)
   {
     return true;
@@ -62,31 +61,30 @@ bool DualGripperShim::executeDualGripperTrajectory(arm_robots_msgs::GrippersTraj
     {
       target_point_sequence.emplace_back(gripper[waypoint_idx]);
     }
-    auto const traj = planner_->moveInWorldFrame(req.group_name, req.tool_names, target_point_sequence, req.speed);
+    auto const traj = planner_->moveInWorldFrame(req.group_name, req.tool_names, target_point_sequence);
     followJointTrajectory(traj);
-    res.merged_trajectory_empty = (traj.points.size() < 2);
   }
 
   ROS_INFO("Done trajectory");
   return true;
 }
 
-void DualGripperShim::followJointTrajectory(trajectory_msgs::JointTrajectory const &traj)
+void DualGripperShim::followJointTrajectory(robot_trajectory::RobotTrajectory const &traj)
 {
-  // TODO: param
+  // TODO: make this a param
   if (talk_)
   {
-      std_msgs::String executing_action_str;
-      executing_action_str.data = "Moving";
-      talker_.publish(executing_action_str);
+    std_msgs::String executing_action_str;
+    executing_action_str.data = "Moving";
+    talker_.publish(executing_action_str);
   }
 
   control_msgs::FollowJointTrajectoryGoal goal;
-  goal.trajectory = traj;
+  moveit_msgs::RobotTrajectory traj_msg;
+  traj.getRobotTrajectoryMsg(traj_msg);
+  goal.trajectory = traj_msg.joint_trajectory;
   for (const auto &name : goal.trajectory.joint_names)
   {
-    // TODO: set thresholds for this task
-    // NOTE: Dale: I think these are ignored by downstream code
     control_msgs::JointTolerance tol;
     tol.name = name;
     tol.position = 0.05;

@@ -34,5 +34,5 @@ class DualGripperShim
   bool executeDualGripperTrajectory(arm_robots_msgs::GrippersTrajectory::Request &req,
                                     arm_robots_msgs::GrippersTrajectory::Response &res);
 
-  void followJointTrajectory(trajectory_msgs::JointTrajectory const &traj);
+  void followJointTrajectory(robot_trajectory::RobotTrajectory const &traj);
 };

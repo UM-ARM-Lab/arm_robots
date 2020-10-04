@@ -27,6 +27,7 @@ catkin_package(
 set(FLAGS -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Werror=return-type -Werror=missing-field-initializers)
 
 add_library(jacobian_follower
+        src/jacobian_follower/jacobian_utils.cpp
         src/jacobian_follower/dual_gripper_shim.cpp
         src/jacobian_follower/jacobian_follower.cpp)
 target_include_directories(jacobian_follower PUBLIC include)
