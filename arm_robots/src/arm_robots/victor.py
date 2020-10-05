@@ -276,7 +276,11 @@ class Victor(MoveitEnabledRobot):
 
     def __init__(self, robot_namespace: str = 'victor'):
         self.base_victor = BaseVictor(robot_namespace)
-        super().__init__(self.base_victor)
+        super().__init__(self.base_victor,
+                         arms_controller_name='both_arms_trajectory_controller',
+                         left_gripper_controller_name='left_hand_trajectory_controller',
+                         right_gripper_controller_name='right_hand_trajectory_controller',
+                         )
         rospy.loginfo(Fore.GREEN + "Victor ready!")
 
     def move_to_impedance_switch(self, actually_switch: bool = True):
@@ -287,3 +291,19 @@ class Victor(MoveitEnabledRobot):
 
     def get_joint_trajectory_controller_name(self):
         return "both_arms_trajectory_controller"
+
+    def get_right_gripper_joints(self):
+        return right_gripper_joint_names
+
+    def get_left_gripper_joints(self):
+        return left_gripper_joint_names
+
+    def get_gripper_closed_positions(self):
+        return [1, -0.25, -0.5,
+                1, -0.25, -0.5, 0.15,
+                1, -0.25, -0.5, 0.15]
+
+    def get_gripper_open_positions(self):
+        return [0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0]

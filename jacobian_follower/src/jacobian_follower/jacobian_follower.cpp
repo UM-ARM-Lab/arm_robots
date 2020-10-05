@@ -306,7 +306,7 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
   cmd.addSuffixWayPoint(start_state, 0);
 
   // Iteratively follow the Jacobian to each other point in the path
-  ROS_INFO("Following Jacobian along path for group %s", jmg->getName().c_str());
+  ROS_DEBUG("Following Jacobian along path for group %s", jmg->getName().c_str());
   for (auto step_idx = 1ul; step_idx < steps; ++step_idx)
   {
     // Extract the goal positions and orientations for each tool in robot frame
@@ -327,7 +327,7 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
     cmd.addSuffixWayPoint(planning_scene->getCurrentState(), 0);
   }
 
-  ROS_INFO_STREAM("Jacobian IK path has " << cmd.getWayPointCount() << " points out of a requested " << steps);
+  ROS_DEBUG_STREAM("Jacobian IK path has " << cmd.getWayPointCount() << " points out of a requested " << steps);
   return cmd;
 }
 

@@ -4,6 +4,7 @@ import numpy as np
 
 import roscpp_initializer
 import rospy
+from arm_robots.hdt_michigan import Val
 from arm_robots.victor import Victor
 from geometry_msgs.msg import Pose
 from tf.transformations import quaternion_from_euler
@@ -23,6 +24,12 @@ def main():
 
     roscpp_initializer.init_node("cpp_basic_motion", disable_signals=True)
     rospy.init_node('basic_motion')
+
+    # val = Val()
+    # val.open_left_gripper()
+    # val.close_left_gripper()
+    # val.open_right_gripper()
+    # val.close_right_gripper()
 
     victor = Victor()
 
