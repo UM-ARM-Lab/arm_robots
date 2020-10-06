@@ -12,19 +12,19 @@ def main():
     np.set_printoptions(linewidth=200, suppress=True, precision=4)
     rospy.init_node('trajectory_follower')
 
-    robot_name_rosparam_name = "robot_name"
+    robot_name_rosparam_name = "~robot_name"
     if robot_name := rospy.get_param(robot_name_rosparam_name, None):
         if robot_name == "victor":
-            robot = BaseVictor()
+            base_robot = BaseVictor(robot_name)
         elif robot_name == "victor":
-            robot = BaseVal()
+            base_robot = BaseVal(robot_name)
         else:
             raise NotImplementedError(f"Invalid ros param {robot_name_rosparam_name} {robot_name}")
     else:
         rospy.loginfo(f"rosparam {robot_name_rosparam_name} not set, Defaulting to Victor")
-        robot = BaseVictor()
-
-    fwd = TrajectoryFollower(robot)
+        base_robot = BaseVictor(robot_name)
+    controller_name = rospy.get_param('~controller')
+    fwd = TrajectoryFollower(base_robot, controller_name)
     fwd.start_server()
 
     rospy.spin()

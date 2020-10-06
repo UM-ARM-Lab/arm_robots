@@ -19,7 +19,7 @@ if __name__ == "__main__":
     if k == 'Y' or k == 'y':
         rospy.loginfo(Fore.CYAN + "you better not be lying...")
 
-        victor = Victor(execute_by_default=True)
+        victor = Victor(robot_namespace='victor')
 
         actually_switch = rospy.get_param("~actually_switch", False)
         if actually_switch:

@@ -1,24 +1,24 @@
 <launch>
     <arg name="moveit_controller_manager" default="fake"/>
-    <arg name="use_victor" default="false"/>
-    <arg name="use_val" default="false"/>
     <arg name="use_gazebo" default="false"/>
+    <arg name="gui" default="true"/>
     <arg name="verbose" default="false"/>
-    <arg name="world_name" default="$(find arm_robots)world/empty_with_moveit_plugin.world"/>
+    <arg name="world_name" default="$(find arm_robots)/world/empty_with_moveit_plugin.world"/>
 
-    <include file="$(find victor_moveit_config)/launch/move_group.launch">
+    <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
         <arg name="allow_trajectory_execution" value="true"/>
         <arg name="moveit_controller_manager" value="$(arg moveit_controller_manager)"/>
     </include>
 
     <include file="$(find arm_robots)/launch/trajectory_follower.launch">
-        <arg name="use_victor" value="$(arg use_victor)"/>
+        <arg name="use_victor" value="true"/>
     </include>
 
-    <group if="$(arg use_gazebo)">
+    <group ns="victor" if="$(arg use_gazebo)">
         <include file="$(find gazebo_ros)/launch/empty_world.launch">
             <arg name="world_name" value="$(arg world_name)"/>
             <arg name="use_sim_time" value="false"/>
+            <arg name="gui" value="$(arg gui)"/>
             <arg name="verbose" value="$(arg verbose)"/>
         </include>
     </group>

@@ -37,11 +37,16 @@ def make_joint_tolerance(pos, name):
     return j
 
 
-def waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint, tolerance: List[float]):
+def waypoint_error(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint):
     actual = np.array(actual.positions)
     desired = np.array(desired.positions)
+    return np.abs(actual - desired)
+
+
+def waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint, tolerance: List[float]):
+    error = waypoint_error(actual, desired)
     tolerance = np.array(tolerance)
-    return np.all(np.abs(actual - desired) < tolerance)
+    return np.all(error < tolerance)
 
 
 def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_step_size: float):
@@ -77,6 +82,6 @@ def make_follow_joint_trajectory_goal(trajectory: JointTrajectory):
     goal.trajectory.header.stamp = rospy.Time.now()
     goal.trajectory = trajectory
 
-    goal.goal_tolerance = [make_joint_tolerance(0.05, n) for n in trajectory.joint_names]
+    goal.goal_tolerance = [make_joint_tolerance(0.06, n) for n in trajectory.joint_names]
     goal.goal_time_tolerance = rospy.Duration(nsecs=500_000_000)
     return goal

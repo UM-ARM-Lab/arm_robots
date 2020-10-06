@@ -1,26 +1,34 @@
 <launch>
-    <arg name="use_sim_time"    default="false"/>
-    <arg name="use_victor"      default="false"/>
-    <arg name="use_val"         default="false"/>
+  <!--  publish robot_root and run the trajectory followers -->
 
-    <!--  publish val or victor root as "robot_root" -->
-    <group if="$(arg use_victor)">
-        <node pkg="arm_robots" type="trajectory_follower.py" name="victor_trajectory_follower" args="_robot:=victor"/>
-        <group ns="static_transform_publishers">
-            <node pkg="tf2_ros" type="static_transform_publisher" name="active_robot_root_broadcaster" required="true"
-                  args="0 0 0 0 0 0 victor_root robot_root">
-                <param name="use_sim_time" value="$(arg use_sim_time)"/>
-            </node>
-        </group>
-    </group>
+  <arg name="use_sim_time" default="false"/>
+  <arg name="use_victor" default="false"/>
+  <arg name="use_val" default="false"/>
 
-    <group if="$(arg use_val)">
-        <node pkg="arm_robots" type="trajectory_follower.py" name="victor_trajectory_follower" args="_robot:=val"/>
-        <group ns="static_transform_publishers">
-            <node pkg="tf2_ros" type="static_transform_publisher" name="active_robot_root_broadcaster" required="true"
-                  args="0 0 0 0 0 0 val_root robot_root">
-                <param name="use_sim_time" value="$(arg use_sim_time)"/>
-            </node>
-        </group>
+  <group ns="victor" if="$(arg use_victor)">
+    <node pkg="arm_robots" type="trajectory_follower_node.py" name="arms_trajectory_follower"
+          args="_robot_name:=victor _controller:=both_arms_trajectory_controller"/>
+    <node pkg="arm_robots" type="trajectory_follower_node.py" name="left_gripper_trajectory_follower"
+          args="_robot_name:=victor _controller:=left_hand_trajectory_controller"/>
+    <node pkg="arm_robots" type="trajectory_follower_node.py"
+          name="right_gripper_trajectory_follower"
+          args="_robot_name:=victor _controller:=right_hand_trajectory_controller"/>
+    <group ns="static_transform_publishers">
+      <node pkg="tf2_ros" type="static_transform_publisher" name="active_robot_root_broadcaster" required="true"
+            args="0 0 0 0 0 0 victor_root robot_root">
+        <param name="use_sim_time" value="$(arg use_sim_time)"/>
+      </node>
     </group>
+  </group>
+
+  <group ns="hdt_michigan" if="$(arg use_val)">
+    <!-- add grippers / controller names -->
+    <node pkg="arm_robots" type="trajectory_follower.py" name="victor_trajectory_follower" args="_robot:=val"/>
+    <group ns="static_transform_publishers">
+      <node pkg="tf2_ros" type="static_transform_publisher" name="active_robot_root_broadcaster" required="true"
+            args="0 0 0 0 0 0 val_root robot_root">
+        <param name="use_sim_time" value="$(arg use_sim_time)"/>
+      </node>
+    </group>
+  </group>
 </launch>

@@ -1,17 +1,19 @@
 #! /usr/bin/env python
+from typing import List, Tuple
+
 from colorama import Fore
 
 import rospy
-from actionlib import SimpleActionClient
 from arm_robots.base_robot import BaseRobot
 from arm_robots.robot import MoveitEnabledRobot
-from arm_robots.robot_utils import make_follow_joint_trajectory_goal
-from control_msgs.msg import FollowJointTrajectoryAction
 from std_msgs.msg import Float64MultiArray
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from trajectory_msgs.msg import JointTrajectoryPoint
 
 
 class BaseVal(BaseRobot):
+
+    def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
+        pass
 
     def __init__(self, robot_namespace: str):
         super().__init__(robot_namespace=robot_namespace)

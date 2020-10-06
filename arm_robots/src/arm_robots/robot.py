@@ -133,7 +133,7 @@ class MoveitEnabledRobot:
         trajectory = JointTrajectory()
         trajectory.joint_names = joint_names
         point = JointTrajectoryPoint()
-        point.time_from_start = rospy.Duration(0.1)
+        point.time_from_start = rospy.Duration(1.0)
         point.positions = joint_positions
         trajectory.points.append(point)
         return self.follow_joint_trajectory(trajectory, client)
