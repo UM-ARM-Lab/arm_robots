@@ -4,7 +4,6 @@ from typing import List, Dict, Tuple, Optional
 from colorama import Fore
 
 import rospy
-from arc_utilities import ros_helpers
 from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
 from arc_utilities.ros_helpers import Listener
 from arm_robots.base_robot import BaseRobot
@@ -362,3 +361,6 @@ class Victor(MoveitEnabledRobot):
 
     def get_gripper_open_positions(self):
         return [0.25, 0.25, 0.25, 0.8]
+
+    def get_joint_positions(self, joint_names: Optional[List[str]] = None):
+        return self.base_robot.get_joint_positions(joint_names)

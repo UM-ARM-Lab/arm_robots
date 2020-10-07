@@ -24,10 +24,13 @@ class BaseRobot:
         """
         joint_state: JointState = self.joint_state_listener.get()
         current_joint_positions = []
-        for name in joint_names:
-            if name not in joint_state.name:
-                ros_helpers.logfatal(ValueError, f"Joint {name} not found in joint states")
-            idx = joint_state.name.index(name)
-            pos = joint_state.position[idx]
-            current_joint_positions.append(pos)
+        if joint_names is None:
+            current_joint_positions = joint_state.position
+        else:
+            for name in joint_names:
+                if name not in joint_state.name:
+                    ros_helpers.logfatal(ValueError, f"Joint {name} not found in joint states")
+                idx = joint_state.name.index(name)
+                pos = joint_state.position[idx]
+                current_joint_positions.append(pos)
         return current_joint_positions
