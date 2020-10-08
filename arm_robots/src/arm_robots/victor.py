@@ -423,7 +423,8 @@ class Victor(MoveitEnabledRobot):
         return self.get_left_arm_joints() + self.get_right_arm_joints()
 
     def follow_joint_trajectory_feedback_cb(self, client: SimpleActionClient, feedback: FollowJointTrajectoryFeedback):
-        self.stop_on_force_cb(client, feedback)
+        # self.stop_on_force_cb(client, feedback)
+        pass
 
     def get_force_norm(self, status: MotionStatus):
         f = np.array([status.estimated_external_wrench.x,
