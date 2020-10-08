@@ -11,7 +11,7 @@ from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg
 from arm_robots.base_robot import BaseRobot
 from arm_robots.robot_utils import make_follow_joint_trajectory_goal
-from control_msgs.msg import FollowJointTrajectoryAction
+from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback
 from geometry_msgs.msg import Point
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from victor_hardware_interface_msgs.msg import MotionStatus
@@ -38,7 +38,6 @@ class MoveitEnabledRobot:
         self.left_gripper_client = self.setup_joint_trajectory_controller_client(left_gripper_controller_name)
         self.right_gripper_client = self.setup_joint_trajectory_controller_client(right_gripper_controller_name)
 
-        self.robot_commander = moveit_commander.RobotCommander()
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.01,
                                                                       minimize_rotation=True)
 
@@ -123,7 +122,11 @@ class MoveitEnabledRobot:
         result = None
         if self.execute:
             goal = make_follow_joint_trajectory_goal(trajectory)
-            client.send_goal(goal)
+
+            def _feedback_cb(feedback):
+                self.follow_joint_trajectory_feedback_cb(client, feedback)
+
+            client.send_goal(goal, feedback_cb=_feedback_cb)
             if self.block:
                 client.wait_for_result()
                 result = client.get_result()
@@ -160,12 +163,13 @@ class MoveitEnabledRobot:
                                     tool_names: List[str],
                                     points: List[List],
                                     ):
-        robot_trajectory_msg: moveit_commander.RobotTrajectory = self.jacobian_follower.plan(group_name,
-                                                                                             tool_names,
-                                                                                             points,
-                                                                                             max_velocity_scaling_factor=0.1,
-                                                                                             max_acceleration_scaling_factor=0.1,
-                                                                                             )
+        robot_trajectory_msg: moveit_commander.RobotTrajectory = self.jacobian_follower.plan(
+            group_name,
+            tool_names,
+            points,
+            max_velocity_scaling_factor=0.01,
+            max_acceleration_scaling_factor=0.1,
+        )
         return self.follow_arms_joint_trajectory(robot_trajectory_msg.joint_trajectory)
 
     def get_joint_position_from_status_messages(self, left_status: MotionStatus, right_status: MotionStatus, name: str):
@@ -201,28 +205,20 @@ class MoveitEnabledRobot:
             raise NotImplementedError()
         return pos
 
-    def check_inputs(self, group_name: str, ee_link_name: str):
-        links = self.robot_commander.get_link_names()
-        if ee_link_name not in links:
-            rospy.logwarn_throttle(1, f"Link [{ee_link_name}] does not exist. Existing links are:")
-            rospy.logwarn_throttle(1, links)
-
-        groups = self.robot_commander.get_group_names()
-        if group_name not in groups:
-            rospy.logwarn_throttle(1, f"Group [{group_name}] does not exist. Existing groups are:")
-            rospy.logwarn_throttle(1, groups)
-
     def set_left_gripper(self, joint_names: List[str], joint_positions):
         return self.follow_joint_config(joint_names, joint_positions, self.left_gripper_client)
 
     def set_right_gripper(self, joint_names: List[str], joint_positions):
         return self.follow_joint_config(joint_names, joint_positions, self.right_gripper_client)
 
-    def get_right_gripper_links(self):
-        return self.robot_commander.get_link_names("right_gripper")
+    def get_right_arm_joints(self):
+        raise NotImplementedError()
 
-    def get_left_gripper_links(self):
-        return self.robot_commander.get_link_names("left_gripper")
+    def get_left_arm_joints(self):
+        raise NotImplementedError()
+
+    def get_both_arm_joints(self):
+        raise NotImplementedError()
 
     def get_right_gripper_joints(self):
         raise NotImplementedError()
@@ -247,3 +243,9 @@ class MoveitEnabledRobot:
 
     def close_right_gripper(self):
         return self.set_right_gripper(self.get_right_gripper_joints(), self.get_gripper_closed_positions())
+
+    def get_n_joints(self):
+        return len(self.base_robot.robot_commander.get_joint_names())
+
+    def follow_joint_trajectory_feedback_cb(self, client: SimpleActionClient, feedback: FollowJointTrajectoryFeedback):
+        pass

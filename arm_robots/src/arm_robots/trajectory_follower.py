@@ -46,6 +46,12 @@ class TrajectoryFollower:
         goal_tolerance = get_ordered_tolerance_list(trajectory_joint_names, traj_msg.goal_tolerance, is_goal=True)
 
         interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.1)
+        if len(interpolated_points) == 0:
+            rospy.loginfo("Trajectory was empty after interpolation")
+            result.error_code = actionlib.GoalStatus.SUCCEEDED
+            result.error_string = "empty trajectory"
+            return result
+
         rospy.logdebug(interpolated_points)
 
         trajectory_point_idx = 0
@@ -93,7 +99,7 @@ class TrajectoryFollower:
                 break
 
             # If we're close enough, advance
-            if trajectory_point_idx == len(interpolated_points) - 1:
+            if trajectory_point_idx >= len(interpolated_points) - 1:
                 if waypoint_reached(desired_point, actual_point, goal_tolerance):
                     # we're done!
                     result.error_code = actionlib.GoalStatus.SUCCEEDED

@@ -12,14 +12,18 @@ def main():
     np.set_printoptions(suppress=True, precision=0, linewidth=200)
     colorama.init(autoreset=True)
 
-    roscpp_initializer.init_node("cpp_basic_motion", [], disable_signals=True)
-    rospy.init_node('basic_motion')
+    rospy_and_cpp_init("victor_ipython")
 
     victor = Victor()
 
     ipdb.set_trace()
 
     roscpp_initializer.shutdown()
+
+
+def rospy_and_cpp_init(name):
+    roscpp_initializer.init_node("cpp_" + name, [], disable_signals=True)
+    rospy.init_node(name)
 
 
 if __name__ == "__main__":

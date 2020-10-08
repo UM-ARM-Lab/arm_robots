@@ -1,15 +1,22 @@
 #! /usr/bin/env python
+import collections
 from typing import List, Dict, Tuple, Optional
 
+import numpy as np
 from colorama import Fore
+from scipy import signal
 
+import moveit_commander
 import rospy
+from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
 from arc_utilities.ros_helpers import Listener
 from arm_robots.base_robot import BaseRobot
 from arm_robots.robot import MoveitEnabledRobot
+from control_msgs.msg import FollowJointTrajectoryFeedback
 from moveit_msgs.msg import DisplayRobotState
 from sensor_msgs.msg import JointState
+from std_msgs.msg import String, Float32
 from trajectory_msgs.msg import JointTrajectoryPoint
 from victor_hardware_interface.victor_utils import get_new_control_mode, list_to_jvq, default_gripper_command
 from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, MotionCommand, Robotiq3FingerCommand, \
@@ -163,12 +170,20 @@ class BaseVictor(BaseRobot):
 
         return False, ""
 
-    @staticmethod
-    def send_arm_command(command_pub: rospy.Publisher, right_arm_control_mode: ControlMode, positions):
+    def send_arm_command(self, command_pub: rospy.Publisher, right_arm_control_mode: ControlMode, positions):
         if positions is not None:
+            # FIXME: what if we allow the BaseRobot class to use moveit, but just don't have it require that
+            # any actions are running?
+            # NOTE: why are these values not checked by the lower-level code? the Java code knows what the joint limits
+            # are so why does it not enforce them?
+            limit_enforced_positions = []
+            for i, joint_name in enumerate(right_arm_joints):
+                joint: moveit_commander.RobotCommander.Joint = self.robot_commander.get_joint(joint_name)
+                limit_enforced_position = np.clip(positions[i], joint.min_bound() + 1e-2, joint.max_bound() - 1e-2)
+                limit_enforced_positions.append(limit_enforced_position)
             cmd = MotionCommand()
             cmd.header.stamp = rospy.Time.now()
-            cmd.joint_position = list_to_jvq(positions)
+            cmd.joint_position = list_to_jvq(limit_enforced_positions)
             cmd.control_mode = right_arm_control_mode
             command_pub.publish(cmd)
 
@@ -183,6 +198,21 @@ class BaseVictor(BaseRobot):
     def get_left_gripper_status(self):
         left_status: Robotiq3FingerStatus = self.left_gripper_status_listener.get()
         return left_status
+
+    def is_left_gripper_closed(self):
+        status = self.get_left_gripper_status()
+        return self.is_gripper_closed(status)
+
+    def is_right_gripper_closed(self):
+        status = self.get_right_gripper_status()
+        return self.is_gripper_closed(status)
+
+    def is_gripper_closed(self, status: Robotiq3FingerStatus):
+        # [0.5, 0.4, 0.4, 0.8]
+        finger_a_closed = status.finger_a_status.position > 0.5 - 1e-2
+        finger_b_closed = status.finger_b_status.position > 0.5 - 1e-2
+        finger_c_closed = status.finger_c_status.position > 0.5 - 1e-2
+        return finger_a_closed and finger_b_closed and finger_c_closed
 
     def get_arms_statuses(self):
         return {'left': self.get_left_arm_status(),
@@ -299,6 +329,9 @@ class BaseVictor(BaseRobot):
         :args joint_names an optional list of names if you want to have a specific order or a subset
         """
         joint_state: JointState = self.joint_state_listener.get()
+        if joint_names is None:
+            return joint_state.position
+
         gripper_statuses = self.get_gripper_statuses()
         current_joint_positions = []
         for name in joint_names:
@@ -323,7 +356,7 @@ class BaseVictor(BaseRobot):
             elif name == 'right_scissor':
                 current_joint_positions.append(gripper_statuses['right'].scissor_status.position)
             else:
-                raise ValueError(f"Couldn't get joint {name}")
+                raise ValueError(f"Could not get joint {name}")
 
         # try looking at the status messages
         return current_joint_positions
@@ -331,7 +364,12 @@ class BaseVictor(BaseRobot):
 
 class Victor(MoveitEnabledRobot):
 
-    def __init__(self, robot_namespace: str = 'victor'):
+    def __init__(self, robot_namespace: str = 'victor', force_trigger: float = -0.0):
+        self.left_force_change_sub = rospy.Publisher("left_force_change", Float32, queue_size=10)
+        self.right_force_change_sub = rospy.Publisher("right_force_change", Float32, queue_size=10)
+        self.polly_pub = rospy.Publisher("/polly", String, queue_size=10)
+        self.use_force_trigger = force_trigger >= 0
+        self.force_trigger = force_trigger
         self.base_victor = BaseVictor(robot_namespace)
         super().__init__(self.base_victor,
                          arms_controller_name='both_arms_trajectory_controller',
@@ -364,3 +402,74 @@ class Victor(MoveitEnabledRobot):
 
     def get_joint_positions(self, joint_names: Optional[List[str]] = None):
         return self.base_robot.get_joint_positions(joint_names)
+
+    def get_gripper_positions(self):
+        left_gripper = self.base_robot.robot_commander.get_link("left_tool_placeholder")
+        right_gripper = self.base_robot.robot_commander.get_link("right_tool_placeholder")
+        return left_gripper.pose().pose.position, right_gripper.pose().pose.position
+
+    def speak(self, message: str):
+        msg = String()
+        msg.data = message
+        self.polly_pub.publish(msg)
+
+    def get_right_arm_joints(self):
+        return right_arm_joints
+
+    def get_left_arm_joints(self):
+        return left_arm_joints
+
+    def get_both_arm_joints(self):
+        return self.get_left_arm_joints() + self.get_right_arm_joints()
+
+    def follow_joint_trajectory_feedback_cb(self, client: SimpleActionClient, feedback: FollowJointTrajectoryFeedback):
+        self.stop_on_force_cb(client, feedback)
+
+    def get_force_norm(self, status: MotionStatus):
+        f = np.array([status.estimated_external_wrench.x,
+                      status.estimated_external_wrench.y,
+                      status.estimated_external_wrench.z])
+        return np.linalg.norm(f)
+
+    def get_median_filtered_left_force(self):
+        status = self.base_victor.get_left_arm_status()
+        f = self.get_force_norm(status)
+        self.get_median_filtered_left_force.queue.append(f)
+        current_history = np.array(self.get_median_filtered_left_force.queue)
+        filtered_force = signal.medfilt(current_history)[-1]
+        return filtered_force
+
+    get_median_filtered_left_force.queue = collections.deque(maxlen=100)
+
+    def get_median_filtered_right_force(self):
+        status = self.base_victor.get_right_arm_status()
+        f = self.get_force_norm(status)
+        self.get_median_filtered_right_force.queue.append(f)
+        current_history = np.array(self.get_median_filtered_right_force.queue)
+        filtered_force = signal.medfilt(current_history)[-1]
+        return filtered_force
+
+    get_median_filtered_right_force.queue = collections.deque(maxlen=100)
+
+    def stop_on_force_cb(self, client, feedback):
+        if self.use_force_trigger:
+            status = self.base_victor.get_arms_statuses()
+            left_force = self.get_force_norm(status['left'])
+            right_force = self.get_force_norm(status['right'])
+            left_force_change = np.abs(left_force - self.get_median_filtered_left_force())
+            right_force_change = np.abs(right_force - self.get_median_filtered_right_force())
+
+            rospy.logerr(f"{left_force_change} {right_force_change}")
+            left_force_change_msg = Float32()
+            left_force_change_msg.data = left_force_change
+            self.left_force_change_sub.publish(left_force_change_msg)
+
+            rospy.logerr(f"{right_force_change} {right_force_change}")
+            right_force_change_msg = Float32()
+            right_force_change_msg.data = right_force_change
+            self.right_force_change_sub.publish(right_force_change_msg)
+
+            stop = left_force_change > self.force_trigger or right_force_change > self.force_trigger
+            if stop:
+                rospy.logwarn("CANCELING!")
+                client.cancel_all_goals()

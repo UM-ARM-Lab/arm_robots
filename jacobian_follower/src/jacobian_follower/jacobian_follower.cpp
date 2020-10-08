@@ -303,7 +303,11 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
 
   // Initialize the command with the current state for the first target point
   robot_trajectory::RobotTrajectory cmd{model_, jmg};
-  cmd.addSuffixWayPoint(start_state, 0);
+  // we only add the start to the cmd if we were able to make at least one step,
+  // otherwise we'd be returning a trajectory with just the start config. Not only is this pointless,
+  // in impedance mode for instance it can cause the arm to drift down, because the current position
+  // is always a drooped version of the current _commanded_ position.
+  auto start_added = false;
 
   // Iteratively follow the Jacobian to each other point in the path
   ROS_DEBUG("Following Jacobian along path for group %s", jmg->getName().c_str());
@@ -323,6 +327,11 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
     {
       ROS_WARN_STREAM("IK Stalled at idx " << step_idx << ", returning early");
       break;
+    }
+    if (not start_added)
+    {
+      cmd.addSuffixWayPoint(start_state, 0);
+      start_added = true;
     }
     cmd.addSuffixWayPoint(planning_scene->getCurrentState(), 0);
   }
@@ -559,21 +568,11 @@ bool JacobianFollower::jacobianIK(
       }
 
       // Project the rotation step into the nullspace of position servoing
-      Eigen::VectorXd const step = [&]() -> Eigen::VectorXd
-      {
-        if (minimize_rotation_)
-        {
-          Eigen::MatrixXd const nullspaceConstraintMatrixPinv = EigenHelpers::Pinv(nullspaceConstraintMatrix,
-                                                                                   EigenHelpers::SuggestedRcond());
-          Eigen::MatrixXd const nullspaceProjector = Eigen::MatrixXd::Identity(ndof, ndof)
-                                                     - (nullspaceConstraintMatrixPinv * nullspaceConstraintMatrix);
-          Eigen::VectorXd const nullspaceRotationStep = nullspaceProjector * rotationCorrectionStep;
-          return positionCorrectionStep + nullspaceRotationStep;
-        } else
-        {
-          return positionCorrectionStep;
-        }
-      }();
+      Eigen::VectorXd const step = projectRotationIntoNullspace(positionCorrectionStep,
+                                                                rotationCorrectionStep,
+                                                                nullspaceConstraintMatrix,
+                                                                ndof);
+
       // if (bPRINT)
       // {
       //   std::cerr << "\n\n";
@@ -624,7 +623,7 @@ bool JacobianFollower::jacobianIK(
     planning_scene->checkCollision(collisionRequest, collisionResult, state);
     if (collisionResult.collision)
     {
-      ROS_WARN_STREAM("Projection stalled at itr " << itr << " due to collision" << collisionResult);
+      ROS_WARN_STREAM("Projection stalled at itr " << itr << ". " << collisionResult);
       return false;
     }
     collisionResult.clear();
@@ -632,6 +631,26 @@ bool JacobianFollower::jacobianIK(
 
   ROS_ERROR("Iteration limit reached");
   return false;
+}
+
+Eigen::VectorXd JacobianFollower::projectRotationIntoNullspace(Eigen::VectorXd positionCorrectionStep,
+                                                               Eigen::VectorXd rotationCorrectionStep,
+                                                               Eigen::MatrixXd const &nullspaceConstraintMatrix,
+                                                               int const ndof)
+{
+  if (minimize_rotation_)
+  {
+    Eigen::MatrixXd const nullspaceConstraintMatrixPinv = EigenHelpers::Pinv(nullspaceConstraintMatrix,
+                                                                             EigenHelpers::SuggestedRcond());
+    auto const I = Eigen::MatrixXd::Identity(ndof, ndof);
+    Eigen::MatrixXd const nullspaceProjector = I - (nullspaceConstraintMatrixPinv * nullspaceConstraintMatrix);
+    Eigen::VectorXd const nullspaceRotationStep = nullspaceProjector * rotationCorrectionStep;
+    return positionCorrectionStep + nullspaceRotationStep;
+  } else
+  {
+    return positionCorrectionStep;
+  }
+
 }
 
 Eigen::MatrixXd JacobianFollower::getJacobianServoFrame(moveit::core::JointModelGroup const *const jmg,

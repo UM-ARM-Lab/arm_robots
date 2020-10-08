@@ -23,7 +23,7 @@
 
 class JacobianFollower
 {
- public:
+public:
   enum
   {
     NeedsToAlign = ((sizeof(Pose) % 16) == 0)
@@ -94,6 +94,11 @@ class JacobianFollower
                   moveit::core::JointModelGroup const *jmg,
                   std::vector<std::string> const &tool_names,
                   PoseSequence const &robotTtargets);
+
+  Eigen::VectorXd projectRotationIntoNullspace(Eigen::VectorXd positionCorrectionStep,
+                                               Eigen::VectorXd rotationCorrectionStep,
+                                               Eigen::MatrixXd const &nullspaceConstraintMatrix,
+                                               int const ndof);
 
   Eigen::MatrixXd getJacobianServoFrame(moveit::core::JointModelGroup const *jmg,
                                         std::vector<std::string> const &tool_names,
