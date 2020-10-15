@@ -1,5 +1,4 @@
 arm_robots_msgs/Points[] grippers
-float64 speed  # meters per second
 string group_name
 string[] tool_names
 ---

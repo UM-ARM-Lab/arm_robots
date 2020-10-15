@@ -6,8 +6,16 @@ from arm_robots.victor import Victor
 
 
 def get_moveit_robot(robot_namespace: Optional[str] = None):
+    default = 'victor'
     if robot_namespace is None:
-        robot_namespace = rospy.get_namespace().strip("/")
+        if rospy.has_param("robot_namespace"):
+            robot_namespace = rospy.get_param("robot_namespace")
+        elif rospy.get_namespace() != "/":
+            robot_namespace = rospy.get_namespace().strip("/")
+        else:
+            rospy.logwarn(f"using default robot_namespace {default}")
+            robot_namespace = default
+
     if robot_namespace == 'victor':
         return Victor(robot_namespace)
     elif robot_namespace in ['val', 'hdt_michigan']:
