@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-from typing import List, Union
+from typing import List, Union, Tuple, Callable, Optional
 
 import numpy as np
 import pyjacobian_follower
@@ -7,42 +7,55 @@ import pyjacobian_follower
 import moveit_commander
 import ros_numpy
 import rospy
-from actionlib import SimpleActionClient
+from actionlib import SimpleActionClient, GoalStatus
 from arc_utilities.conversions import convert_to_pose_msg
 from arm_robots.base_robot import BaseRobot
 from arm_robots.robot_utils import make_follow_joint_trajectory_goal
-from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback
+from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult
 from geometry_msgs.msg import Point
+from rosgraph.names import ns_join
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from victor_hardware_interface_msgs.msg import MotionStatus
 
 
-class MoveitEnabledRobot:
+class MoveitEnabledRobot(BaseRobot):
 
     def __init__(self,
-                 base_robot: BaseRobot,
+                 robot_namespace: str,
                  arms_controller_name: str,
                  left_gripper_controller_name: str,
                  right_gripper_controller_name: str,
                  execute: bool = True,
                  block: bool = True,
                  force_trigger: float = 9.0):
-        self.base_robot = base_robot
+        super().__init__(robot_namespace)
         self.execute = execute
         self.block = block
-
-        # TODO: implement stop-on-force
         self.force_trigger = force_trigger
 
-        self.arms_client = self.setup_joint_trajectory_controller_client(arms_controller_name)
-        self.left_gripper_client = self.setup_joint_trajectory_controller_client(left_gripper_controller_name)
-        self.right_gripper_client = self.setup_joint_trajectory_controller_client(right_gripper_controller_name)
+        self.arms_controller_name = arms_controller_name
+        self.left_gripper_controller_name = left_gripper_controller_name
+        self.right_gripper_controller_name = right_gripper_controller_name
 
-        self.jacobian_follower = pyjacobian_follower.JacobianFollower(translation_step_size=0.01,
+        self.arms_client = None
+        self.left_gripper_client = None
+        self.right_gripper_client = None
+        self.jacobian_follower = None
+
+        self.feedback_callbacks = []
+
+    def connect(self):
+        # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
+        self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
+        self.left_gripper_client = self.setup_joint_trajectory_controller_client(self.left_gripper_controller_name)
+        self.right_gripper_client = self.setup_joint_trajectory_controller_client(self.right_gripper_controller_name)
+
+        self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
+                                                                      translation_step_size=0.07,
                                                                       minimize_rotation=True)
 
     def setup_joint_trajectory_controller_client(self, controller_name):
-        action_name = controller_name + "/follow_joint_trajectory"
+        action_name = ns_join(self.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
         client = SimpleActionClient(action_name, FollowJointTrajectoryAction)
         resolved_action_name = rospy.resolve_name(action_name)
         wait_msg = f"Waiting for joint trajectory follower server {resolved_action_name}..."
@@ -61,7 +74,7 @@ class MoveitEnabledRobot:
                          group_name: str,
                          ee_link_name: str,
                          target_position):
-        move_group = moveit_commander.MoveGroupCommander(group_name)
+        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
         move_group.set_end_effector_link(ee_link_name)
         move_group.set_position_target(list(target_position))
         plan = move_group.plan()[1]
@@ -73,7 +86,7 @@ class MoveitEnabledRobot:
                                    target_position: Union[Point, List, np.array],
                                    step_size: float = 0.02,
                                    ):
-        move_group = moveit_commander.MoveGroupCommander(group_name)
+        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
         move_group.set_end_effector_link(ee_link_name)
 
         # by starting with the current pose, we will be preserving the orientation
@@ -92,7 +105,7 @@ class MoveitEnabledRobot:
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root'):
         self.check_inputs(group_name, ee_link_name)
-        move_group = moveit_commander.MoveGroupCommander(group_name)
+        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
         move_group.set_end_effector_link(ee_link_name)
         target_pose_stamped = convert_to_pose_msg(target_pose)
         target_pose_stamped.header.frame_id = frame_id
@@ -106,31 +119,39 @@ class MoveitEnabledRobot:
 
     def get_link_pose(self, group_name: str, link_name: str):
         self.check_inputs(group_name, link_name)
-        move_group = moveit_commander.MoveGroupCommander(group_name)
+        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
         move_group.set_end_effector_link(link_name)
         left_end_effector_pose_stamped = move_group.get_current_pose()
         return left_end_effector_pose_stamped.pose
 
     def plan_to_joint_config(self, group_name: str, joint_config):
-        move_group = moveit_commander.MoveGroupCommander(group_name)
+        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
         move_group.set_joint_value_target(list(joint_config))
         plan = move_group.plan()[1]
         return self.follow_arms_joint_trajectory(plan.joint_trajectory)
 
-    def follow_joint_trajectory(self, trajectory: JointTrajectory, client: SimpleActionClient):
+    def follow_joint_trajectory(self,
+                                trajectory: JointTrajectory,
+                                client: SimpleActionClient,
+                                stop_condition: Optional[Callable] = None):
         rospy.logdebug(f"sending trajectory goal with f{len(trajectory.points)} points")
-        result = None
+        result: Optional[FollowJointTrajectoryResult] = None
         if self.execute:
             goal = make_follow_joint_trajectory_goal(trajectory)
 
-            def _feedback_cb(feedback):
-                self.follow_joint_trajectory_feedback_cb(client, feedback)
+            def _feedback_cb(feedback: FollowJointTrajectoryFeedback):
+                for feedback_callback in self.feedback_callbacks:
+                    feedback_callback(client, goal, feedback)
+                if stop_condition is not None:
+                    stop = stop_condition(feedback)
+                    if stop:
+                        client.cancel_all_goals()
 
             client.send_goal(goal, feedback_cb=_feedback_cb)
             if self.block:
                 client.wait_for_result()
                 result = client.get_result()
-        return trajectory, result
+        return trajectory, result, client.get_state()
 
     def follow_joint_config(self, joint_names: List[str], joint_positions, client: SimpleActionClient):
         trajectory = JointTrajectory()
@@ -147,8 +168,8 @@ class MoveitEnabledRobot:
     def follow_right_gripper_joint_trajectory(self, trajectory: JointTrajectory):
         return self.follow_joint_trajectory(trajectory, self.right_gripper_client)
 
-    def follow_arms_joint_trajectory(self, trajectory: JointTrajectory):
-        return self.follow_joint_trajectory(trajectory, self.arms_client)
+    def follow_arms_joint_trajectory(self, trajectory: JointTrajectory, stop_condition: Optional[Callable] = None):
+        return self.follow_joint_trajectory(trajectory, self.arms_client, stop_condition=stop_condition)
 
     def distance(self,
                  group_name: str,
@@ -162,15 +183,17 @@ class MoveitEnabledRobot:
                                     group_name: str,
                                     tool_names: List[str],
                                     points: List[List],
+                                    vel_scaling=0.1,
+                                    stop_condition: Optional[Callable] = None,
                                     ):
         robot_trajectory_msg: moveit_commander.RobotTrajectory = self.jacobian_follower.plan(
             group_name,
             tool_names,
             points,
-            max_velocity_scaling_factor=0.01,
+            max_velocity_scaling_factor=vel_scaling,
             max_acceleration_scaling_factor=0.1,
         )
-        return self.follow_arms_joint_trajectory(robot_trajectory_msg.joint_trajectory)
+        return self.follow_arms_joint_trajectory(robot_trajectory_msg.joint_trajectory, stop_condition=stop_condition)
 
     def get_joint_position_from_status_messages(self, left_status: MotionStatus, right_status: MotionStatus, name: str):
         if name == 'victor_left_arm_joint_1':
@@ -218,7 +241,7 @@ class MoveitEnabledRobot:
         raise NotImplementedError()
 
     def get_both_arm_joints(self):
-        raise NotImplementedError()
+        return self.get_left_arm_joints() + self.get_right_arm_joints()
 
     def get_right_gripper_joints(self):
         raise NotImplementedError()
@@ -245,7 +268,7 @@ class MoveitEnabledRobot:
         return self.set_right_gripper(self.get_right_gripper_joints(), self.get_gripper_closed_positions())
 
     def get_n_joints(self):
-        return len(self.base_robot.robot_commander.get_joint_names())
+        return len(self.robot_commander.get_joint_names())
 
-    def follow_joint_trajectory_feedback_cb(self, client: SimpleActionClient, feedback: FollowJointTrajectoryFeedback):
-        pass
+    def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
+        raise NotImplementedError()

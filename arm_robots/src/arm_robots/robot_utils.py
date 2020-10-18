@@ -33,6 +33,8 @@ def get_ordered_tolerance_list(joint_names, tolerance: List[JointTolerance], is_
 def make_joint_tolerance(pos, name):
     j = JointTolerance()
     j.position = pos
+    j.velocity = 1
+    j.acceleration = 100  # this is high because if we bump the arm, the controller will abort unnecessarily
     j.name = name
     return j
 
@@ -82,6 +84,6 @@ def make_follow_joint_trajectory_goal(trajectory: JointTrajectory):
     goal.trajectory.header.stamp = rospy.Time.now()
     goal.trajectory = trajectory
 
-    goal.goal_tolerance = [make_joint_tolerance(0.06, n) for n in trajectory.joint_names]
+    goal.goal_tolerance = [make_joint_tolerance(0.02, n) for n in trajectory.joint_names]
     goal.goal_time_tolerance = rospy.Duration(nsecs=500_000_000)
     return goal

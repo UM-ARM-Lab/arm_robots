@@ -28,7 +28,7 @@ class DualGripperShim
   std::unique_ptr<TrajectoryClient> trajectory_client_;
   ros::Duration const traj_goal_time_tolerance_;
 
-  DualGripperShim(const ros::NodeHandle &nh, const ros::NodeHandle &ph);
+  DualGripperShim(std::string robot_namespace, const ros::NodeHandle &nh, const ros::NodeHandle &ph);
 
 
   bool executeDualGripperTrajectory(arm_robots_msgs::GrippersTrajectory::Request &req,

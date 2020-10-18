@@ -13,7 +13,7 @@ from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion,
 from arc_utilities.ros_helpers import Listener
 from arm_robots.base_robot import BaseRobot
 from arm_robots.robot import MoveitEnabledRobot
-from control_msgs.msg import FollowJointTrajectoryFeedback
+from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal
 from moveit_msgs.msg import DisplayRobotState
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String, Float32
@@ -122,29 +122,29 @@ right_impedance_switch_config = [0.724, 0.451, 0.94, -1.425, 0.472, 0.777, -0.80
 class BaseVictor(BaseRobot):
 
     def __init__(self, robot_namespace: str):
-        super().__init__(robot_namespace=robot_namespace)
+        BaseRobot.__init__(self, robot_namespace=robot_namespace)
 
-        self.left_arm_command_pub = rospy.Publisher("left_arm/motion_command", MotionCommand, queue_size=10)
-        self.right_arm_command_pub = rospy.Publisher("right_arm/motion_command", MotionCommand, queue_size=10)
+        self.left_arm_command_pub = rospy.Publisher(self.ns("left_arm/motion_command"), MotionCommand, queue_size=10)
+        self.right_arm_command_pub = rospy.Publisher(self.ns("right_arm/motion_command"), MotionCommand, queue_size=10)
 
-        self.left_gripper_command_pub = rospy.Publisher("left_arm/gripper_command", Robotiq3FingerCommand,
+        self.left_gripper_command_pub = rospy.Publisher(self.ns("left_arm/gripper_command"), Robotiq3FingerCommand,
                                                         queue_size=10)
-        self.right_gripper_command_pub = rospy.Publisher("right_arm/gripper_command", Robotiq3FingerCommand,
+        self.right_gripper_command_pub = rospy.Publisher(self.ns("right_arm/gripper_command"), Robotiq3FingerCommand,
                                                          queue_size=10)
 
-        self.left_set_control_mode_srv = rospy.ServiceProxy("left_arm/set_control_mode_service", SetControlMode)
-        self.right_set_control_mode_srv = rospy.ServiceProxy("right_arm/set_control_mode_service", SetControlMode)
+        self.left_set_control_mode_srv = rospy.ServiceProxy(self.ns("left_arm/set_control_mode_service"), SetControlMode)
+        self.right_set_control_mode_srv = rospy.ServiceProxy(self.ns("right_arm/set_control_mode_service"), SetControlMode)
 
-        self.left_get_control_mode_srv = rospy.ServiceProxy("left_arm/get_control_mode_service", GetControlMode)
-        self.right_get_control_mode_srv = rospy.ServiceProxy("right_arm/get_control_mode_service", GetControlMode)
+        self.left_get_control_mode_srv = rospy.ServiceProxy(self.ns("left_arm/get_control_mode_service"), GetControlMode)
+        self.right_get_control_mode_srv = rospy.ServiceProxy(self.ns("right_arm/get_control_mode_service"), GetControlMode)
 
-        self.left_arm_status_listener = Listener("left_arm/motion_status", MotionStatus)
-        self.right_arm_status_listener = Listener("right_arm/motion_status", MotionStatus)
+        self.left_arm_status_listener = Listener(self.ns("left_arm/motion_status"), MotionStatus)
+        self.right_arm_status_listener = Listener(self.ns("right_arm/motion_status"), MotionStatus)
 
-        self.left_gripper_status_listener = Listener("left_arm/gripper_status", Robotiq3FingerStatus)
-        self.right_gripper_status_listener = Listener("right_arm/gripper_status", Robotiq3FingerStatus)
+        self.left_gripper_status_listener = Listener(self.ns("left_arm/gripper_status"), Robotiq3FingerStatus)
+        self.right_gripper_status_listener = Listener(self.ns("right_arm/gripper_status"), Robotiq3FingerStatus)
 
-        self.waypoint_state_pub = rospy.Publisher("waypoint_robot_state", DisplayRobotState, queue_size=10)
+        self.waypoint_state_pub = rospy.Publisher(self.ns("waypoint_robot_state"), DisplayRobotState, queue_size=10)
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         # TODO: in victor's impedance mode, we want to modify the setpoint so that there is a limit
@@ -362,31 +362,29 @@ class BaseVictor(BaseRobot):
         return current_joint_positions
 
 
-class Victor(MoveitEnabledRobot):
+class Victor(BaseVictor, MoveitEnabledRobot):
 
     def __init__(self, robot_namespace: str = 'victor', force_trigger: float = -0.0):
-        self.left_force_change_sub = rospy.Publisher("left_force_change", Float32, queue_size=10)
-        self.right_force_change_sub = rospy.Publisher("right_force_change", Float32, queue_size=10)
+        BaseVictor.__init__(self, robot_namespace=robot_namespace)
+        MoveitEnabledRobot.__init__(self,
+                                    robot_namespace=robot_namespace,
+                                    arms_controller_name='both_arms_trajectory_controller',
+                                    left_gripper_controller_name='left_hand_trajectory_controller',
+                                    right_gripper_controller_name='right_hand_trajectory_controller')
+        self.left_force_change_sub = rospy.Publisher(self.ns("left_force_change"), Float32, queue_size=10)
+        self.right_force_change_sub = rospy.Publisher(self.ns("right_force_change"), Float32, queue_size=10)
         self.polly_pub = rospy.Publisher("/polly", String, queue_size=10)
         self.use_force_trigger = force_trigger >= 0
         self.force_trigger = force_trigger
-        self.base_victor = BaseVictor(robot_namespace)
-        super().__init__(self.base_victor,
-                         arms_controller_name='both_arms_trajectory_controller',
-                         left_gripper_controller_name='left_hand_trajectory_controller',
-                         right_gripper_controller_name='right_hand_trajectory_controller',
-                         )
         rospy.loginfo(Fore.GREEN + "Victor ready!")
+        # self.feedback_callbacks.append(self.stop_on_force_cb)
 
     def move_to_impedance_switch(self, actually_switch: bool = True):
         self.plan_to_joint_config("right_arm", right_impedance_switch_config)
         self.plan_to_joint_config("left_arm", left_impedance_switch_config)
         if actually_switch:
-            return self.base_victor.set_control_mode(ControlMode.JOINT_IMPEDANCE)
+            return self.set_control_mode(ControlMode.JOINT_IMPEDANCE)
         return True
-
-    def get_joint_trajectory_controller_name(self):
-        return "both_arms_trajectory_controller"
 
     def get_right_gripper_joints(self):
         return right_gripper_joints
@@ -401,11 +399,11 @@ class Victor(MoveitEnabledRobot):
         return [0.25, 0.25, 0.25, 0.8]
 
     def get_joint_positions(self, joint_names: Optional[List[str]] = None):
-        return self.base_robot.get_joint_positions(joint_names)
+        return self.get_joint_positions(joint_names)
 
     def get_gripper_positions(self):
-        left_gripper = self.base_robot.robot_commander.get_link("left_tool_placeholder")
-        right_gripper = self.base_robot.robot_commander.get_link("right_tool_placeholder")
+        left_gripper = self.robot_commander.get_link("left_tool_placeholder")
+        right_gripper = self.robot_commander.get_link("right_tool_placeholder")
         return left_gripper.pose().pose.position, right_gripper.pose().pose.position
 
     def speak(self, message: str):
@@ -419,12 +417,12 @@ class Victor(MoveitEnabledRobot):
     def get_left_arm_joints(self):
         return left_arm_joints
 
-    def get_both_arm_joints(self):
-        return self.get_left_arm_joints() + self.get_right_arm_joints()
-
-    def follow_joint_trajectory_feedback_cb(self, client: SimpleActionClient, feedback: FollowJointTrajectoryFeedback):
-        # self.stop_on_force_cb(client, feedback)
-        pass
+    def follow_joint_trajectory_feedback_cb(self,
+                                            client: SimpleActionClient,
+                                            goal: FollowJointTrajectoryGoal,
+                                            feedback: FollowJointTrajectoryFeedback):
+        for feedback_callback in self.feedback_callbacks:
+            feedback_callback(client, goal, feedback)
 
     def get_force_norm(self, status: MotionStatus):
         f = np.array([status.estimated_external_wrench.x,
@@ -433,7 +431,7 @@ class Victor(MoveitEnabledRobot):
         return np.linalg.norm(f)
 
     def get_median_filtered_left_force(self):
-        status = self.base_victor.get_left_arm_status()
+        status = self.get_left_arm_status()
         f = self.get_force_norm(status)
         self.get_median_filtered_left_force.queue.append(f)
         current_history = np.array(self.get_median_filtered_left_force.queue)
@@ -443,7 +441,7 @@ class Victor(MoveitEnabledRobot):
     get_median_filtered_left_force.queue = collections.deque(maxlen=100)
 
     def get_median_filtered_right_force(self):
-        status = self.base_victor.get_right_arm_status()
+        status = self.get_right_arm_status()
         f = self.get_force_norm(status)
         self.get_median_filtered_right_force.queue.append(f)
         current_history = np.array(self.get_median_filtered_right_force.queue)
@@ -453,8 +451,9 @@ class Victor(MoveitEnabledRobot):
     get_median_filtered_right_force.queue = collections.deque(maxlen=100)
 
     def stop_on_force_cb(self, client, feedback):
+        rospy.logwarn("wrong cb 1")
         if self.use_force_trigger:
-            status = self.base_victor.get_arms_statuses()
+            status = self.get_arms_statuses()
             left_force = self.get_force_norm(status['left'])
             right_force = self.get_force_norm(status['right'])
             left_force_change = np.abs(left_force - self.get_median_filtered_left_force())

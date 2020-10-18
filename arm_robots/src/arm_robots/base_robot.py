@@ -4,20 +4,31 @@ import moveit_commander
 import rospy
 from arc_utilities import ros_helpers
 from arc_utilities.ros_helpers import Listener, TF2Wrapper
+from rosgraph.names import ns_join
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 
 class BaseRobot:
     def __init__(self, robot_namespace: str = ''):
+        """
+        This class is designed around the needs of the trajectory_follower.TrajectoryFollower
+        This class really only contains API that is needed by that class. The trajectory follower only needs to know about the
+        basic ROS API -- how to send and get joint commands. However, because MoveIt trajectory execution relies (for now) on that
+        TrajectoryFollower class, we do not want BaseRobot to use any MoveIt TrajectoryExeuction or rely on any trajectory
+        execution services.
+        """
         self.robot_namespace = robot_namespace
         # the robot namespace will be prepended by setting ROS_NAMESPACE environment variable or the ns="" in roslaunch
-        joint_states_topic = 'joint_states'
+        joint_states_topic = ns_join(self.robot_namespace, 'joint_states')
         self.joint_state_listener = Listener(joint_states_topic, JointState)
 
         self.tf_wrapper = TF2Wrapper()
 
-        self.robot_commander = moveit_commander.RobotCommander()
+        self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace)
+
+    def ns(self, name: str):
+        return ns_join(self.robot_namespace, name)
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         raise NotImplementedError()

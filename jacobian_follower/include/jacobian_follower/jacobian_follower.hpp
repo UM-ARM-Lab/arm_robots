@@ -56,7 +56,7 @@ public:
 
   bool minimize_rotation_{true};
 
-  explicit JacobianFollower(double translation_step_size, bool minimize_rotation = true);
+  explicit JacobianFollower(std::string robot_namespace, double translation_step_size, bool minimize_rotation = true);
 
   [[nodiscard]] bool isRequestValid(std::string const &group_name,
                                     std::vector<std::string> const &tool_names,

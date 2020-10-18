@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
   ros::NodeHandle nh;
   ros::NodeHandle ph("~");
 
-  auto shim = DualGripperShim(nh, ph);
+  auto shim = DualGripperShim("victor", nh, ph);
   constexpr auto const GREEN{"\033[32m"};
   constexpr auto const RESET{"\033[0m\n"};
   ROS_INFO_STREAM(GREEN << "Ready!" << RESET);

@@ -22,7 +22,7 @@ std::vector<std::vector<Eigen::Vector3d>> convert(std::vector<arm_robots_msgs::P
   return stl_grippers;
 }
 
-DualGripperShim::DualGripperShim(ros::NodeHandle const &nh, ros::NodeHandle const &ph)
+DualGripperShim::DualGripperShim(std::string const robot_namespace, ros::NodeHandle const &nh, ros::NodeHandle const &ph)
     : nh_(nh), ph_(ph),
       execute_traj_srv_(
           nh_.advertiseService("execute_dual_gripper_action", &DualGripperShim::executeDualGripperTrajectory, this)),
@@ -38,12 +38,13 @@ DualGripperShim::DualGripperShim(ros::NodeHandle const &nh, ros::NodeHandle cons
   ROS_INFO_STREAM("trajectory client connected");
   auto const translation_step_size = ROSHelpers::GetParam<double>(ph_, "translation_step_size", 0.002);
   auto const minimize_rotation = ROSHelpers::GetParam<bool>(ph_, "minimize_rotation", true);
-  planner_ = std::make_shared<JacobianFollower>(translation_step_size, minimize_rotation);
+  planner_ = std::make_shared<JacobianFollower>(robot_namespace, translation_step_size, minimize_rotation);
 }
 
 bool DualGripperShim::executeDualGripperTrajectory(arm_robots_msgs::GrippersTrajectory::Request &req,
                                                    arm_robots_msgs::GrippersTrajectory::Response &res)
 {
+  (void) res;
   // Validity checks
   auto const grippers = convert(req.grippers);
   auto const is_valid = planner_->isRequestValid(req.group_name, req.tool_names, grippers);

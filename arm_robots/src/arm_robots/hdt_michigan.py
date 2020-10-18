@@ -25,20 +25,36 @@ def make_joint_group_command(command):
     msg.data = command
     return msg
 
+left_arm_joints = [
+    'joint_1',
+    'joint_2',
+    'joint_3',
+    'joint_4',
+    'joint_5',
+    'joint_6',
+    'joint_7',
+]
 
-class Val(MoveitEnabledRobot):
+right_arm_joints = [
+    'joint_41',
+    'joint_42',
+    'joint_43',
+    'joint_44',
+    'joint_45',
+    'joint_46',
+    'joint_47',
+]
+
+
+class Val(BaseVal, MoveitEnabledRobot):
     def __init__(self, robot_namespace: str = 'val'):
         self.base_val = BaseVal(robot_namespace)
-        super().__init__(self.base_val,
+        super().__init__(robot_namespace=robot_namespace,
                          arms_controller_name='both_arms_trajectory_controller',
                          left_gripper_controller_name='left_gripper_controller',
                          right_gripper_controller_name='right_gripper_controller',
                          )
         rospy.loginfo(Fore.GREEN + "Val ready!")
-
-    def get_joint_trajectory_controller_name(self):
-        """ This should match the *.yaml file, and you can also run rqt_controller_manager to check the names """
-        return "both_arms_trajectory_controller"
 
     def get_right_gripper_joints(self):
         return ['rightgripper', 'rightgripper2']
@@ -51,3 +67,10 @@ class Val(MoveitEnabledRobot):
 
     def get_gripper_open_positions(self):
         return [0.5, 0.5]
+
+    def get_right_arm_joints(self):
+        return right_arm_joints
+
+    def get_left_arm_joints(self):
+        return left_arm_joints
+

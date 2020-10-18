@@ -25,11 +25,12 @@ using ArrayXb = Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic>;
 using VecArrayXb = Eigen::Array<bool, Eigen::Dynamic, 1>;
 
 
-JacobianFollower::JacobianFollower(double const translation_step_size, bool const minimize_rotation)
+JacobianFollower::JacobianFollower(std::string const robot_namespace, double const translation_step_size,
+                                   bool const minimize_rotation)
     : model_loader_(std::make_shared<robot_model_loader::RobotModelLoader>()),
       model_(model_loader_->getModel()),
       scene_monitor_(std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(model_loader_)),
-      visual_tools_("robot_root", "/moveit_visual_markers"),
+      visual_tools_("robot_root", ros::names::append(robot_namespace, "/moveit_visual_markers")),
       tf_buffer_(std::make_shared<tf2_ros::Buffer>()),
       world_frame_("robot_root"),
       robot_frame_(model_->getRootLinkName()),
@@ -39,11 +40,12 @@ JacobianFollower::JacobianFollower(double const translation_step_size, bool cons
       minimize_rotation_(minimize_rotation)
 {
   nh_ = std::make_shared<ros::NodeHandle>();
+  auto const waypoints_topic = ros::names::append(robot_namespace, "jacobian_waypoints");
   vis_pub_ = std::make_shared<ros::Publisher>(
-      nh_->advertise<visualization_msgs::MarkerArray>("jacobian_waypoints", 10, true));
+      nh_->advertise<visualization_msgs::MarkerArray>(waypoints_topic, 10, true));
 
-  auto const scene_topic = "move_group/monitored_planning_scene";
-  auto const service_name = "get_planning_scene";
+  auto const scene_topic = ros::names::append(robot_namespace, "move_group/monitored_planning_scene");
+  auto const service_name = ros::names::append(robot_namespace, "get_planning_scene");
   scene_monitor_->startSceneMonitor(scene_topic);
   scene_monitor_->requestPlanningSceneState(service_name);
   auto const default_tool_names = std::vector<std::string>{"right_tool_placeholder"};
@@ -303,11 +305,6 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
 
   // Initialize the command with the current state for the first target point
   robot_trajectory::RobotTrajectory cmd{model_, jmg};
-  // we only add the start to the cmd if we were able to make at least one step,
-  // otherwise we'd be returning a trajectory with just the start config. Not only is this pointless,
-  // in impedance mode for instance it can cause the arm to drift down, because the current position
-  // is always a drooped version of the current _commanded_ position.
-  auto start_added = false;
 
   // Iteratively follow the Jacobian to each other point in the path
   ROS_DEBUG("Following Jacobian along path for group %s", jmg->getName().c_str());
@@ -327,11 +324,6 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
     {
       ROS_WARN_STREAM("IK Stalled at idx " << step_idx << ", returning early");
       break;
-    }
-    if (not start_added)
-    {
-      cmd.addSuffixWayPoint(start_state, 0);
-      start_added = true;
     }
     cmd.addSuffixWayPoint(planning_scene->getCurrentState(), 0);
   }
