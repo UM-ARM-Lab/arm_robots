@@ -51,7 +51,7 @@ class MoveitEnabledRobot(BaseRobot):
         self.right_gripper_client = self.setup_joint_trajectory_controller_client(self.right_gripper_controller_name)
 
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
-                                                                      translation_step_size=0.07,
+                                                                      translation_step_size=0.01,
                                                                       minimize_rotation=True)
 
     def setup_joint_trajectory_controller_client(self, controller_name):
