@@ -34,7 +34,7 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, double con
       tf_buffer_(std::make_shared<tf2_ros::Buffer>()),
       world_frame_("robot_root"),
       robot_frame_(model_->getRootLinkName()),
-      worldTrobot(lookupTransform(*tf_buffer_, world_frame_, robot_frame_, ros::Time(0), ros::Duration(1))),
+      worldTrobot(lookupTransform(*tf_buffer_, world_frame_, robot_frame_, ros::Time(0))),
       robotTworld(worldTrobot.inverse(Eigen::Isometry)),
       translation_step_size_(translation_step_size),
       minimize_rotation_(minimize_rotation)
@@ -48,18 +48,11 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, double con
   auto const service_name = ros::names::append(robot_namespace, "get_planning_scene");
   scene_monitor_->startSceneMonitor(scene_topic);
   scene_monitor_->requestPlanningSceneState(service_name);
-  auto const default_tool_names = std::vector<std::string>{"right_tool_placeholder"};
-
-  Eigen::Quaterniond gripper_down{Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX())};
-  EigenHelpers::VectorQuaterniond default_tool_orientations{
-      gripper_down,
-      gripper_down,
-  };
-  setDesiredToolOrientations(default_tool_names, default_tool_orientations);
 }
 
 moveit_msgs::RobotTrajectory JacobianFollower::plan(std::string const &group_name,
                                                     std::vector<std::string> const &tool_names,
+                                                    EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
                                                     std::vector<std::vector<Eigen::Vector3d>> const &grippers,
                                                     double const max_velocity_scaling_factor,
                                                     double const max_acceleration_scaling_factor)
@@ -81,7 +74,7 @@ moveit_msgs::RobotTrajectory JacobianFollower::plan(std::string const &group_nam
     {
       target_point_sequence.emplace_back(gripper[waypoint_idx]);
     }
-    auto const traj = moveInWorldFrame(group_name, tool_names, target_point_sequence);
+    auto const traj = moveInWorldFrame(group_name, tool_names, preferred_tool_orientations, target_point_sequence);
     robot_trajectory.append(traj, 0);
   }
 
@@ -136,23 +129,6 @@ bool JacobianFollower::isRequestValid(std::string const &group_name,
   return true;
 }
 
-void JacobianFollower::setDesiredToolOrientations(std::vector<std::string> const &tool_names,
-                                                  EigenHelpers::VectorQuaterniond const &nominal_tool_orientations)
-{
-  planning_scene_monitor::LockedPlanningSceneRO planning_scene(scene_monitor_);
-  auto const &current_state = planning_scene->getCurrentState();
-  nominal_tool_orientations_ = nominal_tool_orientations;
-  auto const home_state_tool_poses = getToolTransforms(tool_names, current_state);
-  auto pose_to_world_orientation = [this](auto const pose)
-  {
-    return Eigen::Quaterniond((this->robotTworld * pose).rotation());
-  };
-  std::transform(home_state_tool_poses.cbegin(),
-                 home_state_tool_poses.cend(),
-                 std::back_inserter(nominal_tool_orientations_),
-                 pose_to_world_orientation);
-}
-
 PoseSequence JacobianFollower::getToolTransforms(std::vector<std::string> const &tool_names,
                                                  robot_state::RobotState const &state) const
 {
@@ -169,15 +145,18 @@ PoseSequence JacobianFollower::getToolTransforms(std::vector<std::string> const 
 
 robot_trajectory::RobotTrajectory JacobianFollower::moveInRobotFrame(std::string const &group_name,
                                                                      std::vector<std::string> const &tool_names,
+                                                                     EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
                                                                      PointSequence const &target_tool_positions)
 {
   return moveInWorldFrame(group_name,
                           tool_names,
+                          preferred_tool_orientations,
                           Transform(worldTrobot, target_tool_positions));
 }
 
 robot_trajectory::RobotTrajectory JacobianFollower::moveInWorldFrame(std::string const &group_name,
                                                                      std::vector<std::string> const &tool_names,
+                                                                     EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
                                                                      PointSequence const &target_tool_positions)
 {
   auto const *const jmg = model_->getJointModelGroup(group_name);
@@ -247,7 +226,7 @@ robot_trajectory::RobotTrajectory JacobianFollower::moveInWorldFrame(std::string
     vis_pub_->publish(msg);
   }
 
-  auto const cmd = jacobianPath3d(planning_scene, jmg, tool_names, tool_paths);
+  auto const cmd = jacobianPath3d(planning_scene, jmg, tool_names, preferred_tool_orientations, tool_paths);
 
   // Debugging - visualize JacobiakIK result tip
   {
@@ -295,6 +274,7 @@ robot_trajectory::RobotTrajectory
 JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
                                  moveit::core::JointModelGroup const *const jmg,
                                  std::vector<std::string> const &tool_names,
+                                 EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
                                  std::vector<PointSequence> const &tool_paths)
 {
   auto const num_ees = tool_names.size();
@@ -315,7 +295,7 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
     for (auto ee_idx = 0ul; ee_idx < num_ees; ++ee_idx)
     {
       robotTtargets[ee_idx].translation() = robotTworld * tool_paths[ee_idx][step_idx];
-      robotTtargets[ee_idx].linear() = nominal_tool_orientations_[ee_idx].toRotationMatrix();
+      robotTtargets[ee_idx].linear() = preferred_tool_orientations[ee_idx].toRotationMatrix();
     }
 
     // Note that jacobianIK is assumed to have modified the state in the planning scene

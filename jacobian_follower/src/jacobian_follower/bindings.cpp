@@ -19,6 +19,7 @@ PYBIND11_MODULE(pyjacobian_follower, m)
       .def("plan", &JacobianFollower::plan,
            py::arg("group_name"),
            py::arg("tool_names"),
+           py::arg("preferred_tool_orientations"),
            py::arg("grippers"),
            py::arg("max_velocity_scaling_factor"),
            py::arg("max_acceleration_scaling_factor")

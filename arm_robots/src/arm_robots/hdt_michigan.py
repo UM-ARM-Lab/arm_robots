@@ -4,13 +4,13 @@ from typing import List, Tuple
 from colorama import Fore
 
 import rospy
-from arm_robots.base_robot import BaseRobot
+from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot import MoveitEnabledRobot
 from std_msgs.msg import Float64MultiArray
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 
-class BaseVal(BaseRobot):
+class BaseVal(DualArmRobot):
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         pass

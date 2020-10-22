@@ -15,6 +15,11 @@ def main():
     rospy_and_cpp_init("victor_ipython")
 
     victor = Victor()
+    victor.connect()
+    victor.close_left_gripper()
+    victor.open_left_gripper()
+    victor.close_right_gripper()
+    victor.open_right_gripper()
 
     ipdb.set_trace()
 

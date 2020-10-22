@@ -11,7 +11,7 @@ import rospy
 from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
 from arc_utilities.ros_helpers import Listener
-from arm_robots.base_robot import BaseRobot
+from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot import MoveitEnabledRobot
 from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal
 from moveit_msgs.msg import DisplayRobotState
@@ -60,6 +60,19 @@ right_arm_joints = [
 ]
 
 both_arm_joints = left_arm_joints + right_arm_joints
+
+
+def default_robotiq_command():
+    cmd = Robotiq3FingerCommand()
+    cmd.finger_a_command.speed = 1.0
+    cmd.finger_a_command.force = 1.0
+    cmd.finger_b_command.speed = 1.0
+    cmd.finger_b_command.force = 1.0
+    cmd.finger_c_command.speed = 1.0
+    cmd.finger_c_command.force = 1.0
+    cmd.scissor_command.speed = 1.0
+    cmd.scissor_command.force = 1.0
+    return cmd
 
 
 def delegate_positions_to_arms(positions, joint_names: List[str]):
@@ -119,10 +132,10 @@ left_impedance_switch_config = [-0.694, 0.14, -0.229, -1.11, -0.512, 1.272, 0.07
 right_impedance_switch_config = [0.724, 0.451, 0.94, -1.425, 0.472, 0.777, -0.809]
 
 
-class BaseVictor(BaseRobot):
+class BaseVictor(DualArmRobot):
 
     def __init__(self, robot_namespace: str):
-        BaseRobot.__init__(self, robot_namespace=robot_namespace)
+        DualArmRobot.__init__(self, robot_namespace=robot_namespace)
 
         self.left_arm_command_pub = rospy.Publisher(self.ns("left_arm/motion_command"), MotionCommand, queue_size=10)
         self.right_arm_command_pub = rospy.Publisher(self.ns("right_arm/motion_command"), MotionCommand, queue_size=10)
@@ -361,16 +374,37 @@ class BaseVictor(BaseRobot):
         # try looking at the status messages
         return current_joint_positions
 
+    def get_right_gripper_command_pub(self):
+        return self.right_gripper_command_pub
 
+    def get_left_gripper_command_pub(self):
+        return self.left_gripper_command_pub
+
+    def get_open_gripper_msg(self):
+        cmd = default_robotiq_command()
+        cmd.finger_a_command.position = 0.25
+        cmd.finger_b_command.position = 0.25
+        cmd.finger_c_command.position = 0.25
+        cmd.scissor_command.position = 0.8
+        return cmd
+
+    def get_close_gripper_msg(self):
+        cmd = default_robotiq_command()
+        cmd.finger_a_command.position = 0.5
+        cmd.finger_b_command.position = 0.4
+        cmd.finger_c_command.position = 0.4
+        cmd.scissor_command.position = 0.8
+        return cmd
+
+
+# TODO: undo this multiple inheritance and use composition
 class Victor(BaseVictor, MoveitEnabledRobot):
 
     def __init__(self, robot_namespace: str = 'victor', force_trigger: float = -0.0):
-        BaseVictor.__init__(self, robot_namespace=robot_namespace)
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
-                                    arms_controller_name='both_arms_trajectory_controller',
-                                    left_gripper_controller_name='left_hand_trajectory_controller',
-                                    right_gripper_controller_name='right_hand_trajectory_controller')
+                                    arms_controller_name='both_arms_trajectory_controller')
+        BaseVictor.__init__(self, robot_namespace=robot_namespace)
         self.left_force_change_sub = rospy.Publisher(self.ns("left_force_change"), Float32, queue_size=10)
         self.right_force_change_sub = rospy.Publisher(self.ns("right_force_change"), Float32, queue_size=10)
         self.polly_pub = rospy.Publisher("/polly", String, queue_size=10)
@@ -391,12 +425,6 @@ class Victor(BaseVictor, MoveitEnabledRobot):
 
     def get_left_gripper_joints(self):
         return left_gripper_joints
-
-    def get_gripper_closed_positions(self):
-        return [0.5, 0.4, 0.4, 0.8]
-
-    def get_gripper_open_positions(self):
-        return [0.25, 0.25, 0.25, 0.8]
 
     def get_joint_positions(self, joint_names: Optional[List[str]] = None):
         return self.get_joint_positions(joint_names)

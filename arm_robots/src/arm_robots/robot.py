@@ -7,9 +7,9 @@ import pyjacobian_follower
 import moveit_commander
 import ros_numpy
 import rospy
-from actionlib import SimpleActionClient, GoalStatus
+from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg
-from arm_robots.base_robot import BaseRobot
+from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot_utils import make_follow_joint_trajectory_goal
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult
 from geometry_msgs.msg import Point
@@ -18,13 +18,11 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from victor_hardware_interface_msgs.msg import MotionStatus
 
 
-class MoveitEnabledRobot(BaseRobot):
+class MoveitEnabledRobot(DualArmRobot):
 
     def __init__(self,
                  robot_namespace: str,
                  arms_controller_name: str,
-                 left_gripper_controller_name: str,
-                 right_gripper_controller_name: str,
                  execute: bool = True,
                  block: bool = True,
                  force_trigger: float = 9.0):
@@ -34,12 +32,8 @@ class MoveitEnabledRobot(BaseRobot):
         self.force_trigger = force_trigger
 
         self.arms_controller_name = arms_controller_name
-        self.left_gripper_controller_name = left_gripper_controller_name
-        self.right_gripper_controller_name = right_gripper_controller_name
 
         self.arms_client = None
-        self.left_gripper_client = None
-        self.right_gripper_client = None
         self.jacobian_follower = None
 
         self.feedback_callbacks = []
@@ -47,8 +41,6 @@ class MoveitEnabledRobot(BaseRobot):
     def connect(self):
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
-        self.left_gripper_client = self.setup_joint_trajectory_controller_client(self.left_gripper_controller_name)
-        self.right_gripper_client = self.setup_joint_trajectory_controller_client(self.right_gripper_controller_name)
 
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
                                                                       translation_step_size=0.01,
@@ -228,11 +220,11 @@ class MoveitEnabledRobot(BaseRobot):
             raise NotImplementedError()
         return pos
 
-    def set_left_gripper(self, joint_names: List[str], joint_positions):
-        return self.follow_joint_config(joint_names, joint_positions, self.left_gripper_client)
+    def get_both_arm_joints(self):
+        return self.get_left_arm_joints() + self.get_right_arm_joints()
 
-    def set_right_gripper(self, joint_names: List[str], joint_positions):
-        return self.follow_joint_config(joint_names, joint_positions, self.right_gripper_client)
+    def get_n_joints(self):
+        return len(self.robot_commander.get_joint_names())
 
     def get_right_arm_joints(self):
         raise NotImplementedError()
@@ -240,35 +232,11 @@ class MoveitEnabledRobot(BaseRobot):
     def get_left_arm_joints(self):
         raise NotImplementedError()
 
-    def get_both_arm_joints(self):
-        return self.get_left_arm_joints() + self.get_right_arm_joints()
-
     def get_right_gripper_joints(self):
         raise NotImplementedError()
 
     def get_left_gripper_joints(self):
         raise NotImplementedError()
-
-    def get_gripper_closed_positions(self):
-        raise NotImplementedError()
-
-    def get_gripper_open_positions(self):
-        raise NotImplementedError()
-
-    def open_left_gripper(self):
-        return self.set_left_gripper(self.get_left_gripper_joints(), self.get_gripper_open_positions())
-
-    def open_right_gripper(self):
-        return self.set_right_gripper(self.get_right_gripper_joints(), self.get_gripper_open_positions())
-
-    def close_left_gripper(self):
-        return self.set_left_gripper(self.get_left_gripper_joints(), self.get_gripper_closed_positions())
-
-    def close_right_gripper(self):
-        return self.set_right_gripper(self.get_right_gripper_joints(), self.get_gripper_closed_positions())
-
-    def get_n_joints(self):
-        return len(self.robot_commander.get_joint_names())
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         raise NotImplementedError()

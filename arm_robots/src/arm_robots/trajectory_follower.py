@@ -4,7 +4,7 @@ from typing import List, Callable, Optional
 
 import actionlib
 import rospy
-from arm_robots.base_robot import BaseRobot
+from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot_utils import get_ordered_tolerance_list, interpolate_joint_trajectory_points, waypoint_reached, \
     waypoint_error
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, FollowJointTrajectoryFeedback, \
@@ -14,7 +14,7 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 
 
 class TrajectoryFollower:
-    def __init__(self, robot: BaseRobot, controller_name: str):
+    def __init__(self, robot: DualArmRobot, controller_name: str):
         self.robot = robot
         self.action_name = ns_join(controller_name, "follow_joint_trajectory")
         self.server = actionlib.SimpleActionServer(self.action_name, FollowJointTrajectoryAction,

@@ -46,9 +46,6 @@ public:
   Pose const worldTrobot;
   Pose const robotTworld;
 
-  // Keep a "desired" orientation so we can try to preserve this orientation while servoing (optionally)
-  EigenHelpers::VectorQuaterniond nominal_tool_orientations_;
-
   // For use when moving the EE positions using moveIn[Robot/World]Frame
   double const translation_step_size_;
 
@@ -63,30 +60,30 @@ public:
                                     std::vector<std::vector<Eigen::Vector3d>>
                                     const &grippers) const;
 
-
-  void setDesiredToolOrientations(std::vector<std::string> const &tool_names,
-                                  EigenHelpers::VectorQuaterniond const &nominal_tool_orientations);
-
   [[nodiscard]] PoseSequence getToolTransforms(std::vector<std::string> const &tool_names,
                                                robot_state::RobotState const &state) const;
 
   moveit_msgs::RobotTrajectory plan(std::string const &group_name,
                                     std::vector<std::string> const &tool_names,
+                                    EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
                                     std::vector<std::vector<Eigen::Vector3d>> const &grippers,
                                     double max_velocity_scaling_factor,
                                     double max_acceleration_scaling_factor);
 
   robot_trajectory::RobotTrajectory moveInRobotFrame(std::string const &group_name,
                                                      std::vector<std::string> const &tool_names,
+                                                     EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
                                                      PointSequence const &target_tool_positions);
 
   robot_trajectory::RobotTrajectory moveInWorldFrame(std::string const &group_name,
                                                      std::vector<std::string> const &tool_names,
+                                                     EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
                                                      PointSequence const &target_tool_positions);
 
   robot_trajectory::RobotTrajectory jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
                                                    moveit::core::JointModelGroup const *jmg,
                                                    std::vector<std::string> const &tool_names,
+                                                   EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
                                                    std::vector<PointSequence> const &tool_paths);
 
   // Note that robot_goal_points is the target points for the tools, measured in robot frame
