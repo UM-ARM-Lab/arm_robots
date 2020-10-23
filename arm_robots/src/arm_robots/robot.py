@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-from typing import List, Union, Tuple, Callable, Optional
+from typing import List, Union, Tuple, Callable, Optional, Dict
 
 import numpy as np
 import pyjacobian_follower
@@ -12,7 +12,7 @@ from arc_utilities.conversions import convert_to_pose_msg
 from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot_utils import make_follow_joint_trajectory_goal
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, Pose, Quaternion
 from rosgraph.names import ns_join
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from victor_hardware_interface_msgs.msg import MotionStatus
@@ -27,6 +27,7 @@ class MoveitEnabledRobot(DualArmRobot):
                  block: bool = True,
                  force_trigger: float = 9.0):
         super().__init__(robot_namespace)
+        self.stored_tool_orientations = None
         self.execute = execute
         self.block = block
         self.force_trigger = force_trigger
@@ -171,17 +172,43 @@ class MoveitEnabledRobot(DualArmRobot):
         error = np.linalg.norm(ros_numpy.numpify(current_pose.position) - target_position)
         return error
 
+    def get_orientation(self, name: str):
+        link = self.robot_commander.get_link(name)
+        return ros_numpy.numpify(link.pose().pose.orientation)
+
+    def store_tool_orientations(self, preferred_tool_orientations: Optional[Dict]):
+        """ dict values can be Pose, Quaternion, or just a numpy array/list """
+        self.stored_tool_orientations = {}
+        for k, v in preferred_tool_orientations.items():
+            if isinstance(v, Pose):
+                q = ros_numpy.numpify(v.orientation)
+                self.stored_tool_orientations[k] = q
+            elif isinstance(v, Quaternion):
+                q = ros_numpy.numpify(v)
+                self.stored_tool_orientations[k] = q
+            else:
+                self.stored_tool_orientations[k] = v
+
+    def store_current_tool_orientations(self, tool_names: Optional[List]):
+        self.stored_tool_orientations = {n: self.get_orientation(n) for n in tool_names}
+
     def follow_jacobian_to_position(self,
                                     group_name: str,
                                     tool_names: List[str],
+                                    preferred_tool_orientations: Optional[List],
                                     points: List[List],
                                     vel_scaling=0.1,
                                     stop_condition: Optional[Callable] = None,
                                     ):
+        """ If preferred_tool_orientations is None, we use the stored ones as a fallback """
+
+        if preferred_tool_orientations is None:
+            preferred_tool_orientations = [self.stored_tool_orientations[k] for k in tool_names]
         robot_trajectory_msg: moveit_commander.RobotTrajectory = self.jacobian_follower.plan(
-            group_name,
-            tool_names,
-            points,
+            group_name=group_name,
+            tool_names=tool_names,
+            preferred_tool_orientations=preferred_tool_orientations,
+            grippers=points,
             max_velocity_scaling_factor=vel_scaling,
             max_acceleration_scaling_factor=0.1,
         )

@@ -65,7 +65,7 @@ public:
 
   moveit_msgs::RobotTrajectory plan(std::string const &group_name,
                                     std::vector<std::string> const &tool_names,
-                                    EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
+                                    std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                                     std::vector<std::vector<Eigen::Vector3d>> const &grippers,
                                     double max_velocity_scaling_factor,
                                     double max_acceleration_scaling_factor);

@@ -52,7 +52,7 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, double con
 
 moveit_msgs::RobotTrajectory JacobianFollower::plan(std::string const &group_name,
                                                     std::vector<std::string> const &tool_names,
-                                                    EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
+                                                    std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                                                     std::vector<std::vector<Eigen::Vector3d>> const &grippers,
                                                     double const max_velocity_scaling_factor,
                                                     double const max_acceleration_scaling_factor)
@@ -74,7 +74,12 @@ moveit_msgs::RobotTrajectory JacobianFollower::plan(std::string const &group_nam
     {
       target_point_sequence.emplace_back(gripper[waypoint_idx]);
     }
-    auto const traj = moveInWorldFrame(group_name, tool_names, preferred_tool_orientations, target_point_sequence);
+    EigenHelpers::VectorQuaterniond preferred_tool_orientations_q;
+    std::transform(preferred_tool_orientations.cbegin(),
+                   preferred_tool_orientations.cend(),
+                   std::back_inserter(preferred_tool_orientations_q),
+                   [](Eigen::Vector4d x) { return Eigen::Quaterniond{x}; });
+    auto const traj = moveInWorldFrame(group_name, tool_names, preferred_tool_orientations_q, target_point_sequence);
     robot_trajectory.append(traj, 0);
   }
 
