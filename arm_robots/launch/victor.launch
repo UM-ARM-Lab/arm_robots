@@ -5,6 +5,12 @@
     <arg name="verbose" default="false"/>
     <arg name="world_name" default="$(find arm_robots)/world/empty_with_moveit_plugin.world"/>
 
+    <group ns="static_transform_publishers">
+        <node pkg="tf2_ros" type="static_transform_publisher" name="rename_origin" required="true"
+              args="0 0 0 0 0 0 robot_root world">
+        </node>
+    </group>
+
     <group if="$(arg use_gazebo)">
         <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
             <arg name="allow_trajectory_execution" value="true"/>

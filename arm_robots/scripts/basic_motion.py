@@ -62,14 +62,14 @@ def main():
     # # Or with cartesian planning
     myinput("Cartersian motion back to pose 3?")
     victor.plan_to_position_cartesian(victor.right_arm_group, victor.right_tool_name, [0.9, -0.4, 0.9], step_size=0.01)
-    victor.plan_to_position_cartesian(victor.right_arm_group, victor.right_tool_name, [0.7, -0.4, 0.8], step_size=0.01)
+    victor.plan_to_position_cartesian(victor.right_arm_group, victor.right_tool_name, [0.7, -0.4, 0.9], step_size=0.01)
 
     # Move hand straight works either with jacobian following
     myinput("Follow jacobian to pose 2?")
     victor.store_current_tool_orientations([victor.right_tool_name])
-    victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[0.8, -0.2, 0.8]]])
-    victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[0.8, -0.4, 0.8]]])
-    victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[1.1, -0.4, 0.8]]])
+    victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[0.7, -0.4, 0.6]]])
+    victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[0.8, -0.4, 1.0]]])
+    victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[1.1, -0.4, 0.9]]])
     victor.follow_jacobian_to_position(group_name=victor.right_arm_group,
                                        tool_names=[victor.right_tool_name],
                                        preferred_tool_orientations=[quaternion_from_euler(np.pi, 0, 0)],
