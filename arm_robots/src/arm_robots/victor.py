@@ -145,11 +145,15 @@ class BaseVictor(DualArmRobot):
         self.right_gripper_command_pub = rospy.Publisher(self.ns("right_arm/gripper_command"), Robotiq3FingerCommand,
                                                          queue_size=10)
 
-        self.left_set_control_mode_srv = rospy.ServiceProxy(self.ns("left_arm/set_control_mode_service"), SetControlMode)
-        self.right_set_control_mode_srv = rospy.ServiceProxy(self.ns("right_arm/set_control_mode_service"), SetControlMode)
+        self.left_set_control_mode_srv = rospy.ServiceProxy(self.ns("left_arm/set_control_mode_service"),
+                                                            SetControlMode)
+        self.right_set_control_mode_srv = rospy.ServiceProxy(self.ns("right_arm/set_control_mode_service"),
+                                                             SetControlMode)
 
-        self.left_get_control_mode_srv = rospy.ServiceProxy(self.ns("left_arm/get_control_mode_service"), GetControlMode)
-        self.right_get_control_mode_srv = rospy.ServiceProxy(self.ns("right_arm/get_control_mode_service"), GetControlMode)
+        self.left_get_control_mode_srv = rospy.ServiceProxy(self.ns("left_arm/get_control_mode_service"),
+                                                            GetControlMode)
+        self.right_get_control_mode_srv = rospy.ServiceProxy(self.ns("right_arm/get_control_mode_service"),
+                                                             GetControlMode)
 
         self.left_arm_status_listener = Listener(self.ns("left_arm/motion_status"), MotionStatus)
         self.right_arm_status_listener = Listener(self.ns("right_arm/motion_status"), MotionStatus)
@@ -390,9 +394,9 @@ class BaseVictor(DualArmRobot):
 
     def get_close_gripper_msg(self):
         cmd = default_robotiq_command()
-        cmd.finger_a_command.position = 0.5
-        cmd.finger_b_command.position = 0.4
-        cmd.finger_c_command.position = 0.4
+        cmd.finger_a_command.position = 0.6
+        cmd.finger_b_command.position = 0.6
+        cmd.finger_c_command.position = 0.6
         cmd.scissor_command.position = 0.8
         return cmd
 
@@ -405,6 +409,10 @@ class Victor(BaseVictor, MoveitEnabledRobot):
                                     robot_namespace=robot_namespace,
                                     arms_controller_name='both_arms_trajectory_controller')
         BaseVictor.__init__(self, robot_namespace=robot_namespace)
+        self.left_arm_group = 'left_arm'
+        self.right_arm_group = 'right_arm'
+        self.left_tool_name = 'left_tool'
+        self.right_tool_name = 'right_tool'
         self.left_force_change_sub = rospy.Publisher(self.ns("left_force_change"), Float32, queue_size=10)
         self.right_force_change_sub = rospy.Publisher(self.ns("right_force_change"), Float32, queue_size=10)
         self.polly_pub = rospy.Publisher("/polly", String, queue_size=10)

@@ -4,7 +4,7 @@ import ipdb
 import numpy as np
 import roscpp_initializer
 
-import rospy
+from arm_robots.ros_init import rospy_and_cpp_init
 from arm_robots.victor import Victor
 
 
@@ -24,11 +24,6 @@ def main():
     ipdb.set_trace()
 
     roscpp_initializer.shutdown()
-
-
-def rospy_and_cpp_init(name):
-    roscpp_initializer.init_node("cpp_" + name, [], disable_signals=True)
-    rospy.init_node(name)
 
 
 if __name__ == "__main__":

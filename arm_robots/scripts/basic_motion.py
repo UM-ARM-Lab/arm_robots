@@ -1,20 +1,20 @@
 #! /usr/bin/env python
 import colorama
 import numpy as np
-
 import roscpp_initializer
+
 import rospy
-from arm_robots.hdt_michigan import Val
+from arm_robots.ros_init import rospy_and_cpp_init
 from arm_robots.victor import Victor
 from geometry_msgs.msg import Pose
 from tf.transformations import quaternion_from_euler
 
-debug = True
+ask_before_moving = True
 
 
 def myinput(msg):
-    global debug
-    if not debug:
+    global ask_before_moving
+    if not ask_before_moving:
         input(msg)
 
 
@@ -22,25 +22,29 @@ def main():
     np.set_printoptions(suppress=True, precision=0, linewidth=200)
     colorama.init(autoreset=True)
 
-    roscpp_initializer.init_node("cpp_basic_motion", disable_signals=True)
-    rospy.init_node('basic_motion')
-
-    # val = Val()
-    # val.open_left_gripper()
-    # val.close_left_gripper()
-    # val.open_right_gripper()
-    # val.close_right_gripper()
+    rospy_and_cpp_init("basic_motion")
 
     victor = Victor()
+    victor.connect()
+
+    victor.open_left_gripper()
+    rospy.sleep(2)
+    victor.close_left_gripper()
+    rospy.sleep(2)
+    victor.open_right_gripper()
+    rospy.sleep(2)
+    victor.close_right_gripper()
+    rospy.sleep(2)
+
+    print("press enter if prompted")
 
     # # Plan to joint config
-    # print("press enter when prompted...")
-    # myinput("Plan to joint config?")
-    # victor.plan_to_joint_config("right_arm", [0.35, 1, 0.2, -1, 0.2, -1, 0])
+    myinput("Plan to joint config?")
+    victor.plan_to_joint_config(victor.right_arm_group, [0.35, 1, 0.2, -1, 0.2, -1, 0])
     #
     # # Plan to pose
-    # myinput("Plan to pose 1?")
-    # victor.plan_to_pose("right_arm", "right_tool_placeholder", [0.6, -0.2, 1.0, 4, 1, 0])
+    myinput("Plan to pose 1?")
+    victor.plan_to_pose(victor.right_arm_group, victor.right_tool_name, [0.6, -0.2, 1.0, 4, 1, 0])
 
     # Or you can use a geometry msgs Pose
     myinput("Plan to pose 2?")
@@ -53,19 +57,23 @@ def main():
     pose.orientation.y = q[1]
     pose.orientation.z = q[2]
     pose.orientation.w = q[3]
-    victor.plan_to_pose("right_arm", "right_tool_placeholder", pose)
+    victor.plan_to_pose(victor.right_arm_group, victor.right_tool_name, pose)
 
     # # Or with cartesian planning
-    # myinput("Cartersian motion back to pose 3?")
-    # victor.plan_to_position_cartesian("right_arm", "right_tool_placeholder", [0.9, -0.4, 0.9], step_size=0.01)
-    # victor.plan_to_position_cartesian("right_arm", "right_tool_placeholder", [0.7, -0.4, 0.8], step_size=0.01)
+    myinput("Cartersian motion back to pose 3?")
+    victor.plan_to_position_cartesian(victor.right_arm_group, victor.right_tool_name, [0.9, -0.4, 0.9], step_size=0.01)
+    victor.plan_to_position_cartesian(victor.right_arm_group, victor.right_tool_name, [0.7, -0.4, 0.8], step_size=0.01)
 
     # Move hand straight works either with jacobian following
     myinput("Follow jacobian to pose 2?")
-    victor.follow_jacobian_to_position("right_arm", ["right_tool_placeholder"], [[[0.8, -0.2, 0.8]]])
-    victor.follow_jacobian_to_position("right_arm", ["right_tool_placeholder"], [[[0.8, -0.4, 0.8]]])
-    victor.follow_jacobian_to_position("right_arm", ["right_tool_placeholder"], [[[1.1, -0.4, 0.8]]])
-    victor.follow_jacobian_to_position("right_arm", ["right_tool_placeholder"], [[[1.1, -0.2, 0.8]]])
+    victor.store_current_tool_orientations([victor.right_tool_name])
+    victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[0.8, -0.2, 0.8]]])
+    victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[0.8, -0.4, 0.8]]])
+    victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[1.1, -0.4, 0.8]]])
+    victor.follow_jacobian_to_position(group_name=victor.right_arm_group,
+                                       tool_names=[victor.right_tool_name],
+                                       preferred_tool_orientations=[quaternion_from_euler(np.pi, 0, 0)],
+                                       points=[[[1.1, -0.2, 0.8]]])
 
     roscpp_initializer.shutdown()
 

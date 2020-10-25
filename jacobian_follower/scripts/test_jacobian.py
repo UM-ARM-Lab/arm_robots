@@ -4,7 +4,7 @@ import numpy as np
 import roscpp_initializer
 
 import ros_numpy
-import rospy
+from arm_robots.ros_init import rospy_and_cpp_init
 from arm_robots.victor import Victor
 from geometry_msgs.msg import Point
 
@@ -36,13 +36,13 @@ def s():
 
 
 def main():
-    roscpp_initializer.init_node("cpp_jacobian_follower", anonymous=True, disable_signals=True)
-    rospy.init_node("py_jacobian_follower")
+    rospy_and_cpp_init("test_jacobain_follower")
+
     v = Victor()
     v.plan_to_pose("left_arm", "left_tool_placeholder", target_pose=[0.7, 0.3, 0.8, np.pi, 0, 0])
     current_pose = v.get_link_pose("left_arm", "left_tool_placeholder")
     for pos in xy_spiral(current_pose.position, radius=0.5, n_steps=200):
-        v.follow_jacobian_to_position("left_arm", ['left_tool_placeholder'], [[pos]], 0.05)
+        v.follow_jacobian_to_position("left_arm", ['left_tool_placeholder'], [[pos]], vel_scaling=0.05)
     roscpp_initializer.shutdown()
 
 

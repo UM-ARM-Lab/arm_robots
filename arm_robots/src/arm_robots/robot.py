@@ -17,6 +17,8 @@ from rosgraph.names import ns_join
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from victor_hardware_interface_msgs.msg import MotionStatus
 
+STORED_ORIENTATION = None
+
 
 class MoveitEnabledRobot(DualArmRobot):
 
@@ -195,15 +197,20 @@ class MoveitEnabledRobot(DualArmRobot):
     def follow_jacobian_to_position(self,
                                     group_name: str,
                                     tool_names: List[str],
-                                    preferred_tool_orientations: Optional[List],
                                     points: List[List],
+                                    preferred_tool_orientations: Optional[List] = STORED_ORIENTATION,
                                     vel_scaling=0.1,
                                     stop_condition: Optional[Callable] = None,
                                     ):
         """ If preferred_tool_orientations is None, we use the stored ones as a fallback """
 
-        if preferred_tool_orientations is None:
-            preferred_tool_orientations = [self.stored_tool_orientations[k] for k in tool_names]
+        if preferred_tool_orientations == STORED_ORIENTATION:
+            preferred_tool_orientations = []
+            for k in tool_names:
+                if k not in self.stored_tool_orientations:
+                    rospy.logerr(f"tool {k} has no stored orientation. aborting.")
+                    return
+                preferred_tool_orientations.append(self.stored_tool_orientations[k])
         robot_trajectory_msg: moveit_commander.RobotTrajectory = self.jacobian_follower.plan(
             group_name=group_name,
             tool_names=tool_names,
