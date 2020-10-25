@@ -5,21 +5,35 @@
     <arg name="verbose" default="false"/>
     <arg name="world_name" default="$(find arm_robots)/world/empty_with_moveit_plugin.world"/>
 
-    <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
-        <arg name="allow_trajectory_execution" value="true"/>
-        <arg name="moveit_controller_manager" value="$(arg moveit_controller_manager)"/>
-    </include>
+    <group if="$(arg use_gazebo)">
+        <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
+            <arg name="allow_trajectory_execution" value="true"/>
+            <arg name="moveit_controller_manager" value="gazebo"/>
+        </include>
 
-    <include file="$(find arm_robots)/launch/trajectory_follower.launch">
-        <arg name="use_victor" value="true"/>
-    </include>
+        <!-- start the ROS controllers, only used in gazebo -->
+        <include file="$(find victor_control)/launch/victor_control.launch">
+            <arg name="robot_namespace" value="victor"/>
+        </include>
 
-    <group ns="victor" if="$(arg use_gazebo)">
         <include file="$(find gazebo_ros)/launch/empty_world.launch">
             <arg name="world_name" value="$(arg world_name)"/>
-            <arg name="use_sim_time" value="false"/>
             <arg name="gui" value="$(arg gui)"/>
+            <arg name="paused" value="true"/>
             <arg name="verbose" value="$(arg verbose)"/>
         </include>
     </group>
+    <group unless="$(arg use_gazebo)">
+        <include file="$(find arm_robots)/launch/trajectory_follower.launch">
+            <arg name="use_victor" value="true"/>
+        </include>
+
+        <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
+            <arg name="allow_trajectory_execution" value="true"/>
+            <arg name="moveit_controller_manager" value="real"/>
+        </include>
+    </group>
+
+    <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+          args="-urdf -model victor -param robot_description"/>
 </launch>
