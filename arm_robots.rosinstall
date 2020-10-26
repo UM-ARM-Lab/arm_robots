@@ -1,0 +1,17 @@
+- git:
+    local-name: arc_utilities
+    uri: git@github.com:UM-ARM-Lab/arc_utilities.git
+    version: peter
+- git:
+    local-name: arm_robots
+    uri: git@github.com:UM-ARM-Lab/arm_robots.git
+- git:
+    local-name: kuka_iiwa_interface
+    uri: git@github.com:UM-ARM-Lab/kuka_iiwa_interface.git
+- git:
+    local-name: pyrosmsg
+    uri: git@github.com:UM-ARM-Lab/pyrosmsg.git
+- git:
+    local-name: ros_numpy
+    uri: git@github.com:eric-wieser/ros_numpy.git
+    version: master
