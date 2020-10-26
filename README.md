@@ -1,6 +1,6 @@
 See `scripts/basic_motion.py` for example usage. In order to test this, you'll need simulated or real victor
 
-## Setup / Instal/
+## Setup / Install
 
 See the `arm_robots.rosinstall` for what pacakges you need to clean. You can also use the rosinstall directly with `wstool merge arm_robots/arm_robots.rosinstall`, followed by `wstool update`.
 
