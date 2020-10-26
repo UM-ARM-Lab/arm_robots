@@ -394,9 +394,9 @@ class BaseVictor(DualArmRobot):
 
     def get_close_gripper_msg(self):
         cmd = default_robotiq_command()
-        cmd.finger_a_command.position = 0.6
-        cmd.finger_b_command.position = 0.6
-        cmd.finger_c_command.position = 0.6
+        cmd.finger_a_command.position = 0.65
+        cmd.finger_b_command.position = 0.65
+        cmd.finger_c_command.position = 0.5
         cmd.scissor_command.position = 0.8
         return cmd
 
@@ -438,8 +438,8 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         return self.get_joint_positions(joint_names)
 
     def get_gripper_positions(self):
-        left_gripper = self.robot_commander.get_link("left_tool_placeholder")
-        right_gripper = self.robot_commander.get_link("right_tool_placeholder")
+        left_gripper = self.robot_commander.get_link(self.left_tool_name)
+        right_gripper = self.robot_commander.get_link(self.right_tool_name)
         return left_gripper.pose().pose.position, right_gripper.pose().pose.position
 
     def speak(self, message: str):

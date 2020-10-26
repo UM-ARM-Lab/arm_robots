@@ -12,6 +12,11 @@
     </group>
 
     <group if="$(arg use_gazebo)">
+        <!-- uploads robot description and setups up other parameters -->
+        <include file="$(find victor_moveit_config)/launch/planning_context.launch">
+            <arg name="load_robot_description" value="true"/>
+        </include>
+
         <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
             <arg name="allow_trajectory_execution" value="true"/>
             <arg name="moveit_controller_manager" value="gazebo"/>

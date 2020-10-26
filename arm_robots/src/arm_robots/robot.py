@@ -129,6 +129,12 @@ class MoveitEnabledRobot(DualArmRobot):
                                 trajectory: JointTrajectory,
                                 client: SimpleActionClient,
                                 stop_condition: Optional[Callable] = None):
+        if len(trajectory.points) == 0:
+            rospy.logdebug(f"ignoring empty trajectory")
+            result = FollowJointTrajectoryResult()
+            result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
+            return trajectory, result, client.get_state()
+
         rospy.logdebug(f"sending trajectory goal with f{len(trajectory.points)} points")
         result: Optional[FollowJointTrajectoryResult] = None
         if self.execute:
@@ -156,12 +162,6 @@ class MoveitEnabledRobot(DualArmRobot):
         point.positions = joint_positions
         trajectory.points.append(point)
         return self.follow_joint_trajectory(trajectory, client)
-
-    def follow_left_gripper_joint_trajectory(self, trajectory: JointTrajectory):
-        return self.follow_joint_trajectory(trajectory, self.left_gripper_client)
-
-    def follow_right_gripper_joint_trajectory(self, trajectory: JointTrajectory):
-        return self.follow_joint_trajectory(trajectory, self.right_gripper_client)
 
     def follow_arms_joint_trajectory(self, trajectory: JointTrajectory, stop_condition: Optional[Callable] = None):
         return self.follow_joint_trajectory(trajectory, self.arms_client, stop_condition=stop_condition)
