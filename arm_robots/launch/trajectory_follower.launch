@@ -5,15 +5,10 @@
   <arg name="use_victor" default="false"/>
   <arg name="use_val" default="false"/>
 
-  <group ns="victor" if="$(arg use_victor)">
+  <group if="$(arg use_victor)">
     <node pkg="arm_robots" type="trajectory_follower_node.py" name="arms_trajectory_follower"
-          args="_robot_name:=victor _controller:=both_arms_trajectory_controller"/>
-    <node pkg="arm_robots" type="trajectory_follower_node.py" name="left_gripper_trajectory_follower"
-          args="_robot_name:=victor _controller:=left_hand_trajectory_controller"/>
-    <node pkg="arm_robots" type="trajectory_follower_node.py"
-          name="right_gripper_trajectory_follower"
-          args="_robot_name:=victor _controller:=right_hand_trajectory_controller"/>
-    <group ns="static_transform_publishers">
+          args="victor both_arms_trajectory_controller"/>
+    <group ns="victor/static_transform_publishers">
       <node pkg="tf2_ros" type="static_transform_publisher" name="active_robot_root_broadcaster" required="true"
             args="0 0 0 0 0 0 victor_root robot_root">
         <param name="use_sim_time" value="$(arg use_sim_time)"/>
