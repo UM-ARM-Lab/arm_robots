@@ -411,8 +411,8 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         BaseVictor.__init__(self, robot_namespace=robot_namespace)
         self.left_arm_group = 'left_arm'
         self.right_arm_group = 'right_arm'
-        self.left_tool_name = 'left_tool'
-        self.right_tool_name = 'right_tool'
+        self.left_tool_name = 'left_tool_placeholder'
+        self.right_tool_name = 'right_tool_placeholder'
         self.left_force_change_sub = rospy.Publisher(self.ns("left_force_change"), Float32, queue_size=10)
         self.right_force_change_sub = rospy.Publisher(self.ns("right_force_change"), Float32, queue_size=10)
         self.polly_pub = rospy.Publisher("/polly", String, queue_size=10)

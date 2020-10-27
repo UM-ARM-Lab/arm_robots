@@ -20,6 +20,7 @@ if __name__ == "__main__":
         rospy.loginfo(Fore.CYAN + "you better not be lying...")
 
         victor = Victor(robot_namespace='victor')
+        victor.connect()
 
         actually_switch = rospy.get_param("~actually_switch", False)
         if actually_switch:
