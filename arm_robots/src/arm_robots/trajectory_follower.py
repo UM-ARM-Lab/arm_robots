@@ -16,7 +16,7 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 class TrajectoryFollower:
     def __init__(self, robot: DualArmRobot, controller_name: str):
         self.robot = robot
-        self.action_name = ns_join(controller_name, "follow_joint_trajectory")
+        self.action_name = ns_join(robot.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
         self.server = actionlib.SimpleActionServer(self.action_name, FollowJointTrajectoryAction,
                                                    execute_cb=self.follow_trajectory_cb,
                                                    auto_start=False)
@@ -36,7 +36,7 @@ class TrajectoryFollower:
         # if you set max_step_size to be large and position tolerance to be small, then things will be jerky
         if len(traj_msg.trajectory.points) == 0:
             rospy.loginfo("Ignoring empty trajectory")
-            result.error_code = actionlib.GoalStatus.SUCCEEDED
+            result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
             result.error_string = "empty trajectory"
             return result
 
@@ -48,7 +48,7 @@ class TrajectoryFollower:
         interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.1)
         if len(interpolated_points) == 0:
             rospy.loginfo("Trajectory was empty after interpolation")
-            result.error_code = actionlib.GoalStatus.SUCCEEDED
+            result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
             result.error_string = "empty trajectory"
             return result
 
@@ -94,7 +94,7 @@ class TrajectoryFollower:
                     rospy.loginfo(command_failed_msg)
                 if stop_msg:
                     rospy.logwarn(stop_msg)
-                result.error_code = actionlib.GoalStatus.ABORTED
+                result.error_code = -10
                 result.error_string = stop_msg
                 break
 
@@ -102,7 +102,7 @@ class TrajectoryFollower:
             if trajectory_point_idx >= len(interpolated_points) - 1:
                 if waypoint_reached(desired_point, actual_point, goal_tolerance):
                     # we're done!
-                    result.error_code = actionlib.GoalStatus.SUCCEEDED
+                    result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
                     break
             else:
                 if waypoint_reached(desired_point, actual_point, tolerance):
@@ -124,12 +124,12 @@ class TrajectoryFollower:
 
         def _stop_cb(*args, **kwargs):
             stop = self.server.is_preempt_requested()
-            stop_msg = "_stop_cb: preempt requested"
+            stop_msg = "Goal cancelled"
             return stop, stop_msg
 
         result = self.follow_trajectory_goal(traj_msg, _feedback_cb, _stop_cb)
         # TODO: crappy api here
-        if result.error_code == actionlib.GoalStatus.SUCCEEDED:
+        if result.error_code == FollowJointTrajectoryResult.SUCCESSFUL:
             self.server.set_succeeded(result)
         else:
             self.server.set_aborted(result)
