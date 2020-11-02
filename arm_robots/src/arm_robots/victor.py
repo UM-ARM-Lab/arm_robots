@@ -10,7 +10,7 @@ import moveit_commander
 import rospy
 from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
-from arc_utilities.ros_helpers import Listener
+from arc_utilities.listener import Listener
 from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot import MoveitEnabledRobot
 from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal
@@ -18,7 +18,7 @@ from moveit_msgs.msg import DisplayRobotState
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String, Float32
 from trajectory_msgs.msg import JointTrajectoryPoint
-from victor_hardware_interface.victor_utils import get_new_control_mode, list_to_jvq, default_gripper_command
+from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, default_gripper_command
 from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, MotionCommand, Robotiq3FingerCommand, \
     Robotiq3FingerStatus
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
@@ -260,7 +260,7 @@ class BaseVictor(DualArmRobot):
         return right_control_mode_res.active_control_mode.control_mode
 
     def set_right_arm_control_mode(self, control_mode: ControlMode, **kwargs):
-        new_control_mode = get_new_control_mode(control_mode, **kwargs)
+        new_control_mode = get_control_mode_params(control_mode, **kwargs)
         res: SetControlModeResponse = self.right_set_control_mode_srv(new_control_mode)
 
         if not res.success:
@@ -269,7 +269,7 @@ class BaseVictor(DualArmRobot):
         return res
 
     def set_left_arm_control_mode(self, control_mode: ControlMode, **kwargs):
-        new_control_mode = get_new_control_mode(control_mode, **kwargs)
+        new_control_mode = get_control_mode_params(control_mode, **kwargs)
         res: SetControlModeResponse = self.left_set_control_mode_srv(new_control_mode)
 
         if not res.success:
@@ -418,7 +418,6 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         self.polly_pub = rospy.Publisher("/polly", String, queue_size=10)
         self.use_force_trigger = force_trigger >= 0
         self.force_trigger = force_trigger
-        rospy.loginfo(Fore.GREEN + "Victor ready!")
         # self.feedback_callbacks.append(self.stop_on_force_cb)
 
     def move_to_impedance_switch(self, actually_switch: bool = True):
@@ -509,3 +508,7 @@ class Victor(BaseVictor, MoveitEnabledRobot):
             if stop:
                 rospy.logwarn("CANCELING!")
                 client.cancel_all_goals()
+
+    def connect(self):
+        super().connect()
+        rospy.loginfo(Fore.GREEN + "Victor ready!")
