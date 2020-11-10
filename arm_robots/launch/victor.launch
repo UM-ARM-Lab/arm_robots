@@ -2,7 +2,7 @@
     <arg name="moveit_controller_manager" default="fake"/>
     <arg name="use_gazebo" default="false"/>
     <arg name="gui" default="true"/>
-    <arg name="verbose" default="true"/>
+    <arg name="verbose" default="false"/>
     <arg name="world_name" default="$(find arm_robots)/world/empty_with_moveit_plugin.world"/>
 
     <group ns="static_transform_publishers">
