@@ -193,6 +193,8 @@ class BaseVictor(DualArmRobot):
             # any actions are running?
             # NOTE: why are these values not checked by the lower-level code? the Java code knows what the joint limits
             # are so why does it not enforce them?
+            
+            # TODO: use enforce bounds? https://github.com/ros-planning/moveit/pull/2356
             limit_enforced_positions = []
             for i, joint_name in enumerate(right_arm_joints):
                 joint: moveit_commander.RobotCommander.Joint = self.robot_commander.get_joint(joint_name)
@@ -418,7 +420,6 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         self.polly_pub = rospy.Publisher("/polly", String, queue_size=10)
         self.use_force_trigger = force_trigger >= 0
         self.force_trigger = force_trigger
-        # self.feedback_callbacks.append(self.stop_on_force_cb)
 
     def move_to_impedance_switch(self, actually_switch: bool = True):
         self.plan_to_joint_config("right_arm", right_impedance_switch_config)
@@ -435,11 +436,6 @@ class Victor(BaseVictor, MoveitEnabledRobot):
 
     def get_joint_positions(self, joint_names: Optional[List[str]] = None):
         return self.get_joint_positions(joint_names)
-
-    def get_gripper_positions(self):
-        left_gripper = self.robot_commander.get_link(self.left_tool_name)
-        right_gripper = self.robot_commander.get_link(self.right_tool_name)
-        return left_gripper.pose().pose.position, right_gripper.pose().pose.position
 
     def speak(self, message: str):
         msg = String()

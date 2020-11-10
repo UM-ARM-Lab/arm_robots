@@ -14,10 +14,14 @@ from arm_robots.robot_utils import make_follow_joint_trajectory_goal
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult
 from geometry_msgs.msg import Point, Pose, Quaternion
 from rosgraph.names import ns_join
+from rospy import logfatal
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from victor_hardware_interface_msgs.msg import MotionStatus
 
 STORED_ORIENTATION = None
+
+store_error_msg = ("No stored tool orientations! "
+                   "You have to call store_tool_orientations or store_current_tool_orientations first")
 
 
 class MoveitEnabledRobot(DualArmRobot):
@@ -36,6 +40,10 @@ class MoveitEnabledRobot(DualArmRobot):
 
         self.arms_controller_name = arms_controller_name
 
+        # Override these in base classes!
+        self.left_tool_name = None
+        self.right_tool_name = None
+
         self.arms_client = None
         self.jacobian_follower = None
 
@@ -46,9 +54,8 @@ class MoveitEnabledRobot(DualArmRobot):
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
 
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
-                                                                      translation_step_size=0.01,
+                                                                      translation_step_size=0.005,
                                                                       minimize_rotation=True)
-
 
     def setup_joint_trajectory_controller_client(self, controller_name):
         action_name = ns_join(self.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
@@ -204,9 +211,10 @@ class MoveitEnabledRobot(DualArmRobot):
                                     stop_condition: Optional[Callable] = None,
                                     ):
         """ If preferred_tool_orientations is None, we use the stored ones as a fallback """
-
         if preferred_tool_orientations == STORED_ORIENTATION:
             preferred_tool_orientations = []
+            if self.stored_tool_orientations is None:
+                logfatal(store_error_msg)
             for k in tool_names:
                 if k not in self.stored_tool_orientations:
                     rospy.logerr(f"tool {k} has no stored orientation. aborting.")
@@ -275,3 +283,9 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         raise NotImplementedError()
+
+    def get_gripper_positions(self):
+        left_gripper = self.robot_commander.get_link(self.left_tool_name)
+        right_gripper = self.robot_commander.get_link(self.right_tool_name)
+        return left_gripper.pose().pose.position, right_gripper.pose().pose.position
+

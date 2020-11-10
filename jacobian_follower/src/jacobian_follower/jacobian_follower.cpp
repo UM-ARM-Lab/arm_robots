@@ -8,7 +8,6 @@
 #include <arc_utilities/moveit_pose_type.hpp>
 #include <arc_utilities/ostream_operators.hpp>
 #include <arc_utilities/ros_helpers.hpp>
-#include <arc_utilities/trajectory_utils.h>
 
 #include <moveit/kinematic_constraints/utils.h>
 #include <moveit_msgs/DisplayTrajectory.h>
@@ -24,6 +23,7 @@ using ColorBuilder = arc_helpers::RGBAColorBuilder<std_msgs::ColorRGBA>;
 using ArrayXb = Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic>;
 using VecArrayXb = Eigen::Array<bool, Eigen::Dynamic, 1>;
 
+constexpr auto const LOGGER_NAME{"JacobianFollower"};
 
 JacobianFollower::JacobianFollower(std::string const robot_namespace, double const translation_step_size,
                                    bool const minimize_rotation)
@@ -85,7 +85,7 @@ moveit_msgs::RobotTrajectory JacobianFollower::plan(std::string const &group_nam
 
   if (!time_param_.computeTimeStamps(robot_trajectory, max_velocity_scaling_factor, max_acceleration_scaling_factor))
   {
-    ROS_ERROR("Time parametrization for the solution path failed.");
+    ROS_ERROR_STREAM_NAMED(LOGGER_NAME, "Time parametrization for the solution path failed.");
   }
 
   moveit_msgs::RobotTrajectory robot_trajectory_msg;
@@ -100,7 +100,7 @@ bool JacobianFollower::isRequestValid(std::string const &group_name,
 {
   if (not model_->hasJointModelGroup(group_name))
   {
-    ROS_WARN_STREAM("No group " << group_name);
+    ROS_WARN_STREAM_NAMED(LOGGER_NAME, "No group " << group_name);
     return false;
   }
   for (auto const &tool_name : tool_names)
@@ -185,7 +185,7 @@ robot_trajectory::RobotTrajectory JacobianFollower::moveInWorldFrame(std::string
 
   if (max_dist < translation_step_size_)
   {
-    ROS_INFO("Motion of distance %f requested. Ignoring", max_dist);
+    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Motion of distance " << max_dist << " requested. Ignoring");
     return {model_, group_name};
   }
   auto const steps = static_cast<std::size_t>(std::ceil(max_dist / translation_step_size_)) + 1;
@@ -292,7 +292,7 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
   robot_trajectory::RobotTrajectory cmd{model_, jmg};
 
   // Iteratively follow the Jacobian to each other point in the path
-  ROS_DEBUG("Following Jacobian along path for group %s", jmg->getName().c_str());
+  ROS_DEBUG_NAMED(LOGGER_NAME, "Following Jacobian along path for group %s", jmg->getName().c_str());
   for (auto step_idx = 1ul; step_idx < steps; ++step_idx)
   {
     // Extract the goal positions and orientations for each tool in robot frame
@@ -307,13 +307,14 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
     const auto iksoln = jacobianIK(planning_scene, jmg, tool_names, robotTtargets);
     if (!iksoln)
     {
-      ROS_WARN_STREAM("IK Stalled at idx " << step_idx << ", returning early");
+      ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "IK Stalled at idx " << step_idx << ", returning early");
       break;
     }
     cmd.addSuffixWayPoint(planning_scene->getCurrentState(), 0);
   }
 
-  ROS_DEBUG_STREAM("Jacobian IK path has " << cmd.getWayPointCount() << " points out of a requested " << steps);
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME,
+                         "Jacobian IK path has " << cmd.getWayPointCount() << " points out of a requested " << steps);
   return cmd;
 }
 
@@ -600,13 +601,13 @@ bool JacobianFollower::jacobianIK(
     planning_scene->checkCollision(collisionRequest, collisionResult, state);
     if (collisionResult.collision)
     {
-      ROS_WARN_STREAM("Projection stalled at itr " << itr << ". " << collisionResult);
+      ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Projection stalled at itr " << itr << ". " << collisionResult);
       return false;
     }
     collisionResult.clear();
   }
 
-  ROS_ERROR("Iteration limit reached");
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Iteration limit reached");
   return false;
 }
 
@@ -644,7 +645,7 @@ Eigen::MatrixXd JacobianFollower::getJacobianServoFrame(moveit::core::JointModel
   {
     if (not model_->hasLinkModel(tool_names[idx]))
     {
-      ROS_FATAL_STREAM("Model has no link " << tool_names[idx]);
+      ROS_FATAL_STREAM_NAMED(LOGGER_NAME, "Model has no link " << tool_names[idx]);
     }
     auto const ee_link_ = model_->getLinkModel(tool_names[idx]);
     auto const block = ::getJacobianServoFrame(jmg, state, ee_link_, robotTservo[idx]);

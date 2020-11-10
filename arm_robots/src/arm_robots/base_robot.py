@@ -30,7 +30,11 @@ class DualArmRobot:
 
         self.tf_wrapper = TF2Wrapper()
 
-        self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace)
+        try:
+            self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace)
+        except RuntimeError as e:
+            rospy.logerr("You may need to load the moveit planning context and robot description")
+            print(e)
 
     def ns(self, name: str):
         return ns_join(self.robot_namespace, name)
