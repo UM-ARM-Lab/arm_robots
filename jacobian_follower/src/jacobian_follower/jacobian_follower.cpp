@@ -454,8 +454,9 @@ bool JacobianFollower::jacobianIK(
         // don't let step size get too small
         if (stepSize < accuracyThreshold / 32)
         {
-          std::cerr << "stepSize: " << stepSize << std::endl;
-          std::cerr << "Projection stalled itr: " << itr << ": stepSize < accuracyThreshold/32\n";
+          ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Projection stalled itr: " << itr << " "
+                                                                         << "stepSize: " << stepSize << " "
+                                                                         << "accuracyThreshold: " << accuracyThreshold);
           return false;
         }
       } else
