@@ -15,6 +15,7 @@ from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryF
 from geometry_msgs.msg import Point, Pose, Quaternion
 from rosgraph.names import ns_join
 from rospy import logfatal
+from rospy.logger_level_service_caller import LoggerLevelServiceCaller
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from victor_hardware_interface_msgs.msg import MotionStatus
 
@@ -48,6 +49,12 @@ class MoveitEnabledRobot(DualArmRobot):
         self.jacobian_follower = None
 
         self.feedback_callbacks = []
+
+        # Up the logging level for MoveGroupInterface because it's annoying
+        log_level = LoggerLevelServiceCaller()
+        node_name = rospy.get_name()
+        logger_name = "ros.moveit_ros_planning_interface.move_group_interface"
+        log_level.send_logger_change_message(node_name, logger_name, "WARN")
 
     def connect(self):
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
@@ -288,4 +295,3 @@ class MoveitEnabledRobot(DualArmRobot):
         left_gripper = self.robot_commander.get_link(self.left_tool_name)
         right_gripper = self.robot_commander.get_link(self.right_tool_name)
         return left_gripper.pose().pose.position, right_gripper.pose().pose.position
-

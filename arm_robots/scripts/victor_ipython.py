@@ -4,7 +4,7 @@ import ipdb
 import numpy as np
 import roscpp_initializer
 
-from arm_robots.ros_init import rospy_and_cpp_init
+from arc_utilities.ros_init import rospy_and_cpp_init
 from arm_robots.victor import Victor
 
 

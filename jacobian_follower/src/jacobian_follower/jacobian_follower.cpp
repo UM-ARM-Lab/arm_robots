@@ -39,6 +39,11 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, double con
       translation_step_size_(translation_step_size),
       minimize_rotation_(minimize_rotation)
 {
+  if (!ros::isInitialized())
+  {
+    ROS_FATAL_STREAM_NAMED(LOGGER_NAME, "You must call ros::init before using JacobianFollower. "
+        << "If you're calling this from python, use arc_utilities.ros_init.rospy_and_cpp_init");
+  }
   nh_ = std::make_shared<ros::NodeHandle>();
   auto const waypoints_topic = ros::names::append(robot_namespace, "jacobian_waypoints");
   vis_pub_ = std::make_shared<ros::Publisher>(

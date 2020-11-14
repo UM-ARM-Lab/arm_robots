@@ -4,7 +4,7 @@ import numpy as np
 import roscpp_initializer
 
 import rospy
-from arm_robots.ros_init import rospy_and_cpp_init
+from arc_utilities.ros_init import rospy_and_cpp_init
 from arm_robots.victor import Victor
 from geometry_msgs.msg import Pose
 from tf.transformations import quaternion_from_euler
