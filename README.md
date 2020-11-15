@@ -6,6 +6,9 @@ See the `arm_robots.rosinstall` for what source pacakges you need to clone. You 
 
 To get the dependencies, you can try `rosdep install -r --from-paths arm_robots`.
 
+Apt dependencies:
+`sudo apt install ros-noetic-pybind11-catkin`
+
 ## Simulation
 
     roslaunch arm_robots victor.launch sim:=true
