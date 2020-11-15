@@ -2,6 +2,8 @@
     <arg name="moveit_controller_manager" default="fake"/>
     <arg name="use_gazebo" default="false"/>
     <arg name="gui" default="true"/>
+    <arg name="update_description" default="true"/>
+    <arg name="sim" default="false"/>
     <arg name="verbose" default="false"/>
     <arg name="world_name" default="$(find arm_robots)/world/empty_with_moveit_plugin.world"/>
 
@@ -11,17 +13,14 @@
         </node>
     </group>
 
-    <group if="$(arg use_gazebo)">
+    <group if="$(arg update_description)">
         <!-- uploads robot description and setups up other parameters -->
         <include file="$(find victor_moveit_config)/launch/planning_context.launch">
             <arg name="load_robot_description" value="true"/>
         </include>
+    </group>
 
-        <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
-            <arg name="allow_trajectory_execution" value="true"/>
-            <arg name="moveit_controller_manager" value="gazebo"/>
-        </include>
-
+    <group if="$(arg use_gazebo)">
         <!-- start the ROS controllers, only used in gazebo -->
         <include file="$(find victor_control)/launch/victor_control.launch">
             <arg name="robot_namespace" value="victor"/>
@@ -34,17 +33,26 @@
             <arg name="verbose" value="$(arg verbose)"/>
         </include>
     </group>
-    <group unless="$(arg use_gazebo)">
+
+    <group if="$(arg sim)">
+        <!-- Spawn the robot in gazebo -->
+        <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+              args="-urdf -model victor -param robot_description"/>
+        <!-- Move it-->
+        <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
+            <arg name="allow_trajectory_execution" value="true"/>
+            <arg name="moveit_controller_manager" value="gazebo"/>
+        </include>
+    </group>
+    <group unless="$(arg sim)">
+        <!-- to let moveit send trajectories with the real robot -->
         <include file="$(find arm_robots)/launch/trajectory_follower.launch">
             <arg name="use_victor" value="true"/>
         </include>
-
+        <!-- Move it-->
         <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
             <arg name="allow_trajectory_execution" value="true"/>
             <arg name="moveit_controller_manager" value="real"/>
         </include>
     </group>
-
-    <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
-          args="-urdf -model victor -param robot_description"/>
 </launch>
