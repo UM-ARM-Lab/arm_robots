@@ -25,6 +25,20 @@ store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
 
 
+def set_move_group_log_level(event):
+    # Up the logging level for MoveGroupInterface because it's annoying
+    log_level = LoggerLevelServiceCaller()
+    node_name = "cpp_" + rospy.get_name().strip("/")
+    logger_name = "ros.moveit_ros_planning_interface.move_group_interface"
+    loggers = log_level.get_loggers(node_name)
+    if logger_name in loggers:
+        try:
+            success = log_level.send_logger_change_message(node_name, logger_name, "WARN")
+            rospy.logdebug_once(f"status of changing move_group_interface logger level: {success}")
+        except Exception:
+            pass
+
+
 class MoveitEnabledRobot(DualArmRobot):
 
     def __init__(self,
@@ -51,10 +65,7 @@ class MoveitEnabledRobot(DualArmRobot):
         self.feedback_callbacks = []
 
         # Up the logging level for MoveGroupInterface because it's annoying
-        log_level = LoggerLevelServiceCaller()
-        node_name = rospy.get_name()
-        logger_name = "ros.moveit_ros_planning_interface.move_group_interface"
-        log_level.send_logger_change_message(node_name, logger_name, "WARN")
+        rospy.Timer(rospy.Duration(2), set_move_group_log_level)
 
     def connect(self):
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
