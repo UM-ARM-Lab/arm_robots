@@ -16,6 +16,6 @@ To get the dependencies, you can try `rosdep install -r --from-paths arm_robots`
     roslaunch arm_robots victor.launch
 
 
-## [Here's what it should look like](https://drive.google.com/file/d/1-R0NOalh0yAsff310mjcobYLGQLQ7oJZ/view?usp=sharing)
+## Here's what it should look like
 
-![basic motion demo](https://raw.githubusercontent.com/UM-ARM-Lab/arm_robots/master/arm_robots/basic_motion_demo1.gif?token=AA6TGEVDB4GGCNMKH3TJE4S7T4XCK)
+https://drive.google.com/file/d/1-R0NOalh0yAsff310mjcobYLGQLQ7oJZ/view?usp=sharing
