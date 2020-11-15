@@ -12,6 +12,5 @@
     local-name: pyrosmsg
     uri: git@github.com:UM-ARM-Lab/pyrosmsg.git
 - git:
-    local-name: ros_numpy
-    uri: git@github.com:eric-wieser/ros_numpy.git
-    version: master
+    local-name: robotiq
+    uri: git@github.com:UM-ARM-Lab/robotiq.git
