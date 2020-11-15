@@ -2,13 +2,13 @@ See `scripts/basic_motion.py` for example usage. In order to test this, you'll n
 
 ## Setup / Install
 
-See the `arm_robots.rosinstall` for what pacakges you need to clean. You can also use the rosinstall directly with `wstool merge arm_robots/arm_robots.rosinstall`, followed by `wstool update`.
+See the `arm_robots.rosinstall` for what source pacakges you need to clone. You can also use the rosinstall directly. If you alredy have a `.rosinstall` file, use `wstool merge arm_robots/arm_robots.rosinstall`, followed by `wstool update`. If you don't have a `.rosinstall` file, just download this one, put it in the `src` directory of your catkin ws, and run `wstool update`. This will clone and/or pull all the packages you need.
 
-To get the dependencies, you can try `rosdep install -r --from-paths arm_robots --ignore-src` but that may still show errors.
+To get the dependencies, you can try `rosdep install -r --from-paths arm_robots`.
 
 ## Simulation
 
-    roslaunch arm_robots victor.launch  use_gazebo:=true
+    roslaunch arm_robots victor.launch sim:=true
 
 
 ## Real Victor
