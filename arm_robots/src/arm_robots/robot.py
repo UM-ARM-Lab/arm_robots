@@ -65,7 +65,7 @@ class MoveitEnabledRobot(DualArmRobot):
         self.feedback_callbacks = []
 
         # Up the logging level for MoveGroupInterface because it's annoying
-        rospy.Timer(rospy.Duration(2), set_move_group_log_level)
+        # rospy.Timer(rospy.Duration(2), set_move_group_log_level)
 
     def connect(self):
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.

@@ -1,0 +1,31 @@
+<launch>
+    <arg name="sim" default="false"/>
+
+    <arg name="gui" default="true"/>
+    <arg name="update_description" default="true"/>
+    <arg name="verbose" default="false"/>
+    <arg name="world_name" default="$(find arm_robots)/world/empty_with_moveit_plugin.world"/>
+
+    <group ns="static_transform_publishers">
+        <node pkg="tf2_ros" type="static_transform_publisher" name="rename_origin" required="true"
+              args="0 0 0 0 0 0 robot_root world">
+        </node>
+    </group>
+
+    <group if="$(arg update_description)">
+        <!-- uploads robot description and setups up other parameters -->
+        <include file="$(find victor_moveit_config)/launch/planning_context.launch">
+            <arg name="load_robot_description" value="true"/>
+        </include>
+    </group>
+
+
+    <!-- Move it-->
+    <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
+      <arg name="allow_trajectory_execution" value="true"/>
+      <arg name="moveit_controller_manager" value="gazebo"/>
+    </include>
+    <include file="$(find arm_robots)/launch/trajectory_follower.launch">
+      <arg name="use_victor" value="true"/>
+    </include>
+</launch>
