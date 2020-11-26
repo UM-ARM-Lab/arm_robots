@@ -56,7 +56,6 @@ def main():
     pose.orientation.x = q[0]
     pose.orientation.y = q[1]
     pose.orientation.z = q[2]
-
     pose.orientation.w = q[3]
     victor.plan_to_pose(victor.right_arm_group, victor.right_tool_name, pose)
 
