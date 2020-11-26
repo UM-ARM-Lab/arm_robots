@@ -23,7 +23,7 @@
     <!-- Move it-->
     <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
       <arg name="allow_trajectory_execution" value="true"/>
-      <arg name="moveit_controller_manager" value="gazebo"/>
+      <arg name="fake_execution" value="true"/>
     </include>
     <include file="$(find arm_robots)/launch/trajectory_follower.launch">
       <arg name="use_victor" value="true"/>
