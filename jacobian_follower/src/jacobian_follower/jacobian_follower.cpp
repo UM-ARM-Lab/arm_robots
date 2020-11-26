@@ -8,6 +8,7 @@
 #include <arc_utilities/moveit_pose_type.hpp>
 #include <arc_utilities/ostream_operators.hpp>
 #include <arc_utilities/ros_helpers.hpp>
+#include <arc_utilities/moveit_ostream_operators.hpp>
 
 #include <moveit/kinematic_constraints/utils.h>
 #include <moveit_msgs/DisplayTrajectory.h>
