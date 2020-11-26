@@ -30,13 +30,15 @@ def set_move_group_log_level(event):
     log_level = LoggerLevelServiceCaller()
     node_name = "cpp_" + rospy.get_name().strip("/")
     logger_name = "ros.moveit_ros_planning_interface.move_group_interface"
-    loggers = log_level.get_loggers(node_name)
-    if logger_name in loggers:
-        try:
-            success = log_level.send_logger_change_message(node_name, logger_name, "WARN")
-            rospy.logdebug_once(f"status of changing move_group_interface logger level: {success}")
-        except Exception:
-            pass
+    node_names = log_level.get_node_names()
+    if node_name in node_names:
+        loggers = log_level.get_loggers(node_name)
+        if logger_name in loggers:
+            try:
+                success = log_level.send_logger_change_message(node_name, logger_name, "WARN")
+                rospy.logdebug_once(f"status of changing move_group_interface logger level: {success}")
+            except Exception:
+                pass
 
 
 class MoveitEnabledRobot(DualArmRobot):
