@@ -1,7 +1,6 @@
 <launch>
   <!--  publish robot_root and run the trajectory followers -->
 
-  <arg name="use_sim_time" default="false"/>
   <arg name="use_victor" default="false"/>
   <arg name="use_val" default="false"/>
 
@@ -11,7 +10,6 @@
     <group ns="victor/static_transform_publishers">
       <node pkg="tf2_ros" type="static_transform_publisher" name="active_robot_root_broadcaster" required="true"
             args="0 0 0 0 0 0 victor_root robot_root">
-        <param name="use_sim_time" value="$(arg use_sim_time)"/>
       </node>
     </group>
   </group>
@@ -22,7 +20,6 @@
     <group ns="static_transform_publishers">
       <node pkg="tf2_ros" type="static_transform_publisher" name="active_robot_root_broadcaster" required="true"
             args="0 0 0 0 0 0 val_root robot_root">
-        <param name="use_sim_time" value="$(arg use_sim_time)"/>
       </node>
     </group>
   </group>
