@@ -9,12 +9,12 @@ from arm_robots.victor import Victor
 from geometry_msgs.msg import Pose
 from tf.transformations import quaternion_from_euler
 
-ask_before_moving = True
+ask_before_moving = False
 
 
 def myinput(msg):
     global ask_before_moving
-    if not ask_before_moving:
+    if ask_before_moving:
         input(msg)
 
 
