@@ -305,6 +305,7 @@ class MoveitEnabledRobot(DualArmRobot):
         raise NotImplementedError()
 
     def get_gripper_positions(self):
+        # NOTE: this function requires that gazebo be playing
         left_gripper = self.robot_commander.get_link(self.left_tool_name)
         right_gripper = self.robot_commander.get_link(self.right_tool_name)
         return left_gripper.pose().pose.position, right_gripper.pose().pose.position
