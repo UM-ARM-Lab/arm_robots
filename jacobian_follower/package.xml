@@ -15,7 +15,6 @@
   <depend>pyrosmsg</depend>
   <depend>tf2_ros</depend>
   <depend>tf2_msgs</depend>
-  <depend>victor_hardware_interface</depend>
   <depend>moveit_visual_tools</depend>
   <depend>pybind11_catkin</depend>
 </package>

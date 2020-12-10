@@ -8,7 +8,6 @@ find_package(catkin REQUIRED COMPONENTS
         roscpp
         tf2_ros
         tf2_msgs
-        victor_hardware_interface
         pyrosmsg
         moveit_visual_tools
         pybind11_catkin
