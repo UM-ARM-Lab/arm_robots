@@ -10,8 +10,6 @@ from arm_robots.trajectory_follower import TrajectoryFollower
 from arm_robots.victor import BaseVictor
 
 
-
-
 def main():
     np.set_printoptions(linewidth=200, suppress=True, precision=4)
     rospy.init_node('trajectory_follower')
