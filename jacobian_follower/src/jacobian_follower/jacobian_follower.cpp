@@ -35,7 +35,7 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, double con
       tf_buffer_(std::make_shared<tf2_ros::Buffer>()),
       world_frame_("robot_root"),
       robot_frame_(model_->getRootLinkName()),
-      worldTrobot(lookupTransform(*tf_buffer_, world_frame_, robot_frame_, ros::Time(0))),
+      worldTrobot(lookupTransform(*tf_buffer_, world_frame_, robot_frame_)),
       robotTworld(worldTrobot.inverse(Eigen::Isometry)),
       translation_step_size_(translation_step_size),
       minimize_rotation_(minimize_rotation)

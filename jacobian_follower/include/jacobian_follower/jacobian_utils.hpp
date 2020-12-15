@@ -10,8 +10,7 @@
 using Matrix6Xd = Eigen::Matrix<double, 6, Eigen::Dynamic>;
 
 Pose lookupTransform(tf2_ros::Buffer const &buffer, std::string const &parent_frame,
-                     std::string const &child_frame, ros::Time const &target_time = ros::Time(0),
-                     ros::Duration const &timeout = ros::Duration(0));
+                     std::string const &child_frame, ros::Time const &target_time = ros::Time(0));
 
 PointSequence interpolate(Eigen::Vector3d const &from, Eigen::Vector3d const &to, std::size_t steps);
 

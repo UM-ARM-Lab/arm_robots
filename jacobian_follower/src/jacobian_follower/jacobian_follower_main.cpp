@@ -4,7 +4,6 @@
 
 int main(int argc, char *argv[])
 {
-  // Read in all ROS parameters
   ros::init(argc, argv, "jacobian_follower");
 
   ros::NodeHandle nh;

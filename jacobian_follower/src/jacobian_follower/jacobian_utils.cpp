@@ -4,16 +4,18 @@
 #include <jacobian_follower/jacobian_utils.hpp>
 #include <arc_utilities/eigen_helpers.hpp>
 
+constexpr auto const LOGGER_NAME{"JacobianUtils"};
+
 Pose lookupTransform(tf2_ros::Buffer const &buffer, std::string const &parent_frame,
-                            std::string const &child_frame, ros::Time const &target_time,
-                            ros::Duration const &timeout)
+                     std::string const &child_frame, ros::Time const &target_time)
 {
   // Wait for up to timeout amount of time, then try to lookup the transform,
   // letting TF2's exception handling throw if needed
-  if (!buffer.canTransform(parent_frame, child_frame, target_time, timeout))
+  if (!buffer.canTransform(parent_frame, child_frame, target_time))
   {
-    ROS_WARN_STREAM("Unable to lookup transform between " << parent_frame << " and " << child_frame
-                                                          << ". Defaulting to Identity.");
+    ROS_WARN_STREAM_NAMED(LOGGER_NAME, "Unable to lookup transform between "
+        << parent_frame << " and "
+        << child_frame << ". Defaulting to Identity.");
     return Pose::Identity();
   }
   auto const transform = buffer.lookupTransform(parent_frame, child_frame, target_time);
@@ -104,7 +106,7 @@ Matrix6Xd getJacobianServoFrame(moveit::core::JointModelGroup const *const jmg,
         jacobian.block<3, 1>(3, joint_index + 2) = joint_axis;
       } else
       {
-        ROS_ERROR("Unknown type of joint in Jacobian computation");
+        ROS_ERROR_NAMED(LOGGER_NAME, "Unknown type of joint in Jacobian computation");
       }
     }
     // NB: this still works because we all joints that are not directly in
