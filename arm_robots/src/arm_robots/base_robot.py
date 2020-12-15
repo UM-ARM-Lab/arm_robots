@@ -59,6 +59,23 @@ class DualArmRobot:
             current_joint_positions.append(pos)
         return current_joint_positions
 
+    def get_joint_velocities(self, joint_names: Optional[List[str]] = None):
+        """
+        :args joint_names an optional list of names if you want to have a specific order or a subset
+        """
+        joint_state: JointState = self.joint_state_listener.get()
+        if joint_names is None:
+            return joint_state.velocity
+
+        current_joint_velocities = []
+        for name in joint_names:
+            if name not in joint_state.name:
+                ros_helpers.logfatal(ValueError, f"Joint {name} not found in joint states")
+            idx = joint_state.name.index(name)
+            vel = joint_state.velocity[idx]
+            current_joint_velocities.append(vel)
+        return current_joint_velocities
+
     def check_inputs(self, group_name: str, ee_link_name: str):
         links = self.robot_commander.get_link_names()
         if ee_link_name not in links:

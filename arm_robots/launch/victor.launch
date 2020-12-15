@@ -19,8 +19,8 @@
         </include>
     </group>
 
-
     <group if="$(arg sim)">
+
         <!-- Start gazebo -->
         <group> <!-- this empty group tag creates a scope for the "remap" command -->
             <!-- because we use ros_control only for the joints of the arms, not the grippers,
@@ -74,4 +74,6 @@
             <arg name="moveit_controller_manager" value="real"/>
         </include>
     </group>
+
+    <param name="/use_sim_time" value="$(arg sim)"/>
 </launch>

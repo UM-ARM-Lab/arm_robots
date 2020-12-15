@@ -45,10 +45,18 @@ def waypoint_error(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint):
     return np.abs(actual - desired)
 
 
-def waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint, tolerance: List[float]):
+def waypoint_reached(trajectory_joint_names: List[str],
+                     actual: JointTrajectoryPoint,
+                     desired: JointTrajectoryPoint,
+                     tolerance: List[float]):
     error = waypoint_error(actual, desired)
     tolerance = np.array(tolerance)
-    return np.all(error < tolerance)
+    reached = np.all(error < tolerance)
+    if not reached:
+        indices = np.where(error >= tolerance)[0]
+        for i in indices:
+            rospy.logdebug(f"joint {trajectory_joint_names[i]} error {error[i]} tolerance {tolerance[i]}")
+    return reached
 
 
 def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_step_size: float):
@@ -59,16 +67,20 @@ def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_
     elif len(points) == 2:
         p1 = np.array(points[0].positions)
         p2 = np.array(points[1].positions)
+        v1 = np.array(points[0].velocities)
+        v2 = np.array(points[1].velocities)
         t0 = points[0].time_from_start.to_sec()
         t1 = points[1].time_from_start.to_sec()
         total_distance = np.linalg.norm(p1 - p2)
         n_steps = int(np.ceil(total_distance / max_step_size))
         interpolated_points_np = np.linspace(p1, p2, n_steps)
+        interpolated_velocities_np = np.linspace(v1, v2, n_steps)
         interpolated_times = np.linspace(t0, t1, n_steps)
         interpolated_points = []
-        for p_t, t in zip(interpolated_points_np, interpolated_times):
+        for p_t, v_t, t in zip(interpolated_points_np, interpolated_velocities_np, interpolated_times):
             p_msg = JointTrajectoryPoint()
             p_msg.positions = p_t
+            p_msg.velocities = v_t
             p_msg.time_from_start = rospy.Duration(t)
             interpolated_points.append(p_msg)
         return interpolated_points

@@ -40,6 +40,8 @@ class TrajectoryFollower:
             result.error_string = "empty trajectory"
             return result
 
+        rospy.loginfo(f"Trajectory should take {traj_msg.trajectory.points[-1].time_from_start.to_sec()}s to execute...")
+
         # construct a list of the tolerances in order of the joint names
         trajectory_joint_names = traj_msg.trajectory.joint_names
         tolerance = get_ordered_tolerance_list(trajectory_joint_names, traj_msg.path_tolerance)
@@ -100,12 +102,12 @@ class TrajectoryFollower:
 
             # If we're close enough, advance
             if trajectory_point_idx >= len(interpolated_points) - 1:
-                if waypoint_reached(desired_point, actual_point, goal_tolerance):
+                if waypoint_reached(trajectory_joint_names, desired_point, actual_point, goal_tolerance):
                     # we're done!
                     result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
                     break
             else:
-                if waypoint_reached(desired_point, actual_point, tolerance):
+                if waypoint_reached(trajectory_joint_names, desired_point, actual_point, tolerance):
                     trajectory_point_idx += 1
 
             if feedback_cb is not None:
@@ -136,6 +138,8 @@ class TrajectoryFollower:
 
     def get_actual_trajectory_point(self, trajectory_joint_names: List[str]):
         current_joint_positions = self.robot.get_joint_positions(trajectory_joint_names)
+        current_joint_velocities = self.robot.get_joint_velocities(trajectory_joint_names)
         actual_point = JointTrajectoryPoint()
         actual_point.positions = current_joint_positions
+        actual_point.velocities = current_joint_velocities
         return actual_point

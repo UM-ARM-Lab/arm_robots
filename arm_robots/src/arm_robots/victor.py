@@ -193,7 +193,7 @@ class BaseVictor(DualArmRobot):
             # any actions are running?
             # NOTE: why are these values not checked by the lower-level code? the Java code knows what the joint limits
             # are so why does it not enforce them?
-            
+
             # TODO: use enforce bounds? https://github.com/ros-planning/moveit/pull/2356
             limit_enforced_positions = []
             for i, joint_name in enumerate(right_arm_joints):
@@ -379,6 +379,10 @@ class BaseVictor(DualArmRobot):
 
         # try looking at the status messages
         return current_joint_positions
+
+    def get_joint_velocities(self, joint_names: Optional[List[str]] = None):
+        # FIXME: not implemented
+        return [0] * len(joint_names)
 
     def get_right_gripper_command_pub(self):
         return self.right_gripper_command_pub
