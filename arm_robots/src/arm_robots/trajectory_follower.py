@@ -29,7 +29,7 @@ class TrajectoryFollower:
     def follow_trajectory_goal(self,
                                traj_msg: FollowJointTrajectoryGoal,
                                feedback_cb: Optional[Callable] = None,
-                               stop_cb: Optional[Callable] = None):
+                               stop_cb: Optional[Callable] = lambda: (False, "")):
         result = FollowJointTrajectoryResult()
 
         # Interpolate the trajectory to a fine resolution
@@ -68,11 +68,7 @@ class TrajectoryFollower:
             actual_point = self.get_actual_trajectory_point(trajectory_joint_names)
 
             # let the caller stop
-            if stop_cb is not None:
-                stop, stop_msg = stop_cb(actual_point)
-            else:
-                stop = None
-                stop_msg = ""
+            stop, stop_msg = stop_cb(actual_point)
 
             dt = rospy.Time.now() - t0
             error = waypoint_error(actual_point, desired_point)
@@ -90,10 +86,10 @@ class TrajectoryFollower:
                 # command the current configuration
                 self.robot.send_joint_command(trajectory_joint_names, actual_point)
                 rospy.loginfo("Preempt requested, aborting.")
-                if command_failed_msg:
-                    rospy.loginfo(command_failed_msg)
-                if stop_msg:
-                    rospy.logwarn(stop_msg)
+                if command_failed and command_failed_msg:
+                    rospy.logwarn(f"Command failed: {command_failed_msg}")
+                if stop and stop_msg:
+                    rospy.logwarn(f"Stopped: {stop_msg}")
                 result.error_code = -10
                 result.error_string = stop_msg
                 break
@@ -124,8 +120,7 @@ class TrajectoryFollower:
 
         def _stop_cb(*args, **kwargs):
             stop = self.server.is_preempt_requested()
-            stop_msg = "Goal cancelled"
-            return stop, stop_msg
+            return stop, "Goal cancelled" if stop else ""
 
         result = self.follow_trajectory_goal(traj_msg, _feedback_cb, _stop_cb)
         # TODO: crappy api here
