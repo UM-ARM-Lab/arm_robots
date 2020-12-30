@@ -9,7 +9,7 @@ from arm_robots.victor import Victor
 from geometry_msgs.msg import Pose
 from tf.transformations import quaternion_from_euler
 
-ask_before_moving = False
+ask_before_moving = True
 
 
 def myinput(msg):
@@ -26,7 +26,8 @@ def main():
 
     victor = Victor()
     victor.connect()
-
+    
+    rospy.sleep(1)
     victor.open_left_gripper()
     rospy.sleep(2)
     victor.close_left_gripper()
