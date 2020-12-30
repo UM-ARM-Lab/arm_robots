@@ -75,57 +75,37 @@ def default_robotiq_command():
     return cmd
 
 
-def delegate_positions_to_arms(positions, joint_names: List[str]):
+def delegate_positions_to_arms(positions: List[float], joint_names: List[str]):
     """
     Given the list of positions, assumed to be in the same order as the list of joint names,
     determine which actual robot command things it goes to
     """
-    msg = ""
-    abort = False
-    left_arm_positions = None
-    right_arm_positions = None
-    left_gripper_positions = None
-    right_gripper_positions = None
-    # set equality ignores order
-    if set(joint_names) == set(left_arm_joints):
-        left_arm_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in left_arm_joints:
-                left_arm_positions.append(joint_value)
-    elif set(joint_names) == set(right_arm_joints):
-        right_arm_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in right_arm_joints:
-                right_arm_positions.append(joint_value)
-    elif set(joint_names) == set(both_arm_joints):
-        left_arm_positions = []
-        right_arm_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in left_arm_joints:
-                left_arm_positions.append(joint_value)
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in right_arm_joints:
-                right_arm_positions.append(joint_value)
-    elif set(joint_names) == set(left_gripper_joints):
-        left_gripper_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in left_gripper_joints:
-                left_gripper_positions.append(joint_value)
-    elif set(joint_names) == set(right_gripper_joints):
-        right_gripper_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in right_gripper_joints:
-                right_gripper_positions.append(joint_value)
-    else:
-        msg = f"Invalid joint_names [{joint_names}]"
-        abort = True
+    assert len(positions) == len(joint_names), "positions and joint_names must be same length"
+
+    ok = set(joint_names) in [set(left_gripper_joints),
+                              set(right_arm_joints),
+                              set(both_arm_joints),
+                              set(left_gripper_joints),
+                              set(right_gripper_joints)]
+
+    msg = "" if ok else f"Invalid joint_names [{joint_names}]"
+
+    joint_map = {name: pos for name, pos in zip(joint_names, positions)} if ok else {}
+
+    def fill_using(joint_ordering: List[str]):
+        if not all(j in joint_map for j in joint_ordering):
+            return None
+        return [joint_map[name] for name in joint_ordering]
+
     positions_by_interface = {
-        'right_arm': right_arm_positions,
-        'left_arm': left_arm_positions,
-        'right_gripper': right_gripper_positions,
-        'left_gripper': left_gripper_positions,
+        'right_arm': fill_using(right_arm_joints),
+        'left_arm': fill_using(left_arm_joints),
+        'right_gripper': fill_using(right_gripper_joints),
+        'left_gripper': fill_using(left_gripper_joints),
     }
-    return positions_by_interface, abort, msg
+    # set equality ignores order
+
+    return positions_by_interface, not ok, msg
 
 
 left_impedance_switch_config = [-0.694, 0.14, -0.229, -1.11, -0.512, 1.272, 0.077]
