@@ -82,13 +82,13 @@ def delegate_positions_to_arms(positions: List[float], joint_names: List[str]):
     """
     assert len(positions) == len(joint_names), "positions and joint_names must be same length"
 
-    ok = set(joint_names) in [set(left_gripper_joints),
+    ok = set(joint_names) in [set(left_arm_joints),
                               set(right_arm_joints),
                               set(both_arm_joints),
                               set(left_gripper_joints),
                               set(right_gripper_joints)]
 
-    msg = "" if ok else f"Invalid joint_names [{joint_names}]"
+    msg = "" if ok else f"Invalid joint_names {joint_names}"
 
     joint_map = {name: pos for name, pos in zip(joint_names, positions)} if ok else {}
 
