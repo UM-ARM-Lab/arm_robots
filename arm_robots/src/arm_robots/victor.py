@@ -108,8 +108,17 @@ def delegate_positions_to_arms(positions: List[float], joint_names: List[str]):
     return positions_by_interface, not ok, msg
 
 
-left_impedance_switch_config = [-0.694, 0.14, -0.229, -1.11, -0.512, 1.272, 0.077]
-right_impedance_switch_config = [0.724, 0.451, 0.94, -1.425, 0.472, 0.777, -0.809]
+# left_impedance_switch_config = [-0.694, 0.14, -0.229, -1.11, -0.512, 1.272, 0.077]
+# right_impedance_switch_config = [0.724, 0.451, 0.94, -1.425, 0.472, 0.777, -0.809]
+
+NAMED_POSITIONS = {
+    "impedance switch": [("right_arm", [0.724, 0.451, 0.94, -1.425, 0.472, 0.777, -0.809]),
+                         ("left_arm", [-0.694, 0.14, -0.229, -1.11, -0.512, 1.272, 0.077])],
+    "arms up": [("left_arm", [-np.pi/2, np.pi/2, 0, 0, 0, 0, 0]),
+                ("right_arm", [np.pi/2, np.pi/2, 0, 0, 0, 0, 0])],
+    "hug": [("right_arm", [0.311, 1.561, 0.282, -1.296, 0.137, 0.493, 0.112]),
+            ("left_arm", [0.604, 1.568, -0.021, -1.164, 0.355, 0.173, 0.297])]
+}
 
 
 class BaseVictor(DualArmRobot):
@@ -402,11 +411,16 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         self.force_trigger = force_trigger
 
     def move_to_impedance_switch(self, actually_switch: bool = True):
-        self.plan_to_joint_config("right_arm", right_impedance_switch_config)
-        self.plan_to_joint_config("left_arm", left_impedance_switch_config)
+        self.move_to("impedance switch")
         if actually_switch:
             return self.set_control_mode(ControlMode.JOINT_IMPEDANCE)
         return True
+
+    def move_to(self, position_name: str):
+        if position_name not in NAMED_POSITIONS:
+            raise ValueError(f'{position_name} is not a known position for victor')
+        for joint_group, configs in NAMED_POSITIONS[position_name]:
+            self.plan_to_joint_config(joint_group, configs)
 
     def get_right_gripper_joints(self):
         return right_gripper_joints
