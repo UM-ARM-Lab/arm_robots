@@ -171,10 +171,8 @@ class MoveitEnabledRobot(DualArmRobot):
             def _feedback_cb(feedback: FollowJointTrajectoryFeedback):
                 for feedback_callback in self.feedback_callbacks:
                     feedback_callback(client, goal, feedback)
-                if stop_condition is not None:
-                    stop = stop_condition(feedback)
-                    if stop:
-                        client.cancel_all_goals()
+                if stop_condition is not None and stop_condition(feedback):
+                    client.cancel_all_goals()
 
             client.send_goal(goal, feedback_cb=_feedback_cb)
             if self.block:
