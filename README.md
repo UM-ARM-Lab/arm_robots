@@ -15,10 +15,16 @@ Apt dependencies:
 
 
 ## Real Victor
+Follow the [setup instructions](https://github.com/UM-ARM-Lab/documentation/wiki/Victor#quick-start)
 
     roslaunch arm_robots victor.launch
+    rosrun arm_robots basic_motion.py
+    
 
 
 ## Here's what it should look like
 
 https://drive.google.com/file/d/1-R0NOalh0yAsff310mjcobYLGQLQ7oJZ/view?usp=sharing
+
+## Troubleshooting
+- Verify Gazebo is unpaused
