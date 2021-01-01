@@ -12,10 +12,10 @@ from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
 from arc_utilities.listener import Listener
 from arm_robots.base_robot import DualArmRobot
+from arm_robots.config.victor_config import NAMED_POSITIONS, default_robotiq_command
 from arm_robots.robot import MoveitEnabledRobot
 from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal
 from moveit_msgs.msg import DisplayRobotState
-from sensor_msgs.msg import JointState
 from std_msgs.msg import String, Float32
 from trajectory_msgs.msg import JointTrajectoryPoint
 from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list, \
@@ -64,19 +64,6 @@ BOTH_ARM_JOINT_NAMES = LEFT_ARM_JOINT_NAMES + RIGHT_ARM_JOINT_NAMES
 ALL_JOINT_NAMES = BOTH_ARM_JOINT_NAMES + LEFT_GRIPPER_JOINT_NAMES + RIGHT_GRIPPER_JOINT_NAMES
 
 
-def default_robotiq_command():
-    cmd = Robotiq3FingerCommand()
-    cmd.finger_a_command.speed = 1.0
-    cmd.finger_a_command.force = 1.0
-    cmd.finger_b_command.speed = 1.0
-    cmd.finger_b_command.force = 1.0
-    cmd.finger_c_command.speed = 1.0
-    cmd.finger_c_command.force = 1.0
-    cmd.scissor_command.speed = 1.0
-    cmd.scissor_command.force = 1.0
-    return cmd
-
-
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
     """
     Given a list (e.g. of positions) and a corresponding list of joint names,
@@ -96,7 +83,8 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
                               set(RIGHT_ARM_JOINT_NAMES),
                               set(BOTH_ARM_JOINT_NAMES),
                               set(LEFT_GRIPPER_JOINT_NAMES),
-                              set(RIGHT_GRIPPER_JOINT_NAMES)]
+                              set(RIGHT_GRIPPER_JOINT_NAMES),
+                              set(ALL_JOINT_NAMES)]
 
     if not ok:
         blank_positions = {n: None for n in ['right_arm', 'left_arm', 'right_gripper', 'left_gripper']}
@@ -118,19 +106,6 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
     # set equality ignores order
 
     return positions_by_interface, False, ""
-
-
-NAMED_POSITIONS = {
-    "impedance switch": {"right_arm": [0.724, 0.451, 0.94, -1.425, 0.472, 0.777, -0.809],
-                         "left_arm": [-0.694, 0.14, -0.229, -1.11, -0.512, 1.272, 0.077]},
-    "arms up": {"left_arm": [-np.pi / 2, np.pi / 2, 0, 0, 0, 0, 0],
-                "right_arm": [np.pi / 2, np.pi / 2, 0, 0, 0, 0, 0]},
-    "hug": {"right_arm": [0.311, 1.561, 0.282, -1.296, 0.137, 0.493, 0.112],
-            "left_arm": [0.604, 1.568, -0.021, -1.164, 0.355, 0.173, 0.297]},
-    "arms out": {"left_arm": [0, 0, 0, 0, 0, 0, 0],
-                 "right_arm": [0, 0, 0, 0, 0, 0, 0]},
-    "handshake": {"right_arm": [-0.336, 0.105, 0.061, -1.151, -0.01, 0.577, -0.675]},
-}
 
 
 class BaseVictor(DualArmRobot):
@@ -172,7 +147,9 @@ class BaseVictor(DualArmRobot):
         if abort:
             return True, msg
 
-        velocities, abort, msg = delegate_to_arms(trajectory_point.velocities, joint_names)
+        velocities, _, _ = delegate_to_arms([0.0]*len(ALL_JOINT_NAMES), ALL_JOINT_NAMES)
+        if len(trajectory_point.velocities) != 0:
+            velocities, abort, msg = delegate_to_arms(trajectory_point.velocities, joint_names)
         if abort:
             return True, msg
 
@@ -343,7 +320,6 @@ class BaseVictor(DualArmRobot):
     def send_gripper_command(command_pub: rospy.Publisher, positions):
         if positions is not None:
             cmd = default_gripper_command()
-            cmd.header.stamp = rospy.Time.now()
             cmd.finger_a_command.position = positions[0]
             cmd.finger_b_command.position = positions[1]
             cmd.finger_c_command.position = positions[2]
@@ -440,9 +416,8 @@ class Victor(BaseVictor, MoveitEnabledRobot):
     #     return self.get_joint_positions(joint_names)
 
     def speak(self, message: str):
-        msg = String()
-        msg.data = message
-        self.polly_pub.publish(msg)
+        rospy.loginfo(f"Victor says: {message}")
+        self.polly_pub.publish(String(data=message))
 
     def get_right_arm_joints(self):
         return RIGHT_ARM_JOINT_NAMES
