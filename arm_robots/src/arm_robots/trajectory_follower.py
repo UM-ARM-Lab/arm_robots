@@ -5,7 +5,7 @@ from typing import List, Callable, Optional
 import actionlib
 import rospy
 from arm_robots.base_robot import DualArmRobot
-from arm_robots.robot_utils import get_ordered_tolerance_list, interpolate_joint_trajectory_points, waypoint_reached, \
+from arm_robots.robot_utils import get_ordered_tolerance_list, interpolate_joint_trajectory_points, is_waypoint_reached, \
     waypoint_error
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, FollowJointTrajectoryFeedback, \
     FollowJointTrajectoryResult
@@ -84,6 +84,7 @@ class TrajectoryFollower:
 
             if command_failed or stop:
                 # command the current configuration
+                actual_point.velocities = [0] * len(actual_point.positions)
                 self.robot.send_joint_command(trajectory_joint_names, actual_point)
                 rospy.loginfo("Preempt requested, aborting.")
                 if command_failed and command_failed_msg:

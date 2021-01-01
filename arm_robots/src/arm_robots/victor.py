@@ -75,10 +75,10 @@ def default_robotiq_command():
     return cmd
 
 
-def delegate_positions_to_arms(positions: List[float], joint_names: List[str]):
+def delegate_to_arms(positions: List, joint_names: List[str]) -> Tuple[Dict[str, List], bool, str]:
     """
-    Given the list of positions, assumed to be in the same order as the list of joint names,
-    determine which actual robot command things it goes to
+    Given a list (e.g. of positions) and a corresponding list of joint names,
+    assign and order by victor's joint groups.
     """
     assert len(positions) == len(joint_names), "positions and joint_names must be same length"
 
@@ -120,6 +120,7 @@ NAMED_POSITIONS = {
             "left_arm": [0.604, 1.568, -0.021, -1.164, 0.355, 0.173, 0.297]},
     "arms out": {"left_arm": [0, 0, 0, 0, 0, 0, 0],
                  "right_arm": [0, 0, 0, 0, 0, 0, 0]},
+    "handshake": {"right_arm": [-0.336, 0.105, 0.061, -1.151, -0.01, 0.577, -0.675]},
 }
 
 
@@ -157,12 +158,10 @@ class BaseVictor(DualArmRobot):
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         # TODO: in victor's impedance mode, we want to modify the setpoint so that there is a limit
         #  on the force we will apply
-        positions_by_interface, abort, msg = delegate_positions_to_arms(trajectory_point.positions, joint_names)
-        left_arm_positions = positions_by_interface['left_arm']
-        right_arm_positions = positions_by_interface['right_arm']
-        left_gripper_positions = positions_by_interface['left_gripper']
-        right_gripper_positions = positions_by_interface['right_gripper']
-
+        positions, abort, msg = delegate_to_arms(trajectory_point.positions, joint_names)
+        if abort:
+            return True, msg
+        velocities, abort, msg = delegate_to_arms(trajectory_point.velocities, joint_names)
         if abort:
             return True, msg
 
@@ -171,14 +170,21 @@ class BaseVictor(DualArmRobot):
         left_arm_control_mode = control_mode['left']
         right_arm_control_mode = control_mode['right']
 
-        self.send_arm_command(self.left_arm_command_pub, left_arm_control_mode, left_arm_positions)
-        self.send_arm_command(self.right_arm_command_pub, right_arm_control_mode, right_arm_positions)
-        self.send_gripper_command(self.left_gripper_command_pub, left_gripper_positions)
-        self.send_gripper_command(self.right_gripper_command_pub, right_gripper_positions)
+        self.send_arm_command(self.left_arm_command_pub, left_arm_control_mode,
+                              positions['left_arm'])
+        # self.send_arm_command(self.right_arm_command_pub, right_arm_control_mode,
+        #                       positions['right_arm'])
+        # self.send_arm_command(self.left_arm_command_pub, left_arm_control_mode,
+        #                       positions['left_arm'], velocities['left_arm'])
+        self.send_arm_command(self.right_arm_command_pub, right_arm_control_mode,
+                              positions['right_arm'], velocities['right_arm'])
+        self.send_gripper_command(self.left_gripper_command_pub, positions['left_gripper'])
+        self.send_gripper_command(self.right_gripper_command_pub, positions['right_gripper'])
 
         return False, ""
 
-    def send_arm_command(self, command_pub: rospy.Publisher, right_arm_control_mode: ControlMode, positions):
+    def send_arm_command(self, command_pub: rospy.Publisher, control_mode: ControlMode,
+                         positions, velocities=(0, 0, 0, 0, 0, 0, 0)):
         if positions is not None:
             # FIXME: what if we allow the BaseRobot class to use moveit, but just don't have it require that
             # any actions are running?
@@ -191,10 +197,13 @@ class BaseVictor(DualArmRobot):
                 joint: moveit_commander.RobotCommander.Joint = self.robot_commander.get_joint(joint_name)
                 limit_enforced_position = np.clip(positions[i], joint.min_bound() + 1e-2, joint.max_bound() - 1e-2)
                 limit_enforced_positions.append(limit_enforced_position)
+
+            # TODO: enforce velocity limits
             cmd = MotionCommand()
             cmd.header.stamp = rospy.Time.now()
             cmd.joint_position = list_to_jvq(limit_enforced_positions)
-            cmd.control_mode = right_arm_control_mode
+            cmd.joint_velocity = list_to_jvq(velocities)
+            cmd.control_mode = control_mode
             command_pub.publish(cmd)
 
     def get_gripper_statuses(self):
@@ -428,7 +437,7 @@ class Victor(BaseVictor, MoveitEnabledRobot):
                                                                         right_arm_config=position["right_arm"]))
 
         else:
-            for joint_group, configs in NAMED_POSITIONS[position_name]:
+            for joint_group, configs in position.items():
                 self.plan_to_joint_config(joint_group, configs)
 
     @staticmethod
@@ -443,8 +452,8 @@ class Victor(BaseVictor, MoveitEnabledRobot):
     def get_left_gripper_joints(self):
         return left_gripper_joints
 
-    def get_joint_positions(self, joint_names: Optional[List[str]] = None):
-        return self.get_joint_positions(joint_names)
+    # def get_joint_positions(self, joint_names: Optional[List[str]] = None):
+    #     return self.get_joint_positions(joint_names)
 
     def speak(self, message: str):
         msg = String()
