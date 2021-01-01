@@ -103,8 +103,8 @@ class TrajectoryFollower:
 
             if feedback_cb is not None:
                 feedback = FollowJointTrajectoryFeedback(desired=desired_point,
-                                                         actual_point=actual_point,
-                                                         trajectory_joint_names=trajectory_joint_names)
+                                                         actual=actual_point,
+                                                         joint_names=trajectory_joint_names)
                 feedback.header.stamp = rospy.Time.now()
                 feedback_cb(feedback)
 
