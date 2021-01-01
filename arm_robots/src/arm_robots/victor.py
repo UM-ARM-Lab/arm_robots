@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import collections
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Sequence
 
 import numpy as np
 from colorama import Fore
@@ -18,28 +18,29 @@ from moveit_msgs.msg import DisplayRobotState
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String, Float32
 from trajectory_msgs.msg import JointTrajectoryPoint
-from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, default_gripper_command
+from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list, \
+    default_gripper_command, gripper_status_to_list
 from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, MotionCommand, Robotiq3FingerCommand, \
     Robotiq3FingerStatus
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
     GetControlModeResponse, SetControlModeResponse
 
 # NOTE: moveit has all of this stuff specified, can we use moveit here? without relying on its execution capabilities?
-left_gripper_joints = [
+LEFT_GRIPPER_JOINT_NAMES = (
     "left_finger_a",
     "left_finger_b",
     "left_finger_c",
     "left_scissor",
-]
+)
 
-right_gripper_joints = [
+RIGHT_GRIPPER_JOINT_NAMES = (
     "right_finger_a",
     "right_finger_b",
     "right_finger_c",
     "right_scissor",
-]
+)
 
-left_arm_joints = [
+LEFT_ARM_JOINT_NAMES = (
     'victor_left_arm_joint_1',
     'victor_left_arm_joint_2',
     'victor_left_arm_joint_3',
@@ -47,9 +48,9 @@ left_arm_joints = [
     'victor_left_arm_joint_5',
     'victor_left_arm_joint_6',
     'victor_left_arm_joint_7',
-]
+)
 
-right_arm_joints = [
+RIGHT_ARM_JOINT_NAMES = (
     'victor_right_arm_joint_1',
     'victor_right_arm_joint_2',
     'victor_right_arm_joint_3',
@@ -57,9 +58,10 @@ right_arm_joints = [
     'victor_right_arm_joint_5',
     'victor_right_arm_joint_6',
     'victor_right_arm_joint_7',
-]
+)
 
-both_arm_joints = left_arm_joints + right_arm_joints
+BOTH_ARM_JOINT_NAMES = LEFT_ARM_JOINT_NAMES + RIGHT_ARM_JOINT_NAMES
+ALL_JOINT_NAMES = BOTH_ARM_JOINT_NAMES + LEFT_GRIPPER_JOINT_NAMES + RIGHT_GRIPPER_JOINT_NAMES
 
 
 def default_robotiq_command():
@@ -75,41 +77,48 @@ def default_robotiq_command():
     return cmd
 
 
-def delegate_to_arms(positions: List, joint_names: List[str]) -> Tuple[Dict[str, List], bool, str]:
+def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
     """
     Given a list (e.g. of positions) and a corresponding list of joint names,
     assign and order by victor's joint groups.
+
+    Args:
+        positions: values to delegate
+        joint_names: list of joint_names
+
+    Returns:
+        object: (map from joint_names to values, abort?, abort_msg)
     """
     assert len(positions) == len(joint_names), "positions and joint_names must be same length"
 
-    ok = set(joint_names) in [set(left_arm_joints),
-                              set(right_arm_joints),
-                              set(both_arm_joints),
-                              set(left_gripper_joints),
-                              set(right_gripper_joints)]
+    # TODO: Why can't joint_names be a combination of arm and gripper joints?
+    ok = set(joint_names) in [set(LEFT_ARM_JOINT_NAMES),
+                              set(RIGHT_ARM_JOINT_NAMES),
+                              set(BOTH_ARM_JOINT_NAMES),
+                              set(LEFT_GRIPPER_JOINT_NAMES),
+                              set(RIGHT_GRIPPER_JOINT_NAMES)]
 
-    msg = "" if ok else f"Invalid joint_names {joint_names}"
+    if not ok:
+        blank_positions = {n: None for n in ['right_arm', 'left_arm', 'right_gripper', 'left_gripper']}
+        return blank_positions, True, f"Invalid joint_names {joint_names}"
 
-    joint_map = {name: pos for name, pos in zip(joint_names, positions)} if ok else {}
+    joint_map = {name: pos for name, pos in zip(joint_names, positions)}
 
-    def fill_using(joint_ordering: List[str]):
+    def fill_using(joint_ordering: Sequence[str]):
         if not all(j in joint_map for j in joint_ordering):
             return None
         return [joint_map[name] for name in joint_ordering]
 
     positions_by_interface = {
-        'right_arm': fill_using(right_arm_joints),
-        'left_arm': fill_using(left_arm_joints),
-        'right_gripper': fill_using(right_gripper_joints),
-        'left_gripper': fill_using(left_gripper_joints),
+        'right_arm': fill_using(RIGHT_ARM_JOINT_NAMES),
+        'left_arm': fill_using(LEFT_ARM_JOINT_NAMES),
+        'right_gripper': fill_using(RIGHT_GRIPPER_JOINT_NAMES),
+        'left_gripper': fill_using(LEFT_GRIPPER_JOINT_NAMES),
     }
     # set equality ignores order
 
-    return positions_by_interface, not ok, msg
+    return positions_by_interface, False, ""
 
-
-# left_impedance_switch_config = [-0.694, 0.14, -0.229, -1.11, -0.512, 1.272, 0.077]
-# right_impedance_switch_config = [0.724, 0.451, 0.94, -1.425, 0.472, 0.777, -0.809]
 
 NAMED_POSITIONS = {
     "impedance switch": {"right_arm": [0.724, 0.451, 0.94, -1.425, 0.472, 0.777, -0.809],
@@ -155,12 +164,14 @@ class BaseVictor(DualArmRobot):
 
         self.waypoint_state_pub = rospy.Publisher(self.ns("waypoint_robot_state"), DisplayRobotState, queue_size=10)
 
-    def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
+    def send_joint_command(self, joint_names: Sequence[str], trajectory_point: JointTrajectoryPoint) -> Tuple[
+        bool, str]:
         # TODO: in victor's impedance mode, we want to modify the setpoint so that there is a limit
         #  on the force we will apply
         positions, abort, msg = delegate_to_arms(trajectory_point.positions, joint_names)
         if abort:
             return True, msg
+
         velocities, abort, msg = delegate_to_arms(trajectory_point.velocities, joint_names)
         if abort:
             return True, msg
@@ -185,38 +196,36 @@ class BaseVictor(DualArmRobot):
 
     def send_arm_command(self, command_pub: rospy.Publisher, control_mode: ControlMode,
                          positions, velocities=(0, 0, 0, 0, 0, 0, 0)):
-        if positions is not None:
-            # FIXME: what if we allow the BaseRobot class to use moveit, but just don't have it require that
-            # any actions are running?
-            # NOTE: why are these values not checked by the lower-level code? the Java code knows what the joint limits
-            # are so why does it not enforce them?
-            
-            # TODO: use enforce bounds? https://github.com/ros-planning/moveit/pull/2356
-            limit_enforced_positions = []
-            for i, joint_name in enumerate(right_arm_joints):
-                joint: moveit_commander.RobotCommander.Joint = self.robot_commander.get_joint(joint_name)
-                limit_enforced_position = np.clip(positions[i], joint.min_bound() + 1e-2, joint.max_bound() - 1e-2)
-                limit_enforced_positions.append(limit_enforced_position)
+        if positions is None:
+            return
+        # FIXME: what if we allow the BaseRobot class to use moveit, but just don't have it require that
+        # any actions are running?
+        # NOTE: why are these values not checked by the lower-level code? the Java code knows what the joint limits
+        # are so why does it not enforce them?
 
-            # TODO: enforce velocity limits
-            cmd = MotionCommand()
-            cmd.header.stamp = rospy.Time.now()
-            cmd.joint_position = list_to_jvq(limit_enforced_positions)
-            cmd.joint_velocity = list_to_jvq(velocities)
-            cmd.control_mode = control_mode
-            command_pub.publish(cmd)
+        # TODO: use enforce bounds? https://github.com/ros-planning/moveit/pull/2356
+        limit_enforced_positions = []
+        for i, joint_name in enumerate(RIGHT_ARM_JOINT_NAMES):
+            joint: moveit_commander.RobotCommander.Joint = self.robot_commander.get_joint(joint_name)
+            limit_enforced_position = np.clip(positions[i], joint.min_bound() + 1e-2, joint.max_bound() - 1e-2)
+            limit_enforced_positions.append(limit_enforced_position)
+
+        # TODO: enforce velocity limits
+        cmd = MotionCommand(joint_position=list_to_jvq(limit_enforced_positions),
+                            joint_velocity=list_to_jvq(velocities),
+                            control_mode=control_mode)
+        cmd.header.stamp = rospy.Time.now()
+        command_pub.publish(cmd)
 
     def get_gripper_statuses(self):
         return {'left': self.get_left_gripper_status(),
                 'right': self.get_right_gripper_status()}
 
-    def get_right_gripper_status(self):
-        right_status: Robotiq3FingerStatus = self.right_gripper_status_listener.get()
-        return right_status
+    def get_right_gripper_status(self) -> Robotiq3FingerStatus:
+        return self.right_gripper_status_listener.get()
 
-    def get_left_gripper_status(self):
-        left_status: Robotiq3FingerStatus = self.left_gripper_status_listener.get()
-        return left_status
+    def get_left_gripper_status(self) -> Robotiq3FingerStatus:
+        return self.left_gripper_status_listener.get()
 
     def is_left_gripper_closed(self):
         status = self.get_left_gripper_status()
@@ -237,13 +246,11 @@ class BaseVictor(DualArmRobot):
         return {'left': self.get_left_arm_status(),
                 'right': self.get_right_arm_status()}
 
-    def get_right_arm_status(self):
-        right_status: MotionStatus = self.right_arm_status_listener.get()
-        return right_status
+    def get_right_arm_status(self) -> MotionStatus:
+        return self.right_arm_status_listener.get()
 
-    def get_left_arm_status(self):
-        left_status: MotionStatus = self.left_arm_status_listener.get()
-        return left_status
+    def get_left_arm_status(self) -> MotionStatus:
+        return self.left_arm_status_listener.get()
 
     def get_control_modes(self):
         return {'left': self.get_left_arm_control_mode(), 'right': self.get_right_arm_control_mode()}
@@ -343,42 +350,19 @@ class BaseVictor(DualArmRobot):
             cmd.scissor_command.position = positions[3]
             command_pub.publish(cmd)
 
-    def get_joint_positions(self, joint_names: Optional[List[str]] = None):
+    def get_joint_positions_map(self) -> Dict[str, float]:
+        all_joint_vals = jvq_to_list(self.left_arm_status_listener.get().measured_joint_position)
+        all_joint_vals += jvq_to_list(self.right_arm_status_listener.get().measured_joint_position)
+        all_joint_vals += gripper_status_to_list(self.left_gripper_status_listener.get())
+        all_joint_vals += gripper_status_to_list(self.right_gripper_status_listener.get())
+        return {n: val for n, val in zip(ALL_JOINT_NAMES, all_joint_vals)}
+
+    def get_joint_positions(self, joint_names: Optional[Sequence[str]] = ALL_JOINT_NAMES):
         """
         :args joint_names an optional list of names if you want to have a specific order or a subset
         """
-        joint_state: JointState = self.joint_state_listener.get()
-        if joint_names is None:
-            return joint_state.position
-
-        gripper_statuses = self.get_gripper_statuses()
-        current_joint_positions = []
-        for name in joint_names:
-            if name in joint_state.name:
-                idx = joint_state.name.index(name)
-                pos = joint_state.position[idx]
-                current_joint_positions.append(pos)
-            elif name == 'left_finger_a':
-                current_joint_positions.append(gripper_statuses['left'].finger_a_status.position)
-            elif name == 'left_finger_b':
-                current_joint_positions.append(gripper_statuses['left'].finger_b_status.position)
-            elif name == 'left_finger_c':
-                current_joint_positions.append(gripper_statuses['left'].finger_c_status.position)
-            elif name == 'left_scissor':
-                current_joint_positions.append(gripper_statuses['left'].scissor_status.position)
-            elif name == 'right_finger_a':
-                current_joint_positions.append(gripper_statuses['right'].finger_a_status.position)
-            elif name == 'right_finger_b':
-                current_joint_positions.append(gripper_statuses['right'].finger_b_status.position)
-            elif name == 'right_finger_c':
-                current_joint_positions.append(gripper_statuses['right'].finger_c_status.position)
-            elif name == 'right_scissor':
-                current_joint_positions.append(gripper_statuses['right'].scissor_status.position)
-            else:
-                raise ValueError(f"Could not get joint {name}")
-
-        # try looking at the status messages
-        return current_joint_positions
+        position_of_joint = self.get_joint_positions_map()
+        return [position_of_joint[name] for name in joint_names]
 
     def get_right_gripper_command_pub(self):
         return self.right_gripper_command_pub
@@ -447,10 +431,10 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         return left_arm_config + right_arm_config
 
     def get_right_gripper_joints(self):
-        return right_gripper_joints
+        return RIGHT_GRIPPER_JOINT_NAMES
 
     def get_left_gripper_joints(self):
-        return left_gripper_joints
+        return LEFT_GRIPPER_JOINT_NAMES
 
     # def get_joint_positions(self, joint_names: Optional[List[str]] = None):
     #     return self.get_joint_positions(joint_names)
@@ -461,10 +445,10 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         self.polly_pub.publish(msg)
 
     def get_right_arm_joints(self):
-        return right_arm_joints
+        return RIGHT_ARM_JOINT_NAMES
 
     def get_left_arm_joints(self):
-        return left_arm_joints
+        return LEFT_ARM_JOINT_NAMES
 
     def follow_joint_trajectory_feedback_cb(self,
                                             client: SimpleActionClient,

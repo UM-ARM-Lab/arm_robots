@@ -248,39 +248,6 @@ class MoveitEnabledRobot(DualArmRobot):
         )
         return self.follow_arms_joint_trajectory(robot_trajectory_msg.joint_trajectory, stop_condition=stop_condition)
 
-    def get_joint_position_from_status_messages(self, left_status: MotionStatus, right_status: MotionStatus, name: str):
-        if name == 'victor_left_arm_joint_1':
-            pos = left_status.measured_joint_position.joint_1
-        elif name == 'victor_left_arm_joint_2':
-            pos = left_status.measured_joint_position.joint_2
-        elif name == 'victor_left_arm_joint_3':
-            pos = left_status.measured_joint_position.joint_3
-        elif name == 'victor_left_arm_joint_4':
-            pos = left_status.measured_joint_position.joint_4
-        elif name == 'victor_left_arm_joint_5':
-            pos = left_status.measured_joint_position.joint_5
-        elif name == 'victor_left_arm_joint_6':
-            pos = left_status.measured_joint_position.joint_6
-        elif name == 'victor_left_arm_joint_7':
-            pos = left_status.measured_joint_position.joint_7
-        elif name == 'victor_right_arm_joint_1':
-            pos = right_status.measured_joint_position.joint_1
-        elif name == 'victor_right_arm_joint_2':
-            pos = right_status.measured_joint_position.joint_2
-        elif name == 'victor_right_arm_joint_3':
-            pos = right_status.measured_joint_position.joint_3
-        elif name == 'victor_right_arm_joint_4':
-            pos = right_status.measured_joint_position.joint_4
-        elif name == 'victor_right_arm_joint_5':
-            pos = right_status.measured_joint_position.joint_5
-        elif name == 'victor_right_arm_joint_6':
-            pos = right_status.measured_joint_position.joint_6
-        elif name == 'victor_right_arm_joint_7':
-            pos = right_status.measured_joint_position.joint_7
-        else:
-            raise NotImplementedError()
-        return pos
-
     def get_both_arm_joints(self):
         return self.get_left_arm_joints() + self.get_right_arm_joints()
 
