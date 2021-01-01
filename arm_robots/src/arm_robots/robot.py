@@ -17,7 +17,6 @@ from rosgraph.names import ns_join
 from rospy import logfatal
 from rospy.logger_level_service_caller import LoggerLevelServiceCaller
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-from victor_hardware_interface_msgs.msg import MotionStatus
 
 STORED_ORIENTATION = None
 
