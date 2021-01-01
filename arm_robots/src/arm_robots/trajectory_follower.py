@@ -42,7 +42,7 @@ class TrajectoryFollower:
         trajectory_joint_names = traj_msg.trajectory.joint_names
         tolerance = get_ordered_tolerance_list(trajectory_joint_names, traj_msg.path_tolerance)
         goal_tolerance = get_ordered_tolerance_list(trajectory_joint_names, traj_msg.goal_tolerance, is_goal=True)
-        interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.01)
+        interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.1)
 
         if len(interpolated_points) == 0:
             rospy.loginfo("Trajectory was empty after interpolation")
@@ -55,7 +55,7 @@ class TrajectoryFollower:
         t0 = rospy.Time.now()
         while True:
             # tiny sleep lets the listeners process messages better, results in smoother following
-            rospy.sleep(1e-6)
+            rospy.sleep(1e-5)
 
             # get feedback
             new_waypoint = False
@@ -95,7 +95,7 @@ class TrajectoryFollower:
 
             if stop:
                 # command the current configuration
-                actual_point.velocities = [0] * len(actual_point.positions)
+                actual_point.velocities = [0.0] * len(actual_point.positions)
                 self.robot.send_joint_command(trajectory_joint_names, actual_point)
                 rospy.loginfo("Preempt requested, aborting.")
                 rospy.logwarn(f"Stopped with message: {stop_msg}")

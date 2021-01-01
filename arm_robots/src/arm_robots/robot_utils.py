@@ -86,8 +86,8 @@ def _interpolate_joint_trajectory_points_positions(points: List[JointTrajectoryP
 def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_step_size: float) \
         -> List[JointTrajectoryPoint]:
     interpolated_points = _interpolate_joint_trajectory_points_positions(points, max_step_size)
-    interpolated_points[0].velocities = [0] * len(interpolated_points[0].positions)
-    interpolated_points[-1].velocities = [0] * len(interpolated_points[-1].positions)
+    interpolated_points[0].velocities = [0.0] * len(interpolated_points[0].positions)
+    interpolated_points[-1].velocities = [0.0] * len(interpolated_points[-1].positions)
     lower, mid, upper = itertools.tee(interpolated_points, 3)
     next(mid, None)
     next(upper, None)

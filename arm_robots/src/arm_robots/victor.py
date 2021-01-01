@@ -172,9 +172,10 @@ class BaseVictor(DualArmRobot):
         return False, ""
 
     def send_arm_command(self, command_pub: rospy.Publisher, control_mode: ControlMode,
-                         positions, velocities=(0, 0, 0, 0, 0, 0, 0)):
+                         positions, velocities=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)):
         if positions is None:
             return
+        velocities = np.round(velocities, 3)  # Kuka does not like sending small but non-zero velocity commands
         # FIXME: what if we allow the BaseRobot class to use moveit, but just don't have it require that
         # any actions are running?
         # NOTE: why are these values not checked by the lower-level code? the Java code knows what the joint limits
@@ -232,9 +233,9 @@ class BaseVictor(DualArmRobot):
     def get_control_modes(self):
         return {'left': self.get_left_arm_control_mode(), 'right': self.get_right_arm_control_mode()}
 
-    def set_control_mode(self, control_mode: ControlMode, **kwargs):
-        left_res = self.set_left_arm_control_mode(control_mode, **kwargs)
-        right_res = self.set_right_arm_control_mode(control_mode, **kwargs)
+    def set_control_mode(self, control_mode: ControlMode, vel, **kwargs):
+        left_res = self.set_left_arm_control_mode(control_mode, vel=vel, **kwargs)
+        right_res = self.set_right_arm_control_mode(control_mode, vel=vel, **kwargs)
         return left_res, right_res
 
     def get_left_arm_control_mode(self):
@@ -380,6 +381,10 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         self.polly_pub = rospy.Publisher("/polly", String, queue_size=10)
         self.use_force_trigger = force_trigger >= 0
         self.force_trigger = force_trigger
+
+    def set_control_mode(self, control_mode: ControlMode, vel, **kwargs):
+        super().set_control_mode(control_mode, vel, **kwargs)
+        self.max_velocity_scale_factor = vel
 
     def move_to_impedance_switch(self, actually_switch: bool = True):
         self.move_to("impedance switch")

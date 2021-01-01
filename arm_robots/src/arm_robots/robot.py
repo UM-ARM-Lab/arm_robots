@@ -41,6 +41,7 @@ def set_move_group_log_level(event):
 
 
 class MoveitEnabledRobot(DualArmRobot):
+    max_velocity_scale_factor = 0.1
 
     def __init__(self,
                  robot_namespace: str,
@@ -92,11 +93,16 @@ class MoveitEnabledRobot(DualArmRobot):
     def set_block(self, block: bool):
         self.block = block
 
+    def get_move_group_commander(self, group_name) -> moveit_commander.MoveGroupCommander:
+        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group.set_max_velocity_scaling_factor(self.max_velocity_scale_factor)
+        return move_group
+
     def plan_to_position(self,
                          group_name: str,
                          ee_link_name: str,
                          target_position):
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
         move_group.set_position_target(list(target_position))
         plan = move_group.plan()[1]
@@ -108,7 +114,7 @@ class MoveitEnabledRobot(DualArmRobot):
                                    target_position: Union[Point, List, np.array],
                                    step_size: float = 0.02,
                                    ):
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
 
         # by starting with the current pose, we will be preserving the orientation
@@ -127,7 +133,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root'):
         self.check_inputs(group_name, ee_link_name)
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
         target_pose_stamped = convert_to_pose_msg(target_pose)
         target_pose_stamped.header.frame_id = frame_id
@@ -141,14 +147,15 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def get_link_pose(self, group_name: str, link_name: str):
         self.check_inputs(group_name, link_name)
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(link_name)
         left_end_effector_pose_stamped = move_group.get_current_pose()
         return left_end_effector_pose_stamped.pose
 
     def plan_to_joint_config(self, group_name: str, joint_config):
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_joint_value_target(list(joint_config))
+        # move_group.set_max_velocity_scaling_factor(0.001)
         plan = move_group.plan()[1]
         return self.follow_arms_joint_trajectory(plan.joint_trajectory)
 
