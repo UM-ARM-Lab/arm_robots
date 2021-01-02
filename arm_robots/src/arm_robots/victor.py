@@ -142,7 +142,10 @@ class BaseVictor(DualArmRobot):
                          positions, velocities=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)):
         if positions is None:
             return
-        velocities = np.round(velocities, 3)  # Kuka does not like sending small but non-zero velocity commands
+
+        def trunc(values, decs=0):
+            return np.trunc(values * 10 ** decs) / (10 ** decs)
+        velocities = trunc(np.array(velocities), 3)  # Kuka does not like sending small but non-zero velocity commands
         # FIXME: what if we allow the BaseRobot class to use moveit, but just don't have it require that
         # any actions are running?
         # NOTE: why are these values not checked by the lower-level code? the Java code knows what the joint limits
