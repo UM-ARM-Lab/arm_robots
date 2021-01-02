@@ -15,10 +15,11 @@ from trajectory_msgs.msg import JointTrajectoryPoint, JointTrajectory
 DEFAULT_PATH_TOLERANCE_POSITION = 0.01
 DEFAULT_GOAL_TOLERANCE_POSITION = 0.1
 
+# TODO Remove hardcoded parameter
 LAG_IN_S = 0.07
 
 
-def get_ordered_tolerance_list(joint_names, tolerance: Sequence[JointTolerance], is_goal: bool = False):
+def get_ordered_tolerance_list(joint_names, tolerance: Sequence[JointTolerance], is_goal: bool = False) -> List[float]:
     def default_tolerance():
         tol = 0.01 if is_goal else 0.1
         rospy.logwarn_throttle(1, f"using default path tolerance {tol}")
@@ -29,8 +30,8 @@ def get_ordered_tolerance_list(joint_names, tolerance: Sequence[JointTolerance],
     return [tolerance_of[name] for name in joint_names]
 
 
-def make_joint_tolerance(pos, name):
-    return JointTolerance(position=pos,
+def make_joint_tolerance(position_tolerance, name):
+    return JointTolerance(position=position_tolerance,
                           velocity=1,
                           acceleration=100,  # high because if we bump the arm, the controller will abort unnecessarily
                           name=name)
@@ -62,9 +63,7 @@ def _interpolate_joint_trajectory_points_positions(points: List[JointTrajectoryP
     """
     # TODO: support arbitrarily weighted norms, probably on a fixed-per-robot basis. So this could become a method
     # of the victor/val class, which has that weight as a class field
-    if len(points) == 0:
-        return []
-    if len(points) == 1:
+    if len(points) <= 1:
         return points
     if len(points) == 2:
         p1 = np.array(points[0].positions)

@@ -11,7 +11,8 @@ from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg
 from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot_utils import make_follow_joint_trajectory_goal
-from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult
+from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
+    FollowJointTrajectoryGoal
 from geometry_msgs.msg import Point, Pose, Quaternion
 from rosgraph.names import ns_join
 from rospy import logfatal
@@ -97,7 +98,7 @@ class MoveitEnabledRobot(DualArmRobot):
         move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
         # TODO Make this a settable param or at least make the hardcoded param more obvious
         # The purpose of this safety factor is to make sure we never send victor a velocity
-        # faster than the kuka controller's max velocity, otherwise it will error out.
+        # faster than the kuka controller's max velocity, otherwise the kuka controllers will error out.
         safety_factor = 0.9
         move_group.set_max_velocity_scaling_factor(self.max_velocity_scale_factor * safety_factor)
         return move_group
@@ -159,9 +160,11 @@ class MoveitEnabledRobot(DualArmRobot):
     def plan_to_joint_config(self, group_name: str, joint_config):
         move_group = self.get_move_group_commander(group_name)
         move_group.set_joint_value_target(list(joint_config))
-        # move_group.set_max_velocity_scaling_factor(0.001)
         plan = move_group.plan()[1]
         return self.follow_arms_joint_trajectory(plan.joint_trajectory)
+
+    def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
+        return make_follow_joint_trajectory_goal(trajectory)
 
     def follow_joint_trajectory(self,
                                 trajectory: JointTrajectory,
@@ -176,7 +179,7 @@ class MoveitEnabledRobot(DualArmRobot):
         rospy.logdebug(f"sending trajectory goal with f{len(trajectory.points)} points")
         result: Optional[FollowJointTrajectoryResult] = None
         if self.execute:
-            goal = make_follow_joint_trajectory_goal(trajectory)
+            goal = self.make_follow_joint_trajectory_goal(trajectory)
 
             def _feedback_cb(feedback: FollowJointTrajectoryFeedback):
                 for feedback_callback in self.feedback_callbacks:
@@ -191,11 +194,9 @@ class MoveitEnabledRobot(DualArmRobot):
         return trajectory, result, client.get_state()
 
     def follow_joint_config(self, joint_names: List[str], joint_positions, client: SimpleActionClient):
-        trajectory = JointTrajectory()
-        trajectory.joint_names = joint_names
-        point = JointTrajectoryPoint()
-        point.time_from_start = rospy.Duration(1.0)
-        point.positions = joint_positions
+        trajectory = JointTrajectory(joint_names=joint_names)
+        point = JointTrajectoryPoint(time_from_start=rospy.Duration(1.0),
+                                     positions=joint_positions)
         trajectory.points.append(point)
         return self.follow_joint_trajectory(trajectory, client)
 

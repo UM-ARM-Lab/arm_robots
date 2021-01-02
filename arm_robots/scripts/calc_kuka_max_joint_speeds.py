@@ -4,11 +4,11 @@ import colorama
 import numpy as np
 import rospy
 from arc_utilities.ros_init import rospy_and_cpp_init
-from arm_robots.victor import Victor, RIGHT_ARM_JOINT_NAMES, LEFT_ARM_JOINT_NAMES
+from arm_robots.victor import Victor
 from trajectory_msgs.msg import JointTrajectoryPoint
 from victor_hardware_interface.victor_utils import ControlMode
 import time
-from arm_robots.config.victor_config import KUKA_MAX_JOINT_VELOCITIES
+from arm_robots.config.victor_config import KUKA_MAX_JOINT_VELOCITIES, LEFT_ARM_JOINT_NAMES, RIGHT_ARM_JOINT_NAMES
 
 """
 This scipt calculates the Kuka arms max joint speeds and max joint accels.

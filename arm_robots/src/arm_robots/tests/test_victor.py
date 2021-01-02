@@ -1,4 +1,6 @@
 from unittest import TestCase
+
+import arm_robots.config.victor_config
 from arm_robots.victor import delegate_to_arms
 from arm_robots import victor
 
@@ -6,7 +8,7 @@ from arm_robots import victor
 class Test(TestCase):
     def test_delegate_positions_to_arms(self):
         values = [1, 2, 3, 4, 5, 6, 7]
-        inferred_positions, abort, msg = delegate_to_arms(values, victor.RIGHT_ARM_JOINT_NAMES)
+        inferred_positions, abort, msg = delegate_to_arms(values, arm_robots.config.victor_config.RIGHT_ARM_JOINT_NAMES)
         self.assertFalse(abort)
         self.assertEqual(inferred_positions['left_arm'], None)
         self.assertEqual(inferred_positions['left_gripper'], None)
@@ -15,7 +17,7 @@ class Test(TestCase):
 
         values = [1, 2, 3, 4, 5, 6, 7]
         inferred_positions, abort, msg = delegate_to_arms(values + list(reversed(values)),
-                                                          victor.RIGHT_ARM_JOINT_NAMES + victor.LEFT_ARM_JOINT_NAMES)
+                                                          arm_robots.config.victor_config.RIGHT_ARM_JOINT_NAMES + arm_robots.config.victor_config.LEFT_ARM_JOINT_NAMES)
         self.assertFalse(abort)
         self.assertEqual(inferred_positions['left_gripper'], None)
         self.assertEqual(inferred_positions['right_gripper'], None)
@@ -23,7 +25,7 @@ class Test(TestCase):
         self.assertEqual(inferred_positions['right_arm'], values)
 
         inferred_positions, abort, msg = delegate_to_arms(values[0:6],
-                                                          victor.RIGHT_ARM_JOINT_NAMES[0:6])
+                                                          arm_robots.config.victor_config.RIGHT_ARM_JOINT_NAMES[0:6])
         self.assertTrue(abort)
         self.assertEqual(inferred_positions['left_gripper'], None)
         self.assertEqual(inferred_positions['right_gripper'], None)
@@ -31,7 +33,8 @@ class Test(TestCase):
         self.assertEqual(inferred_positions['right_arm'], None)
 
         inferred_positions, abort, msg = delegate_to_arms(values,
-                                                          list(reversed(victor.RIGHT_ARM_JOINT_NAMES)))
+                                                          list(reversed(
+                                                              arm_robots.config.victor_config.RIGHT_ARM_JOINT_NAMES)))
         self.assertFalse(abort)
         self.assertEqual(inferred_positions['left_gripper'], None)
         self.assertEqual(inferred_positions['right_gripper'], None)

@@ -56,10 +56,11 @@ class TrajectoryFollower:
         while True:
             # tiny sleep lets the listeners process messages better, results in smoother following
             rospy.sleep(1e-3)
+            dt = rospy.Time.now() - t0
 
             # get feedback
             new_waypoint = False
-            actual_point = self.get_actual_trajectory_point(trajectory_joint_names)
+            actual_point = self.get_actual_trajectory_point(trajectory_joint_names, dt)
             while trajectory_point_idx < len(interpolated_points) - 1 and \
                     is_waypoint_reached(actual_point, interpolated_points[trajectory_point_idx], tolerance):
                 trajectory_point_idx += 1
@@ -81,7 +82,6 @@ class TrajectoryFollower:
             # let the caller stop
             stop, stop_msg = stop_cb(actual_point)
 
-            dt = rospy.Time.now() - t0
             error = waypoint_error(actual_point, desired_point)
             rospy.logdebug_throttle(1, f"{error} {desired_point.time_from_start.to_sec()} {dt.to_sec()}")
             if desired_point.time_from_start.to_sec() > 0 and dt > desired_point.time_from_start * 5.0:
@@ -123,6 +123,7 @@ class TrajectoryFollower:
         else:
             self.server.set_aborted(result)
 
-    def get_actual_trajectory_point(self, trajectory_joint_names: List[str]) -> JointTrajectoryPoint:
-        return JointTrajectoryPoint(positions=self.robot.get_joint_positions(trajectory_joint_names))
+    def get_actual_trajectory_point(self, trajectory_joint_names: List[str], time_from_start) -> JointTrajectoryPoint:
+        return JointTrajectoryPoint(positions=self.robot.get_joint_positions(trajectory_joint_names),
+                                    time_from_start=time_from_start)
 

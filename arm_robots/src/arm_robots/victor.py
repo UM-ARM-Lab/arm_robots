@@ -12,11 +12,16 @@ from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
 from arc_utilities.listener import Listener
 from arm_robots.base_robot import DualArmRobot
-from arm_robots.config.victor_config import NAMED_POSITIONS, default_robotiq_command
+from arm_robots.config.victor_config import NAMED_POSITIONS, default_robotiq_command, \
+    KUKA_MIN_PATH_JOINT_POSITION_TOLERANCE, KUKA_FULL_SPEED_PATH_JOINT_POSITION_TOLERANCE, LEFT_GRIPPER_JOINT_NAMES, \
+    RIGHT_GRIPPER_JOINT_NAMES, LEFT_ARM_JOINT_NAMES, RIGHT_ARM_JOINT_NAMES, BOTH_ARM_JOINT_NAMES, ALL_JOINT_NAMES, \
+    KUKA_GOAL_JOINT_POSITION_TOLERANCE, KUKA_MIN_PATH_JOINT_IMPEDANCE_TOLERANCE, \
+    KUKA_FULL_SPEED_PATH_JOINT_IMPEDANCE_TOLERANCE, KUKA_GOAL_JOINT_IMPEDANCE_TOLERANCE
 from arm_robots.robot import MoveitEnabledRobot
+from arm_robots.robot_utils import make_joint_tolerance
 from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal, FollowJointTrajectoryResult
 from moveit_msgs.msg import DisplayRobotState
-from std_msgs.msg import String, Float32
+from std_msgs.msg import String, Float32, Header
 from trajectory_msgs.msg import JointTrajectoryPoint
 from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list, \
     default_gripper_command, gripper_status_to_list
@@ -24,44 +29,6 @@ from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, Motion
     Robotiq3FingerStatus
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
     GetControlModeResponse, SetControlModeResponse
-
-# NOTE: moveit has all of this stuff specified, can we use moveit here? without relying on its execution capabilities?
-LEFT_GRIPPER_JOINT_NAMES = (
-    "left_finger_a",
-    "left_finger_b",
-    "left_finger_c",
-    "left_scissor",
-)
-
-RIGHT_GRIPPER_JOINT_NAMES = (
-    "right_finger_a",
-    "right_finger_b",
-    "right_finger_c",
-    "right_scissor",
-)
-
-LEFT_ARM_JOINT_NAMES = (
-    'victor_left_arm_joint_1',
-    'victor_left_arm_joint_2',
-    'victor_left_arm_joint_3',
-    'victor_left_arm_joint_4',
-    'victor_left_arm_joint_5',
-    'victor_left_arm_joint_6',
-    'victor_left_arm_joint_7',
-)
-
-RIGHT_ARM_JOINT_NAMES = (
-    'victor_right_arm_joint_1',
-    'victor_right_arm_joint_2',
-    'victor_right_arm_joint_3',
-    'victor_right_arm_joint_4',
-    'victor_right_arm_joint_5',
-    'victor_right_arm_joint_6',
-    'victor_right_arm_joint_7',
-)
-
-BOTH_ARM_JOINT_NAMES = LEFT_ARM_JOINT_NAMES + RIGHT_ARM_JOINT_NAMES
-ALL_JOINT_NAMES = BOTH_ARM_JOINT_NAMES + LEFT_GRIPPER_JOINT_NAMES + RIGHT_GRIPPER_JOINT_NAMES
 
 
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
@@ -233,6 +200,13 @@ class BaseVictor(DualArmRobot):
     def get_control_modes(self):
         return {'left': self.get_left_arm_control_mode(), 'right': self.get_right_arm_control_mode()}
 
+    def get_control_mode_for_joint(self, joint_name):
+        if joint_name in LEFT_ARM_JOINT_NAMES:
+            return self.get_left_arm_control_mode()
+        if joint_name in RIGHT_ARM_JOINT_NAMES:
+            return self.get_right_arm_control_mode()
+        return None
+
     def set_control_mode(self, control_mode: ControlMode, vel, **kwargs):
         left_res = self.set_left_arm_control_mode(control_mode, vel=vel, **kwargs)
         right_res = self.set_right_arm_control_mode(control_mode, vel=vel, **kwargs)
@@ -366,6 +340,7 @@ class BaseVictor(DualArmRobot):
 
 # TODO: undo this multiple inheritance and use composition
 class Victor(BaseVictor, MoveitEnabledRobot):
+    trajectory_delay_in_s_before_log = 0.1
 
     def __init__(self, robot_namespace: str = 'victor', force_trigger: float = -0.0):
         MoveitEnabledRobot.__init__(self,
@@ -381,6 +356,16 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         self.polly_pub = rospy.Publisher("/polly", String, queue_size=10)
         self.use_force_trigger = force_trigger >= 0
         self.force_trigger = force_trigger
+        self.feedback_callbacks.append(self._log_trajectory_goal_not_reached)
+
+    def _log_trajectory_goal_not_reached(self, client, goal, feedback: FollowJointTrajectoryFeedback):
+        time_error = (feedback.actual.time_from_start - feedback.desired.time_from_start).secs
+        if time_error > self.trajectory_delay_in_s_before_log:
+            act = np.array(feedback.actual.positions)
+            des = np.array(feedback.desired.positions)
+            error = [(name, err) for name, err in zip(feedback.joint_names, act - des)]
+            error_str = '\n'.join(f"{name}: {err:.2f}" for name, err in error)
+            rospy.logwarn_throttle(0.5, f"Robot is late in reaching goal. Error is:\n{error_str}")
 
     def set_control_mode(self, control_mode: ControlMode, vel=0.1, **kwargs):
         super().set_control_mode(control_mode, vel, **kwargs)
@@ -410,7 +395,6 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         if res.error_code != FollowJointTrajectoryResult.SUCCESSFUL:
             rospy.logwarn("Failed to move to config: ")
             raise Exception(f"Failed to move to config: {res.error_string}")
-
 
     @staticmethod
     def both_arm_config(left_arm_config, right_arm_config):
@@ -444,7 +428,54 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         for feedback_callback in self.feedback_callbacks:
             feedback_callback(client, goal, feedback)
 
-    def get_force_norm(self, status: MotionStatus):
+    def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
+        goal = FollowJointTrajectoryGoal(trajectory=trajectory,
+                                         goal_time_tolerance=rospy.Duration(nsecs=500_000_000))
+        goal.trajectory.header.stamp = rospy.Time.now()
+
+        def kuka_limits_list_to_map(limits):
+            assert len(limits) == 7, "Kuka limits must be length 7"
+            return {n: val for n, val in zip(LEFT_ARM_JOINT_NAMES + RIGHT_ARM_JOINT_NAMES, limits*2)}
+
+        min_position_path_tol_of = kuka_limits_list_to_map(KUKA_MIN_PATH_JOINT_POSITION_TOLERANCE)
+        full_speed_position_path_tol_of = kuka_limits_list_to_map(KUKA_FULL_SPEED_PATH_JOINT_POSITION_TOLERANCE)
+        position_goal_tol_of = kuka_limits_list_to_map(KUKA_GOAL_JOINT_POSITION_TOLERANCE)
+
+        min_impedance_path_tol_of = kuka_limits_list_to_map(KUKA_MIN_PATH_JOINT_IMPEDANCE_TOLERANCE)
+        full_speed_impedance_path_tol_of = kuka_limits_list_to_map(KUKA_FULL_SPEED_PATH_JOINT_IMPEDANCE_TOLERANCE)
+        impedance_goal_tol_of = kuka_limits_list_to_map(KUKA_GOAL_JOINT_IMPEDANCE_TOLERANCE)
+
+        vel_fraction = self.max_velocity_scale_factor
+        assert 0 <= vel_fraction <= 1, "Invalid velocity command"
+
+        def path_tol(joint_name):
+            control_mode = self.get_control_mode_for_joint(joint_name).mode
+            if control_mode == ControlMode.JOINT_POSITION or control_mode == ControlMode.CARTESIAN_POSE:
+                tol = max(vel_fraction * full_speed_position_path_tol_of[joint_name],
+                          min_position_path_tol_of[joint_name])
+                return make_joint_tolerance(tol, joint_name)
+            if control_mode == ControlMode.JOINT_IMPEDANCE or control_mode == ControlMode.CARTESIAN_IMPEDANCE:
+                tol = max(vel_fraction * full_speed_impedance_path_tol_of[joint_name],
+                          min_impedance_path_tol_of[joint_name])
+                return make_joint_tolerance(tol, joint_name)
+            return make_joint_tolerance(0.1, joint_name)
+
+        def goal_tol(joint_name):
+            control_mode = self.get_control_mode_for_joint(joint_name).mode
+            if control_mode == ControlMode.JOINT_POSITION or control_mode == ControlMode.CARTESIAN_POSE:
+                tol = position_goal_tol_of[joint_name]
+                return make_joint_tolerance(tol, joint_name)
+            if control_mode == ControlMode.JOINT_IMPEDANCE or control_mode == ControlMode.CARTESIAN_IMPEDANCE:
+                tol = impedance_goal_tol_of[joint_name]
+                return make_joint_tolerance(tol, joint_name)
+            return make_joint_tolerance(0.05, joint_name)
+
+        goal.path_tolerance = [path_tol(n) for n in trajectory.joint_names]
+        goal.goal_tolerance = [goal_tol(n) for n in trajectory.joint_names]
+        return goal
+
+    @staticmethod
+    def get_force_norm(status: MotionStatus):
         f = np.array([status.estimated_external_wrench.x,
                       status.estimated_external_wrench.y,
                       status.estimated_external_wrench.z])
