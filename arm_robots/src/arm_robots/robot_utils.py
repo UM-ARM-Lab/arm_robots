@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import itertools
-from typing import List
+from collections import defaultdict
+from typing import List, Sequence
 
 import numpy as np
 from more_itertools import pairwise
@@ -16,32 +17,26 @@ DEFAULT_GOAL_TOLERANCE_POSITION = 0.1
 
 LAG_IN_S = 0.07
 
-def get_ordered_tolerance_list(joint_names, tolerance: List[JointTolerance], is_goal: bool = False):
-    tolerance_list = []
-    for name in joint_names:
-        default_tolerance_position = 0.01 if is_goal else 0.1
-        tolerance_position = None
-        for tolerance_for_name in tolerance:
-            if tolerance_for_name.name == name:
-                tolerance_position = tolerance_for_name.position
-                break
-        if tolerance_position is None:
-            tolerance_position = default_tolerance_position
-            rospy.logwarn_throttle(1, f"using default path tolerance {default_tolerance_position}")
-        tolerance_list.append(tolerance_position)
-    return tolerance_list
+
+def get_ordered_tolerance_list(joint_names, tolerance: Sequence[JointTolerance], is_goal: bool = False):
+    def default_tolerance():
+        tol = 0.01 if is_goal else 0.1
+        rospy.logwarn_throttle(1, f"using default path tolerance {tol}")
+        return tol
+
+    tolerance_of = defaultdict(lambda: default_tolerance)
+    tolerance_of.update({t.name: t.position for t in tolerance})
+    return [tolerance_of[name] for name in joint_names]
 
 
 def make_joint_tolerance(pos, name):
-    j = JointTolerance()
-    j.position = pos
-    j.velocity = 1
-    j.acceleration = 100  # this is high because if we bump the arm, the controller will abort unnecessarily
-    j.name = name
-    return j
+    return JointTolerance(position=pos,
+                          velocity=1,
+                          acceleration=100,  # high because if we bump the arm, the controller will abort unnecessarily
+                          name=name)
 
 
-def waypoint_error(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint):
+def waypoint_error(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint) -> float:
     actual = np.array(actual.positions)
     desired = np.array(desired.positions)
     return np.abs(actual - desired)
@@ -56,7 +51,6 @@ def is_waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPo
     anticipated_position = LAG_IN_S * np.array(desired.velocities) + np.array(actual.positions)
     anticipated_error = np.abs(anticipated_position - np.array(desired.positions))
     if np.all(anticipated_error < tolerance):
-        # rospy.logwarn_throttle(0.1, "Actual error is too large, but anticipated error looks good")
         return True
     return False
 
@@ -102,7 +96,7 @@ def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_
     next(upper, None)
     next(upper, None)
     for l, m, u in zip(lower, mid, upper):
-        m.velocities = (u.positions - l.positions)/(u.time_from_start - l.time_from_start).to_sec()
+        m.velocities = (u.positions - l.positions) / (u.time_from_start - l.time_from_start).to_sec()
     return interpolated_points
 
 
