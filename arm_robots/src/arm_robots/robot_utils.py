@@ -14,6 +14,7 @@ from trajectory_msgs.msg import JointTrajectoryPoint, JointTrajectory
 DEFAULT_PATH_TOLERANCE_POSITION = 0.01
 DEFAULT_GOAL_TOLERANCE_POSITION = 0.1
 
+LAG_IN_S = 0.07
 
 def get_ordered_tolerance_list(joint_names, tolerance: List[JointTolerance], is_goal: bool = False):
     tolerance_list = []
@@ -49,7 +50,15 @@ def waypoint_error(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint):
 def is_waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint, tolerance: List[float]) -> bool:
     error = waypoint_error(actual, desired)
     tolerance = np.array(tolerance)
-    return np.all(error < tolerance)
+    if np.all(error < tolerance):
+        return True
+
+    anticipated_position = LAG_IN_S * np.array(desired.velocities) + np.array(actual.positions)
+    anticipated_error = np.abs(anticipated_position - np.array(desired.positions))
+    if np.all(anticipated_error < tolerance):
+        # rospy.logwarn_throttle(0.1, "Actual error is too large, but anticipated error looks good")
+        return True
+    return False
 
 
 def _interpolate_joint_trajectory_points_positions(points: List[JointTrajectoryPoint], max_step_size: float) \

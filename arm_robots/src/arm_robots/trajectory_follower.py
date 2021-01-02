@@ -55,20 +55,20 @@ class TrajectoryFollower:
         t0 = rospy.Time.now()
         while True:
             # tiny sleep lets the listeners process messages better, results in smoother following
-            rospy.sleep(1e-5)
+            rospy.sleep(1e-3)
 
             # get feedback
             new_waypoint = False
             actual_point = self.get_actual_trajectory_point(trajectory_joint_names)
             while trajectory_point_idx < len(interpolated_points) - 1 and \
-                    is_waypoint_reached(interpolated_points[trajectory_point_idx], actual_point, tolerance):
+                    is_waypoint_reached(actual_point, interpolated_points[trajectory_point_idx], tolerance):
                 trajectory_point_idx += 1
                 new_waypoint = True
 
             desired_point = interpolated_points[trajectory_point_idx]
 
             if trajectory_point_idx >= len(interpolated_points) - 1 and \
-                    is_waypoint_reached(desired_point, actual_point, goal_tolerance):
+                    is_waypoint_reached(actual_point, desired_point, goal_tolerance):
                 return FollowJointTrajectoryResult(error_code=FollowJointTrajectoryResult.SUCCESSFUL)
 
             if new_waypoint:

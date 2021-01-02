@@ -14,7 +14,7 @@ from arc_utilities.listener import Listener
 from arm_robots.base_robot import DualArmRobot
 from arm_robots.config.victor_config import NAMED_POSITIONS, default_robotiq_command
 from arm_robots.robot import MoveitEnabledRobot
-from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal
+from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal, FollowJointTrajectoryResult
 from moveit_msgs.msg import DisplayRobotState
 from std_msgs.msg import String, Float32
 from trajectory_msgs.msg import JointTrajectoryPoint
@@ -147,7 +147,7 @@ class BaseVictor(DualArmRobot):
         if abort:
             return True, msg
 
-        velocities, _, _ = delegate_to_arms([0.0]*len(ALL_JOINT_NAMES), ALL_JOINT_NAMES)
+        velocities, _, _ = delegate_to_arms([0.0] * len(ALL_JOINT_NAMES), ALL_JOINT_NAMES)
         if len(trajectory_point.velocities) != 0:
             velocities, abort, msg = delegate_to_arms(trajectory_point.velocities, joint_names)
         if abort:
@@ -158,12 +158,12 @@ class BaseVictor(DualArmRobot):
         left_arm_control_mode = control_mode['left']
         right_arm_control_mode = control_mode['right']
 
-        self.send_arm_command(self.left_arm_command_pub, left_arm_control_mode,
-                              positions['left_arm'])
+        # self.send_arm_command(self.left_arm_command_pub, left_arm_control_mode,
+        #                       positions['left_arm'])
         # self.send_arm_command(self.right_arm_command_pub, right_arm_control_mode,
         #                       positions['right_arm'])
-        # self.send_arm_command(self.left_arm_command_pub, left_arm_control_mode,
-        #                       positions['left_arm'], velocities['left_arm'])
+        self.send_arm_command(self.left_arm_command_pub, left_arm_control_mode,
+                              positions['left_arm'], velocities['left_arm'])
         self.send_arm_command(self.right_arm_command_pub, right_arm_control_mode,
                               positions['right_arm'], velocities['right_arm'])
         self.send_gripper_command(self.left_gripper_command_pub, positions['left_gripper'])
@@ -382,14 +382,14 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         self.use_force_trigger = force_trigger >= 0
         self.force_trigger = force_trigger
 
-    def set_control_mode(self, control_mode: ControlMode, vel, **kwargs):
+    def set_control_mode(self, control_mode: ControlMode, vel=0.1, **kwargs):
         super().set_control_mode(control_mode, vel, **kwargs)
         self.max_velocity_scale_factor = vel
 
-    def move_to_impedance_switch(self, actually_switch: bool = True):
+    def move_to_impedance_switch(self, actually_switch: bool = True, new_relative_velocity=0.1):
         self.move_to("impedance switch")
         if actually_switch:
-            return self.set_control_mode(ControlMode.JOINT_IMPEDANCE)
+            return self.set_control_mode(ControlMode.JOINT_IMPEDANCE, vel=new_relative_velocity)
         return True
 
     def move_to(self, position_name: str):
@@ -404,6 +404,13 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         else:
             for joint_group, configs in position.items():
                 self.plan_to_joint_config(joint_group, configs)
+
+    def move_to_config(self, joint_group, configs):
+        _, res, _ = self.plan_to_joint_config(joint_group, configs)
+        if res.error_code != FollowJointTrajectoryResult.SUCCESSFUL:
+            rospy.logwarn("Failed to move to config: ")
+            raise Exception(f"Failed to move to config: {res.error_string}")
+
 
     @staticmethod
     def both_arm_config(left_arm_config, right_arm_config):

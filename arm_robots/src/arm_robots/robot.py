@@ -95,7 +95,11 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def get_move_group_commander(self, group_name) -> moveit_commander.MoveGroupCommander:
         move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
-        move_group.set_max_velocity_scaling_factor(self.max_velocity_scale_factor)
+        # TODO Make this a settable param or at least make the hardcoded param more obvious
+        # The purpose of this safety factor is to make sure we never send victor a velocity
+        # faster than the kuka controller's max velocity, otherwise it will error out.
+        safety_factor = 0.9
+        move_group.set_max_velocity_scaling_factor(self.max_velocity_scale_factor * safety_factor)
         return move_group
 
     def plan_to_position(self,
