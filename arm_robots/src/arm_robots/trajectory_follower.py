@@ -42,7 +42,7 @@ class TrajectoryFollower:
         trajectory_joint_names = traj_msg.trajectory.joint_names
         tolerance = get_ordered_tolerance_list(trajectory_joint_names, traj_msg.path_tolerance)
         goal_tolerance = get_ordered_tolerance_list(trajectory_joint_names, traj_msg.goal_tolerance, is_goal=True)
-        interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.1)
+        interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.01)
 
         if len(interpolated_points) == 0:
             rospy.loginfo("Trajectory was empty after interpolation")
