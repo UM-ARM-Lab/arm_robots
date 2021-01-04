@@ -57,12 +57,12 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
         blank_positions = {n: None for n in ['right_arm', 'left_arm', 'right_gripper', 'left_gripper']}
         return blank_positions, True, f"Invalid joint_names {joint_names}"
 
-    joint_map = {name: pos for name, pos in zip(joint_names, positions)}
+    joint_position_of = {name: pos for name, pos in zip(joint_names, positions)}
 
     def fill_using(joint_ordering: Sequence[str]):
-        if not all(j in joint_map for j in joint_ordering):
+        if not all(j in joint_position_of for j in joint_ordering):
             return None
-        return [joint_map[name] for name in joint_ordering]
+        return [joint_position_of[name] for name in joint_ordering]
 
     positions_by_interface = {
         'right_arm': fill_using(RIGHT_ARM_JOINT_NAMES),
@@ -125,10 +125,6 @@ class BaseVictor(DualArmRobot):
         left_arm_control_mode = control_mode['left']
         right_arm_control_mode = control_mode['right']
 
-        # self.send_arm_command(self.left_arm_command_pub, left_arm_control_mode,
-        #                       positions['left_arm'])
-        # self.send_arm_command(self.right_arm_command_pub, right_arm_control_mode,
-        #                       positions['right_arm'])
         self.send_arm_command(self.left_arm_command_pub, left_arm_control_mode,
                               positions['left_arm'], velocities['left_arm'])
         self.send_arm_command(self.right_arm_command_pub, right_arm_control_mode,
@@ -311,7 +307,7 @@ class BaseVictor(DualArmRobot):
         all_joint_vals += gripper_status_to_list(self.right_gripper_status_listener.get())
         return {n: val for n, val in zip(ALL_JOINT_NAMES, all_joint_vals)}
 
-    def get_joint_positions(self, joint_names: Optional[Sequence[str]] = ALL_JOINT_NAMES):
+    def get_joint_positions(self, joint_names: Sequence[str] = ALL_JOINT_NAMES):
         """
         :args joint_names an optional list of names if you want to have a specific order or a subset
         """
