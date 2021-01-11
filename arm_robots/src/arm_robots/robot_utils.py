@@ -43,7 +43,7 @@ def waypoint_error(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint) 
     return np.abs(actual - desired)
 
 
-def is_waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint, tolerance: List[float]) -> bool:
+def is_waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint, tolerance: Sequence[float]):
     error = waypoint_error(actual, desired)
     tolerance = np.array(tolerance)
     if np.all(error < tolerance):

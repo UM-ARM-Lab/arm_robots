@@ -195,8 +195,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def follow_joint_config(self, joint_names: List[str], joint_positions, client: SimpleActionClient):
         trajectory = JointTrajectory(joint_names=joint_names)
-        point = JointTrajectoryPoint(time_from_start=rospy.Duration(1.0),
-                                     positions=joint_positions)
+        point = JointTrajectoryPoint(time_from_start=rospy.Duration(1.0), positions=joint_positions)
         trajectory.points.append(point)
         return self.follow_joint_trajectory(trajectory, client)
 
