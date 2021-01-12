@@ -29,8 +29,8 @@ joint_upper = (hard_limits_deg - safety_deg) * np.pi / 180
 class ManualMotion:
 
     def __init__(self, arm_name):
-        self.sub = rospy.Subscriber(arm_name + "/motion_status", MotionStatus, self.callback_update)
-        self.pub = rospy.Publisher(arm_name + "/motion_command", MotionCommand, queue_size=10)
+        self.sub = rospy.Subscriber("victor/" + arm_name + "/motion_status", MotionStatus, self.callback_update)
+        self.pub = rospy.Publisher("victor/" + arm_name + "/motion_command", MotionCommand, queue_size=10)
 
         self.threshold = 0.05
         self.arrive_threshold = 0.02

@@ -11,13 +11,13 @@ from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg
 from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot_utils import make_follow_joint_trajectory_goal
-from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult
+from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
+    FollowJointTrajectoryGoal
 from geometry_msgs.msg import Point, Pose, Quaternion
 from rosgraph.names import ns_join
 from rospy import logfatal
 from rospy.logger_level_service_caller import LoggerLevelServiceCaller
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-from victor_hardware_interface_msgs.msg import MotionStatus
 
 STORED_ORIENTATION = None
 
@@ -42,6 +42,7 @@ def set_move_group_log_level(event):
 
 
 class MoveitEnabledRobot(DualArmRobot):
+    max_velocity_scale_factor = 0.1
 
     def __init__(self,
                  robot_namespace: str,
@@ -93,11 +94,20 @@ class MoveitEnabledRobot(DualArmRobot):
     def set_block(self, block: bool):
         self.block = block
 
+    def get_move_group_commander(self, group_name) -> moveit_commander.MoveGroupCommander:
+        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        # TODO Make this a settable param or at least make the hardcoded param more obvious
+        # The purpose of this safety factor is to make sure we never send victor a velocity
+        # faster than the kuka controller's max velocity, otherwise the kuka controllers will error out.
+        safety_factor = 0.9
+        move_group.set_max_velocity_scaling_factor(self.max_velocity_scale_factor * safety_factor)
+        return move_group
+
     def plan_to_position(self,
                          group_name: str,
                          ee_link_name: str,
                          target_position):
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
         move_group.set_position_target(list(target_position))
         plan = move_group.plan()[1]
@@ -109,7 +119,7 @@ class MoveitEnabledRobot(DualArmRobot):
                                    target_position: Union[Point, List, np.array],
                                    step_size: float = 0.02,
                                    ):
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
 
         # by starting with the current pose, we will be preserving the orientation
@@ -128,7 +138,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root'):
         self.check_inputs(group_name, ee_link_name)
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
         target_pose_stamped = convert_to_pose_msg(target_pose)
         target_pose_stamped.header.frame_id = frame_id
@@ -142,16 +152,19 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def get_link_pose(self, group_name: str, link_name: str):
         self.check_inputs(group_name, link_name)
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(link_name)
         left_end_effector_pose_stamped = move_group.get_current_pose()
         return left_end_effector_pose_stamped.pose
 
     def plan_to_joint_config(self, group_name: str, joint_config):
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_joint_value_target(list(joint_config))
         plan = move_group.plan()[1]
         return self.follow_arms_joint_trajectory(plan.joint_trajectory)
+
+    def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
+        return make_follow_joint_trajectory_goal(trajectory)
 
     def follow_joint_trajectory(self,
                                 trajectory: JointTrajectory,
@@ -166,15 +179,13 @@ class MoveitEnabledRobot(DualArmRobot):
         rospy.logdebug(f"sending trajectory goal with f{len(trajectory.points)} points")
         result: Optional[FollowJointTrajectoryResult] = None
         if self.execute:
-            goal = make_follow_joint_trajectory_goal(trajectory)
+            goal = self.make_follow_joint_trajectory_goal(trajectory)
 
             def _feedback_cb(feedback: FollowJointTrajectoryFeedback):
                 for feedback_callback in self.feedback_callbacks:
                     feedback_callback(client, goal, feedback)
-                if stop_condition is not None:
-                    stop = stop_condition(feedback)
-                    if stop:
-                        client.cancel_all_goals()
+                if stop_condition is not None and stop_condition(feedback):
+                    client.cancel_all_goals()
 
             client.send_goal(goal, feedback_cb=_feedback_cb)
             if self.block:
@@ -183,11 +194,8 @@ class MoveitEnabledRobot(DualArmRobot):
         return trajectory, result, client.get_state()
 
     def follow_joint_config(self, joint_names: List[str], joint_positions, client: SimpleActionClient):
-        trajectory = JointTrajectory()
-        trajectory.joint_names = joint_names
-        point = JointTrajectoryPoint()
-        point.time_from_start = rospy.Duration(1.0)
-        point.positions = joint_positions
+        trajectory = JointTrajectory(joint_names=joint_names)
+        point = JointTrajectoryPoint(time_from_start=rospy.Duration(1.0), positions=joint_positions)
         trajectory.points.append(point)
         return self.follow_joint_trajectory(trajectory, client)
 
@@ -249,39 +257,6 @@ class MoveitEnabledRobot(DualArmRobot):
             max_acceleration_scaling_factor=0.1,
         )
         return self.follow_arms_joint_trajectory(robot_trajectory_msg.joint_trajectory, stop_condition=stop_condition)
-
-    def get_joint_position_from_status_messages(self, left_status: MotionStatus, right_status: MotionStatus, name: str):
-        if name == 'victor_left_arm_joint_1':
-            pos = left_status.measured_joint_position.joint_1
-        elif name == 'victor_left_arm_joint_2':
-            pos = left_status.measured_joint_position.joint_2
-        elif name == 'victor_left_arm_joint_3':
-            pos = left_status.measured_joint_position.joint_3
-        elif name == 'victor_left_arm_joint_4':
-            pos = left_status.measured_joint_position.joint_4
-        elif name == 'victor_left_arm_joint_5':
-            pos = left_status.measured_joint_position.joint_5
-        elif name == 'victor_left_arm_joint_6':
-            pos = left_status.measured_joint_position.joint_6
-        elif name == 'victor_left_arm_joint_7':
-            pos = left_status.measured_joint_position.joint_7
-        elif name == 'victor_right_arm_joint_1':
-            pos = right_status.measured_joint_position.joint_1
-        elif name == 'victor_right_arm_joint_2':
-            pos = right_status.measured_joint_position.joint_2
-        elif name == 'victor_right_arm_joint_3':
-            pos = right_status.measured_joint_position.joint_3
-        elif name == 'victor_right_arm_joint_4':
-            pos = right_status.measured_joint_position.joint_4
-        elif name == 'victor_right_arm_joint_5':
-            pos = right_status.measured_joint_position.joint_5
-        elif name == 'victor_right_arm_joint_6':
-            pos = right_status.measured_joint_position.joint_6
-        elif name == 'victor_right_arm_joint_7':
-            pos = right_status.measured_joint_position.joint_7
-        else:
-            raise NotImplementedError()
-        return pos
 
     def get_both_arm_joints(self):
         return self.get_left_arm_joints() + self.get_right_arm_joints()

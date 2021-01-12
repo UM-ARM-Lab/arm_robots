@@ -5,7 +5,7 @@ from typing import List, Callable, Optional
 import actionlib
 import rospy
 from arm_robots.base_robot import DualArmRobot
-from arm_robots.robot_utils import get_ordered_tolerance_list, interpolate_joint_trajectory_points, waypoint_reached, \
+from arm_robots.robot_utils import get_ordered_tolerance_list, interpolate_joint_trajectory_points, is_waypoint_reached, \
     waypoint_error
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, FollowJointTrajectoryFeedback, \
     FollowJointTrajectoryResult
@@ -29,94 +29,84 @@ class TrajectoryFollower:
     def follow_trajectory_goal(self,
                                traj_msg: FollowJointTrajectoryGoal,
                                feedback_cb: Optional[Callable] = None,
-                               stop_cb: Optional[Callable] = None):
-        result = FollowJointTrajectoryResult()
+                               stop_cb: Optional[Callable] = lambda: (False, "")):
 
         # Interpolate the trajectory to a fine resolution
         # if you set max_step_size to be large and position tolerance to be small, then things will be jerky
         if len(traj_msg.trajectory.points) == 0:
             rospy.loginfo("Ignoring empty trajectory")
-            result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
-            result.error_string = "empty trajectory"
-            return result
+            return FollowJointTrajectoryResult(error_code=FollowJointTrajectoryResult.SUCCESSFUL,
+                                               error_string="empty trajectory")
 
         # construct a list of the tolerances in order of the joint names
         trajectory_joint_names = traj_msg.trajectory.joint_names
         tolerance = get_ordered_tolerance_list(trajectory_joint_names, traj_msg.path_tolerance)
         goal_tolerance = get_ordered_tolerance_list(trajectory_joint_names, traj_msg.goal_tolerance, is_goal=True)
+        interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.01)
 
-        interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.1)
         if len(interpolated_points) == 0:
             rospy.loginfo("Trajectory was empty after interpolation")
-            result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
-            result.error_string = "empty trajectory"
-            return result
+            return FollowJointTrajectoryResult(error_code=FollowJointTrajectoryResult.SUCCESSFUL,
+                                               error_string="empty trajectory")
 
-        rospy.logdebug(interpolated_points)
+        rospy.logdebug(f"Interpolated points: {interpolated_points}")
 
         trajectory_point_idx = 0
         t0 = rospy.Time.now()
         while True:
             # tiny sleep lets the listeners process messages better, results in smoother following
-            rospy.sleep(1e-6)
+            rospy.sleep(1e-3)
+            dt = rospy.Time.now() - t0
+
+            # get feedback
+            new_waypoint = False
+            actual_point = self.get_actual_trajectory_point(trajectory_joint_names, dt)
+            while trajectory_point_idx < len(interpolated_points) - 1 and \
+                    is_waypoint_reached(actual_point, interpolated_points[trajectory_point_idx], tolerance):
+                trajectory_point_idx += 1
+                new_waypoint = True
 
             desired_point = interpolated_points[trajectory_point_idx]
 
-            command_failed, command_failed_msg = self.robot.send_joint_command(trajectory_joint_names, desired_point)
+            if trajectory_point_idx >= len(interpolated_points) - 1 and \
+                    is_waypoint_reached(actual_point, desired_point, goal_tolerance):
+                return FollowJointTrajectoryResult(error_code=FollowJointTrajectoryResult.SUCCESSFUL)
 
-            # get feedback
-            actual_point = self.get_actual_trajectory_point(trajectory_joint_names)
+            if new_waypoint:
+                command_failed, command_failed_msg = self.robot.send_joint_command(trajectory_joint_names,
+                                                                                   desired_point)
+                if command_failed:
+                    rospy.logwarn(f"Command failed with message: {command_failed}")
+                    return FollowJointTrajectoryResult(error_code=-10, error_string=command_failed_msg)
 
             # let the caller stop
-            if stop_cb is not None:
-                stop, stop_msg = stop_cb(actual_point)
-            else:
-                stop = None
-                stop_msg = ""
+            stop, stop_msg = stop_cb(actual_point)
 
-            dt = rospy.Time.now() - t0
             error = waypoint_error(actual_point, desired_point)
             rospy.logdebug_throttle(1, f"{error} {desired_point.time_from_start.to_sec()} {dt.to_sec()}")
             if desired_point.time_from_start.to_sec() > 0 and dt > desired_point.time_from_start * 5.0:
                 stop = True
                 if trajectory_point_idx == len(interpolated_points) - 1:
                     stop_msg = f"timeout. expected t={desired_point.time_from_start.to_sec()} but t={dt.to_sec()}." \
-                               + f" error to waypoint is {error}, tolerance is {goal_tolerance}"
+                               + f" error to waypoint is {error}, goal tolerance is {goal_tolerance}"
                 else:
                     stop_msg = f"timeout. expected t={desired_point.time_from_start.to_sec()} but t={dt.to_sec()}." \
                                + f" error to waypoint is {error}, tolerance is {tolerance}"
 
-            if command_failed or stop:
+            if stop:
                 # command the current configuration
+                actual_point.velocities = [0.0] * len(actual_point.positions)
                 self.robot.send_joint_command(trajectory_joint_names, actual_point)
                 rospy.loginfo("Preempt requested, aborting.")
-                if command_failed_msg:
-                    rospy.loginfo(command_failed_msg)
-                if stop_msg:
-                    rospy.logwarn(stop_msg)
-                result.error_code = -10
-                result.error_string = stop_msg
-                break
-
-            # If we're close enough, advance
-            if trajectory_point_idx >= len(interpolated_points) - 1:
-                if waypoint_reached(desired_point, actual_point, goal_tolerance):
-                    # we're done!
-                    result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
-                    break
-            else:
-                if waypoint_reached(desired_point, actual_point, tolerance):
-                    trajectory_point_idx += 1
+                rospy.logwarn(f"Stopped with message: {stop_msg}")
+                return FollowJointTrajectoryResult(error_code=-10, error_string=stop_msg)
 
             if feedback_cb is not None:
-                feedback = FollowJointTrajectoryFeedback()
+                feedback = FollowJointTrajectoryFeedback(desired=desired_point,
+                                                         actual=actual_point,
+                                                         joint_names=trajectory_joint_names)
                 feedback.header.stamp = rospy.Time.now()
-                feedback.joint_names = trajectory_joint_names
-                feedback.desired = desired_point
-                feedback.actual = actual_point
                 feedback_cb(feedback)
-
-        return result
 
     def follow_trajectory_cb(self, traj_msg: FollowJointTrajectoryGoal):
         def _feedback_cb(feedback):
@@ -124,8 +114,7 @@ class TrajectoryFollower:
 
         def _stop_cb(*args, **kwargs):
             stop = self.server.is_preempt_requested()
-            stop_msg = "Goal cancelled"
-            return stop, stop_msg
+            return stop, "Goal cancelled" if stop else ""
 
         result = self.follow_trajectory_goal(traj_msg, _feedback_cb, _stop_cb)
         # TODO: crappy api here
@@ -134,8 +123,7 @@ class TrajectoryFollower:
         else:
             self.server.set_aborted(result)
 
-    def get_actual_trajectory_point(self, trajectory_joint_names: List[str]):
-        current_joint_positions = self.robot.get_joint_positions(trajectory_joint_names)
-        actual_point = JointTrajectoryPoint()
-        actual_point.positions = current_joint_positions
-        return actual_point
+    def get_actual_trajectory_point(self, trajectory_joint_names: List[str], time_from_start) -> JointTrajectoryPoint:
+        return JointTrajectoryPoint(positions=self.robot.get_joint_positions(trajectory_joint_names),
+                                    time_from_start=time_from_start)
+

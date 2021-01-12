@@ -22,7 +22,7 @@ class DualArmRobot:
         self.robot_namespace = robot_namespace
         # the robot namespace will be prepended by setting ROS_NAMESPACE environment variable or the ns="" in roslaunch
         joint_states_topic = ns_join(self.robot_namespace, 'joint_states')
-        self.joint_state_listener = Listener(joint_states_topic, JointState)
+        self._joint_state_listener = Listener(joint_states_topic, JointState)
 
         # NOTE: derived classes must set these values
         self.right_gripper_command_pub = None
@@ -46,7 +46,7 @@ class DualArmRobot:
         """
         :args joint_names an optional list of names if you want to have a specific order or a subset
         """
-        joint_state: JointState = self.joint_state_listener.get()
+        joint_state: JointState = self._joint_state_listener.get()
         if joint_names is None:
             return joint_state.position
 

@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import collections
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Sequence
 
 import numpy as np
 from colorama import Fore
@@ -12,124 +12,67 @@ from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
 from arc_utilities.listener import Listener
 from arm_robots.base_robot import DualArmRobot
+from arm_robots.config.victor_config import NAMED_POSITIONS, default_robotiq_command, \
+    KUKA_MIN_PATH_JOINT_POSITION_TOLERANCE, KUKA_FULL_SPEED_PATH_JOINT_POSITION_TOLERANCE, LEFT_GRIPPER_JOINT_NAMES, \
+    RIGHT_GRIPPER_JOINT_NAMES, LEFT_ARM_JOINT_NAMES, RIGHT_ARM_JOINT_NAMES, BOTH_ARM_JOINT_NAMES, ALL_JOINT_NAMES, \
+    KUKA_GOAL_JOINT_POSITION_TOLERANCE, KUKA_MIN_PATH_JOINT_IMPEDANCE_TOLERANCE, \
+    KUKA_FULL_SPEED_PATH_JOINT_IMPEDANCE_TOLERANCE, KUKA_GOAL_JOINT_IMPEDANCE_TOLERANCE
 from arm_robots.robot import MoveitEnabledRobot
-from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal
+from arm_robots.robot_utils import make_joint_tolerance
+from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal, FollowJointTrajectoryResult
 from moveit_msgs.msg import DisplayRobotState
-from sensor_msgs.msg import JointState
-from std_msgs.msg import String, Float32
+from std_msgs.msg import String, Float32, Header
 from trajectory_msgs.msg import JointTrajectoryPoint
-from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, default_gripper_command
+from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list, \
+    default_gripper_command, gripper_status_to_list
 from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, MotionCommand, Robotiq3FingerCommand, \
     Robotiq3FingerStatus
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
     GetControlModeResponse, SetControlModeResponse
 
-# NOTE: moveit has all of this stuff specified, can we use moveit here? without relying on its execution capabilities?
-left_gripper_joints = [
-    "left_finger_a",
-    "left_finger_b",
-    "left_finger_c",
-    "left_scissor",
-]
 
-right_gripper_joints = [
-    "right_finger_a",
-    "right_finger_b",
-    "right_finger_c",
-    "right_scissor",
-]
-
-left_arm_joints = [
-    'victor_left_arm_joint_1',
-    'victor_left_arm_joint_2',
-    'victor_left_arm_joint_3',
-    'victor_left_arm_joint_4',
-    'victor_left_arm_joint_5',
-    'victor_left_arm_joint_6',
-    'victor_left_arm_joint_7',
-]
-
-right_arm_joints = [
-    'victor_right_arm_joint_1',
-    'victor_right_arm_joint_2',
-    'victor_right_arm_joint_3',
-    'victor_right_arm_joint_4',
-    'victor_right_arm_joint_5',
-    'victor_right_arm_joint_6',
-    'victor_right_arm_joint_7',
-]
-
-both_arm_joints = left_arm_joints + right_arm_joints
-
-
-def default_robotiq_command():
-    cmd = Robotiq3FingerCommand()
-    cmd.finger_a_command.speed = 1.0
-    cmd.finger_a_command.force = 1.0
-    cmd.finger_b_command.speed = 1.0
-    cmd.finger_b_command.force = 1.0
-    cmd.finger_c_command.speed = 1.0
-    cmd.finger_c_command.force = 1.0
-    cmd.scissor_command.speed = 1.0
-    cmd.scissor_command.force = 1.0
-    return cmd
-
-
-def delegate_positions_to_arms(positions, joint_names: List[str]):
+def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
     """
-    Given the list of positions, assumed to be in the same order as the list of joint names,
-    determine which actual robot command things it goes to
+    Given a list (e.g. of positions) and a corresponding list of joint names,
+    assign and order by victor's joint groups.
+
+    Args:
+        positions: values to delegate
+        joint_names: list of joint_names
+
+    Returns:
+        object: (map from joint_names to values, abort?, abort_msg)
     """
-    msg = ""
-    abort = False
-    left_arm_positions = None
-    right_arm_positions = None
-    left_gripper_positions = None
-    right_gripper_positions = None
-    # set equality ignores order
-    if set(joint_names) == set(left_arm_joints):
-        left_arm_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in left_arm_joints:
-                left_arm_positions.append(joint_value)
-    elif set(joint_names) == set(right_arm_joints):
-        right_arm_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in right_arm_joints:
-                right_arm_positions.append(joint_value)
-    elif set(joint_names) == set(both_arm_joints):
-        left_arm_positions = []
-        right_arm_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in left_arm_joints:
-                left_arm_positions.append(joint_value)
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in right_arm_joints:
-                right_arm_positions.append(joint_value)
-    elif set(joint_names) == set(left_gripper_joints):
-        left_gripper_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in left_gripper_joints:
-                left_gripper_positions.append(joint_value)
-    elif set(joint_names) == set(right_gripper_joints):
-        right_gripper_positions = []
-        for joint_name, joint_value in zip(joint_names, positions):
-            if joint_name in right_gripper_joints:
-                right_gripper_positions.append(joint_value)
-    else:
-        msg = f"Invalid joint_names [{joint_names}]"
-        abort = True
+    assert len(positions) == len(joint_names), "positions and joint_names must be same length"
+
+    # TODO: Why can't joint_names be a combination of arm and gripper joints?
+    ok = set(joint_names) in [set(LEFT_ARM_JOINT_NAMES),
+                              set(RIGHT_ARM_JOINT_NAMES),
+                              set(BOTH_ARM_JOINT_NAMES),
+                              set(LEFT_GRIPPER_JOINT_NAMES),
+                              set(RIGHT_GRIPPER_JOINT_NAMES),
+                              set(ALL_JOINT_NAMES)]
+
+    if not ok:
+        blank_positions = {n: None for n in ['right_arm', 'left_arm', 'right_gripper', 'left_gripper']}
+        return blank_positions, True, f"Invalid joint_names {joint_names}"
+
+    joint_position_of = {name: pos for name, pos in zip(joint_names, positions)}
+
+    def fill_using(joint_ordering: Sequence[str]):
+        if not all(j in joint_position_of for j in joint_ordering):
+            return None
+        return [joint_position_of[name] for name in joint_ordering]
+
     positions_by_interface = {
-        'right_arm': right_arm_positions,
-        'left_arm': left_arm_positions,
-        'right_gripper': right_gripper_positions,
-        'left_gripper': left_gripper_positions,
+        'right_arm': fill_using(RIGHT_ARM_JOINT_NAMES),
+        'left_arm': fill_using(LEFT_ARM_JOINT_NAMES),
+        'right_gripper': fill_using(RIGHT_GRIPPER_JOINT_NAMES),
+        'left_gripper': fill_using(LEFT_GRIPPER_JOINT_NAMES),
     }
-    return positions_by_interface, abort, msg
+    # set equality ignores order
 
-
-left_impedance_switch_config = [-0.694, 0.14, -0.229, -1.11, -0.512, 1.272, 0.077]
-right_impedance_switch_config = [0.724, 0.451, 0.94, -1.425, 0.472, 0.777, -0.809]
+    return positions_by_interface, False, ""
 
 
 class BaseVictor(DualArmRobot):
@@ -163,15 +106,17 @@ class BaseVictor(DualArmRobot):
 
         self.waypoint_state_pub = rospy.Publisher(self.ns("waypoint_robot_state"), DisplayRobotState, queue_size=10)
 
-    def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
+    def send_joint_command(self, joint_names: Sequence[str], trajectory_point: JointTrajectoryPoint) -> Tuple[
+        bool, str]:
         # TODO: in victor's impedance mode, we want to modify the setpoint so that there is a limit
         #  on the force we will apply
-        positions_by_interface, abort, msg = delegate_positions_to_arms(trajectory_point.positions, joint_names)
-        left_arm_positions = positions_by_interface['left_arm']
-        right_arm_positions = positions_by_interface['right_arm']
-        left_gripper_positions = positions_by_interface['left_gripper']
-        right_gripper_positions = positions_by_interface['right_gripper']
+        positions, abort, msg = delegate_to_arms(trajectory_point.positions, joint_names)
+        if abort:
+            return True, msg
 
+        velocities, _, _ = delegate_to_arms([0.0] * len(ALL_JOINT_NAMES), ALL_JOINT_NAMES)
+        if len(trajectory_point.velocities) != 0:
+            velocities, abort, msg = delegate_to_arms(trajectory_point.velocities, joint_names)
         if abort:
             return True, msg
 
@@ -180,43 +125,51 @@ class BaseVictor(DualArmRobot):
         left_arm_control_mode = control_mode['left']
         right_arm_control_mode = control_mode['right']
 
-        self.send_arm_command(self.left_arm_command_pub, left_arm_control_mode, left_arm_positions)
-        self.send_arm_command(self.right_arm_command_pub, right_arm_control_mode, right_arm_positions)
-        self.send_gripper_command(self.left_gripper_command_pub, left_gripper_positions)
-        self.send_gripper_command(self.right_gripper_command_pub, right_gripper_positions)
+        self.send_arm_command(self.left_arm_command_pub, left_arm_control_mode,
+                              positions['left_arm'], velocities['left_arm'])
+        self.send_arm_command(self.right_arm_command_pub, right_arm_control_mode,
+                              positions['right_arm'], velocities['right_arm'])
+        self.send_gripper_command(self.left_gripper_command_pub, positions['left_gripper'])
+        self.send_gripper_command(self.right_gripper_command_pub, positions['right_gripper'])
 
         return False, ""
 
-    def send_arm_command(self, command_pub: rospy.Publisher, right_arm_control_mode: ControlMode, positions):
-        if positions is not None:
-            # FIXME: what if we allow the BaseRobot class to use moveit, but just don't have it require that
-            # any actions are running?
-            # NOTE: why are these values not checked by the lower-level code? the Java code knows what the joint limits
-            # are so why does it not enforce them?
-            
-            # TODO: use enforce bounds? https://github.com/ros-planning/moveit/pull/2356
-            limit_enforced_positions = []
-            for i, joint_name in enumerate(right_arm_joints):
-                joint: moveit_commander.RobotCommander.Joint = self.robot_commander.get_joint(joint_name)
-                limit_enforced_position = np.clip(positions[i], joint.min_bound() + 1e-2, joint.max_bound() - 1e-2)
-                limit_enforced_positions.append(limit_enforced_position)
-            cmd = MotionCommand()
-            cmd.header.stamp = rospy.Time.now()
-            cmd.joint_position = list_to_jvq(limit_enforced_positions)
-            cmd.control_mode = right_arm_control_mode
-            command_pub.publish(cmd)
+    def send_arm_command(self, command_pub: rospy.Publisher, control_mode: ControlMode,
+                         positions, velocities=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)):
+        if positions is None:
+            return
+
+        def trunc(values, decs=0):
+            return np.trunc(values * 10 ** decs) / (10 ** decs)
+        velocities = trunc(np.array(velocities), 3)  # Kuka does not like sending small but non-zero velocity commands
+        # FIXME: what if we allow the BaseRobot class to use moveit, but just don't have it require that
+        # any actions are running?
+        # NOTE: why are these values not checked by the lower-level code? the Java code knows what the joint limits
+        # are so why does it not enforce them?
+
+        # TODO: use enforce bounds? https://github.com/ros-planning/moveit/pull/2356
+        limit_enforced_positions = []
+        for i, joint_name in enumerate(RIGHT_ARM_JOINT_NAMES):
+            joint: moveit_commander.RobotCommander.Joint = self.robot_commander.get_joint(joint_name)
+            limit_enforced_position = np.clip(positions[i], joint.min_bound() + 1e-2, joint.max_bound() - 1e-2)
+            limit_enforced_positions.append(limit_enforced_position)
+
+        # TODO: enforce velocity limits
+        cmd = MotionCommand(joint_position=list_to_jvq(limit_enforced_positions),
+                            joint_velocity=list_to_jvq(velocities),
+                            control_mode=control_mode)
+        cmd.header.stamp = rospy.Time.now()
+        command_pub.publish(cmd)
 
     def get_gripper_statuses(self):
         return {'left': self.get_left_gripper_status(),
                 'right': self.get_right_gripper_status()}
 
-    def get_right_gripper_status(self):
-        right_status: Robotiq3FingerStatus = self.right_gripper_status_listener.get()
-        return right_status
+    def get_right_gripper_status(self) -> Robotiq3FingerStatus:
+        return self.right_gripper_status_listener.get()
 
-    def get_left_gripper_status(self):
-        left_status: Robotiq3FingerStatus = self.left_gripper_status_listener.get()
-        return left_status
+    def get_left_gripper_status(self) -> Robotiq3FingerStatus:
+        return self.left_gripper_status_listener.get()
 
     def is_left_gripper_closed(self):
         status = self.get_left_gripper_status()
@@ -237,20 +190,25 @@ class BaseVictor(DualArmRobot):
         return {'left': self.get_left_arm_status(),
                 'right': self.get_right_arm_status()}
 
-    def get_right_arm_status(self):
-        right_status: MotionStatus = self.right_arm_status_listener.get()
-        return right_status
+    def get_right_arm_status(self) -> MotionStatus:
+        return self.right_arm_status_listener.get()
 
-    def get_left_arm_status(self):
-        left_status: MotionStatus = self.left_arm_status_listener.get()
-        return left_status
+    def get_left_arm_status(self) -> MotionStatus:
+        return self.left_arm_status_listener.get()
 
     def get_control_modes(self):
         return {'left': self.get_left_arm_control_mode(), 'right': self.get_right_arm_control_mode()}
 
-    def set_control_mode(self, control_mode: ControlMode, **kwargs):
-        left_res = self.set_left_arm_control_mode(control_mode, **kwargs)
-        right_res = self.set_right_arm_control_mode(control_mode, **kwargs)
+    def get_control_mode_for_joint(self, joint_name):
+        if joint_name in LEFT_ARM_JOINT_NAMES:
+            return self.get_left_arm_control_mode()
+        if joint_name in RIGHT_ARM_JOINT_NAMES:
+            return self.get_right_arm_control_mode()
+        return None
+
+    def set_control_mode(self, control_mode: ControlMode, vel, **kwargs):
+        left_res = self.set_left_arm_control_mode(control_mode, vel=vel, **kwargs)
+        right_res = self.set_right_arm_control_mode(control_mode, vel=vel, **kwargs)
         return left_res, right_res
 
     def get_left_arm_control_mode(self):
@@ -336,49 +294,25 @@ class BaseVictor(DualArmRobot):
     def send_gripper_command(command_pub: rospy.Publisher, positions):
         if positions is not None:
             cmd = default_gripper_command()
-            cmd.header.stamp = rospy.Time.now()
             cmd.finger_a_command.position = positions[0]
             cmd.finger_b_command.position = positions[1]
             cmd.finger_c_command.position = positions[2]
             cmd.scissor_command.position = positions[3]
             command_pub.publish(cmd)
 
-    def get_joint_positions(self, joint_names: Optional[List[str]] = None):
+    def get_joint_positions_map(self) -> Dict[str, float]:
+        all_joint_vals = jvq_to_list(self.left_arm_status_listener.get().measured_joint_position)
+        all_joint_vals += jvq_to_list(self.right_arm_status_listener.get().measured_joint_position)
+        all_joint_vals += gripper_status_to_list(self.left_gripper_status_listener.get())
+        all_joint_vals += gripper_status_to_list(self.right_gripper_status_listener.get())
+        return {n: val for n, val in zip(ALL_JOINT_NAMES, all_joint_vals)}
+
+    def get_joint_positions(self, joint_names: Sequence[str] = ALL_JOINT_NAMES):
         """
         :args joint_names an optional list of names if you want to have a specific order or a subset
         """
-        joint_state: JointState = self.joint_state_listener.get()
-        if joint_names is None:
-            return joint_state.position
-
-        gripper_statuses = self.get_gripper_statuses()
-        current_joint_positions = []
-        for name in joint_names:
-            if name in joint_state.name:
-                idx = joint_state.name.index(name)
-                pos = joint_state.position[idx]
-                current_joint_positions.append(pos)
-            elif name == 'left_finger_a':
-                current_joint_positions.append(gripper_statuses['left'].finger_a_status.position)
-            elif name == 'left_finger_b':
-                current_joint_positions.append(gripper_statuses['left'].finger_b_status.position)
-            elif name == 'left_finger_c':
-                current_joint_positions.append(gripper_statuses['left'].finger_c_status.position)
-            elif name == 'left_scissor':
-                current_joint_positions.append(gripper_statuses['left'].scissor_status.position)
-            elif name == 'right_finger_a':
-                current_joint_positions.append(gripper_statuses['right'].finger_a_status.position)
-            elif name == 'right_finger_b':
-                current_joint_positions.append(gripper_statuses['right'].finger_b_status.position)
-            elif name == 'right_finger_c':
-                current_joint_positions.append(gripper_statuses['right'].finger_c_status.position)
-            elif name == 'right_scissor':
-                current_joint_positions.append(gripper_statuses['right'].scissor_status.position)
-            else:
-                raise ValueError(f"Could not get joint {name}")
-
-        # try looking at the status messages
-        return current_joint_positions
+        position_of_joint = self.get_joint_positions_map()
+        return [position_of_joint[name] for name in joint_names]
 
     def get_right_gripper_command_pub(self):
         return self.right_gripper_command_pub
@@ -405,6 +339,7 @@ class BaseVictor(DualArmRobot):
 
 # TODO: undo this multiple inheritance and use composition
 class Victor(BaseVictor, MoveitEnabledRobot):
+    trajectory_delay_in_s_before_log = 0.1
 
     def __init__(self, robot_namespace: str = 'victor', force_trigger: float = -0.0):
         MoveitEnabledRobot.__init__(self,
@@ -420,33 +355,70 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         self.polly_pub = rospy.Publisher("/polly", String, queue_size=10)
         self.use_force_trigger = force_trigger >= 0
         self.force_trigger = force_trigger
+        self.feedback_callbacks.append(self._log_trajectory_goal_not_reached)
 
-    def move_to_impedance_switch(self, actually_switch: bool = True):
-        self.plan_to_joint_config("right_arm", right_impedance_switch_config)
-        self.plan_to_joint_config("left_arm", left_impedance_switch_config)
+    def _log_trajectory_goal_not_reached(self, client, goal, feedback: FollowJointTrajectoryFeedback):
+        time_error = (feedback.actual.time_from_start - feedback.desired.time_from_start).secs
+        if time_error > self.trajectory_delay_in_s_before_log:
+            act = np.array(feedback.actual.positions)
+            des = np.array(feedback.desired.positions)
+            error = [(name, err) for name, err in zip(feedback.joint_names, act - des)]
+            error_str = '\n'.join(f"{name}: {err:.2f}" for name, err in error)
+            rospy.logwarn_throttle(0.5, f"Robot is late in reaching goal. Error is:\n{error_str}")
+
+    def set_control_mode(self, control_mode: ControlMode, vel=0.1, **kwargs):
+        super().set_control_mode(control_mode, vel, **kwargs)
+        self.max_velocity_scale_factor = vel
+
+    def move_to_impedance_switch(self, actually_switch: bool = True, new_relative_velocity=0.1):
+        self.move_to("impedance switch")
         if actually_switch:
-            return self.set_control_mode(ControlMode.JOINT_IMPEDANCE)
+            return self.set_control_mode(ControlMode.JOINT_IMPEDANCE, vel=new_relative_velocity)
         return True
 
+    def move_to(self, position_name: str):
+        if position_name not in NAMED_POSITIONS:
+            raise ValueError(f'{position_name} is not a known position for victor')
+
+        position = NAMED_POSITIONS[position_name]
+        if "left_arm" in position and "right_arm" in position:
+            self.plan_to_joint_config("both_arms", self.both_arm_config(left_arm_config=position["left_arm"],
+                                                                        right_arm_config=position["right_arm"]))
+
+        else:
+            for joint_group, configs in position.items():
+                self.plan_to_joint_config(joint_group, configs)
+
+    def move_to_config(self, joint_group, configs):
+        _, res, _ = self.plan_to_joint_config(joint_group, configs)
+        if res.error_code != FollowJointTrajectoryResult.SUCCESSFUL:
+            rospy.logwarn("Failed to move to config: ")
+            raise Exception(f"Failed to move to config: {res.error_string}")
+
+    @staticmethod
+    def both_arm_config(left_arm_config, right_arm_config):
+        assert len(left_arm_config) == 7, "Left arm config must be length 7"
+        assert len(right_arm_config) == 7, "Right arm config must be length 7"
+        return left_arm_config + right_arm_config
+
     def get_right_gripper_joints(self):
-        return right_gripper_joints
+        return RIGHT_GRIPPER_JOINT_NAMES
 
     def get_left_gripper_joints(self):
-        return left_gripper_joints
+        return LEFT_GRIPPER_JOINT_NAMES
 
-    def get_joint_positions(self, joint_names: Optional[List[str]] = None):
-        return self.get_joint_positions(joint_names)
+    # def get_joint_positions(self, joint_names: Optional[List[str]] = None):
+    #     return self.get_joint_positions(joint_names)
 
     def speak(self, message: str):
-        msg = String()
-        msg.data = message
-        self.polly_pub.publish(msg)
+        rospy.loginfo(f"Victor says: {message}")
+        self.polly_pub.publish(String(data=message))
 
     def get_right_arm_joints(self):
-        return right_arm_joints
+        return RIGHT_ARM_JOINT_NAMES
 
     def get_left_arm_joints(self):
-        return left_arm_joints
+        return LEFT_ARM_JOINT_NAMES
 
     def follow_joint_trajectory_feedback_cb(self,
                                             client: SimpleActionClient,
@@ -455,7 +427,54 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         for feedback_callback in self.feedback_callbacks:
             feedback_callback(client, goal, feedback)
 
-    def get_force_norm(self, status: MotionStatus):
+    def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
+        goal = FollowJointTrajectoryGoal(trajectory=trajectory,
+                                         goal_time_tolerance=rospy.Duration(nsecs=500_000_000))
+        goal.trajectory.header.stamp = rospy.Time.now()
+
+        def kuka_limits_list_to_map(limits):
+            assert len(limits) == 7, "Kuka limits must be length 7"
+            return {n: val for n, val in zip(LEFT_ARM_JOINT_NAMES + RIGHT_ARM_JOINT_NAMES, limits*2)}
+
+        min_position_path_tol_of = kuka_limits_list_to_map(KUKA_MIN_PATH_JOINT_POSITION_TOLERANCE)
+        full_speed_position_path_tol_of = kuka_limits_list_to_map(KUKA_FULL_SPEED_PATH_JOINT_POSITION_TOLERANCE)
+        position_goal_tol_of = kuka_limits_list_to_map(KUKA_GOAL_JOINT_POSITION_TOLERANCE)
+
+        min_impedance_path_tol_of = kuka_limits_list_to_map(KUKA_MIN_PATH_JOINT_IMPEDANCE_TOLERANCE)
+        full_speed_impedance_path_tol_of = kuka_limits_list_to_map(KUKA_FULL_SPEED_PATH_JOINT_IMPEDANCE_TOLERANCE)
+        impedance_goal_tol_of = kuka_limits_list_to_map(KUKA_GOAL_JOINT_IMPEDANCE_TOLERANCE)
+
+        vel_fraction = self.max_velocity_scale_factor
+        assert 0 <= vel_fraction <= 1, "Invalid velocity command"
+
+        def path_tol(joint_name):
+            control_mode = self.get_control_mode_for_joint(joint_name).mode
+            if control_mode == ControlMode.JOINT_POSITION or control_mode == ControlMode.CARTESIAN_POSE:
+                tol = max(vel_fraction * full_speed_position_path_tol_of[joint_name],
+                          min_position_path_tol_of[joint_name])
+                return make_joint_tolerance(tol, joint_name)
+            if control_mode == ControlMode.JOINT_IMPEDANCE or control_mode == ControlMode.CARTESIAN_IMPEDANCE:
+                tol = max(vel_fraction * full_speed_impedance_path_tol_of[joint_name],
+                          min_impedance_path_tol_of[joint_name])
+                return make_joint_tolerance(tol, joint_name)
+            return make_joint_tolerance(0.1, joint_name)
+
+        def goal_tol(joint_name):
+            control_mode = self.get_control_mode_for_joint(joint_name).mode
+            if control_mode == ControlMode.JOINT_POSITION or control_mode == ControlMode.CARTESIAN_POSE:
+                tol = position_goal_tol_of[joint_name]
+                return make_joint_tolerance(tol, joint_name)
+            if control_mode == ControlMode.JOINT_IMPEDANCE or control_mode == ControlMode.CARTESIAN_IMPEDANCE:
+                tol = impedance_goal_tol_of[joint_name]
+                return make_joint_tolerance(tol, joint_name)
+            return make_joint_tolerance(0.05, joint_name)
+
+        goal.path_tolerance = [path_tol(n) for n in trajectory.joint_names]
+        goal.goal_tolerance = [goal_tol(n) for n in trajectory.joint_names]
+        return goal
+
+    @staticmethod
+    def get_force_norm(status: MotionStatus):
         f = np.array([status.estimated_external_wrench.x,
                       status.estimated_external_wrench.y,
                       status.estimated_external_wrench.z])
