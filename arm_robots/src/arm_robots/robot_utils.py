@@ -85,8 +85,14 @@ def _interpolate_joint_trajectory_points_positions(points: List[JointTrajectoryP
     return interpolated_points
 
 
-def interpolate_joint_trajectory_points(points: List[JointTrajectoryPoint], max_step_size: float) \
+def interpolate_joint_trajectory_points(points: Sequence[JointTrajectoryPoint], max_step_size: float) \
         -> List[JointTrajectoryPoint]:
+    """
+    Interpolates between positions in points and recalculates velocities using point times,
+    assuming 0-velocity endpoints.
+
+    All original velocity values (if present) are discarded. Acceleration limits are not enforced.
+    """
     interpolated_points = _interpolate_joint_trajectory_points_positions(points, max_step_size)
     interpolated_points[0].velocities = [0.0] * len(interpolated_points[0].positions)
     interpolated_points[-1].velocities = [0.0] * len(interpolated_points[-1].positions)
