@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import collections
-from typing import List, Dict, Tuple, Optional, Sequence
+from typing import List, Dict, Tuple, Sequence
 
 import numpy as np
 from colorama import Fore
@@ -21,7 +21,7 @@ from arm_robots.robot import MoveitEnabledRobot
 from arm_robots.robot_utils import make_joint_tolerance
 from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal, FollowJointTrajectoryResult
 from moveit_msgs.msg import DisplayRobotState
-from std_msgs.msg import String, Float32, Header
+from std_msgs.msg import String, Float32
 from trajectory_msgs.msg import JointTrajectoryPoint
 from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list, \
     default_gripper_command, gripper_status_to_list
@@ -65,10 +65,10 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
         return [joint_position_of[name] for name in joint_ordering]
 
     positions_by_interface = {
-        'right_arm': fill_using(RIGHT_ARM_JOINT_NAMES),
-        'left_arm': fill_using(LEFT_ARM_JOINT_NAMES),
+        'right_arm':     fill_using(RIGHT_ARM_JOINT_NAMES),
+        'left_arm':      fill_using(LEFT_ARM_JOINT_NAMES),
         'right_gripper': fill_using(RIGHT_GRIPPER_JOINT_NAMES),
-        'left_gripper': fill_using(LEFT_GRIPPER_JOINT_NAMES),
+        'left_gripper':  fill_using(LEFT_GRIPPER_JOINT_NAMES),
     }
     # set equality ignores order
 
@@ -141,6 +141,7 @@ class BaseVictor(DualArmRobot):
 
         def trunc(values, decs=0):
             return np.trunc(values * 10 ** decs) / (10 ** decs)
+
         velocities = trunc(np.array(velocities), 3)  # Kuka does not like sending small but non-zero velocity commands
         # FIXME: what if we allow the BaseRobot class to use moveit, but just don't have it require that
         # any actions are running?
@@ -162,7 +163,7 @@ class BaseVictor(DualArmRobot):
         command_pub.publish(cmd)
 
     def get_gripper_statuses(self):
-        return {'left': self.get_left_gripper_status(),
+        return {'left':  self.get_left_gripper_status(),
                 'right': self.get_right_gripper_status()}
 
     def get_right_gripper_status(self) -> Robotiq3FingerStatus:
@@ -187,7 +188,7 @@ class BaseVictor(DualArmRobot):
         return finger_a_closed and finger_b_closed and finger_c_closed
 
     def get_arms_statuses(self):
-        return {'left': self.get_left_arm_status(),
+        return {'left':  self.get_left_arm_status(),
                 'right': self.get_right_arm_status()}
 
     def get_right_arm_status(self) -> MotionStatus:
@@ -285,7 +286,7 @@ class BaseVictor(DualArmRobot):
         desired_right_pose.position.z += delta_positions['right'].z
 
         poses = {
-            'left': desired_left_pose,
+            'left':  desired_left_pose,
             'right': desired_right_pose,
         }
         self.send_cartesian_command(poses)
@@ -430,11 +431,10 @@ class Victor(BaseVictor, MoveitEnabledRobot):
     def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
         goal = FollowJointTrajectoryGoal(trajectory=trajectory,
                                          goal_time_tolerance=rospy.Duration(nsecs=500_000_000))
-        goal.trajectory.header.stamp = rospy.Time.now()
 
         def kuka_limits_list_to_map(limits):
             assert len(limits) == 7, "Kuka limits must be length 7"
-            return {n: val for n, val in zip(LEFT_ARM_JOINT_NAMES + RIGHT_ARM_JOINT_NAMES, limits*2)}
+            return {n: val for n, val in zip(LEFT_ARM_JOINT_NAMES + RIGHT_ARM_JOINT_NAMES, limits * 2)}
 
         min_position_path_tol_of = kuka_limits_list_to_map(KUKA_MIN_PATH_JOINT_POSITION_TOLERANCE)
         full_speed_position_path_tol_of = kuka_limits_list_to_map(KUKA_FULL_SPEED_PATH_JOINT_POSITION_TOLERANCE)
@@ -447,8 +447,17 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         vel_fraction = self.max_velocity_scale_factor
         assert 0 <= vel_fraction <= 1, "Invalid velocity command"
 
+        control_modes = self.get_control_modes()
+
+        def _get_control_mode_for_joint(joint_name):
+            if joint_name in LEFT_ARM_JOINT_NAMES:
+                return control_modes['left']
+            if joint_name in RIGHT_ARM_JOINT_NAMES:
+                return control_modes['right']
+            return None
+
         def path_tol(joint_name):
-            control_mode = self.get_control_mode_for_joint(joint_name).mode
+            control_mode = _get_control_mode_for_joint(joint_name).mode
             if control_mode == ControlMode.JOINT_POSITION or control_mode == ControlMode.CARTESIAN_POSE:
                 tol = max(vel_fraction * full_speed_position_path_tol_of[joint_name],
                           min_position_path_tol_of[joint_name])
@@ -460,7 +469,7 @@ class Victor(BaseVictor, MoveitEnabledRobot):
             return make_joint_tolerance(0.1, joint_name)
 
         def goal_tol(joint_name):
-            control_mode = self.get_control_mode_for_joint(joint_name).mode
+            control_mode = _get_control_mode_for_joint(joint_name).mode
             if control_mode == ControlMode.JOINT_POSITION or control_mode == ControlMode.CARTESIAN_POSE:
                 tol = position_goal_tol_of[joint_name]
                 return make_joint_tolerance(tol, joint_name)
@@ -471,6 +480,8 @@ class Victor(BaseVictor, MoveitEnabledRobot):
 
         goal.path_tolerance = [path_tol(n) for n in trajectory.joint_names]
         goal.goal_tolerance = [goal_tol(n) for n in trajectory.joint_names]
+
+        goal.trajectory.header.stamp = rospy.Time.now() + rospy.Duration(nsecs=100_000_000)
         return goal
 
     @staticmethod
