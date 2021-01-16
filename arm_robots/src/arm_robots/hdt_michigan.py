@@ -16,8 +16,7 @@ class BaseVal(DualArmRobot):
         pass
 
     def __init__(self, robot_namespace: str):
-        super().__init__(robot_namespace=robot_namespace)
-        rospy.loginfo("Val ready !")
+        DualArmRobot.__init__(self, robot_namespace=robot_namespace)
 
 
 def make_joint_group_command(command):
@@ -47,14 +46,15 @@ right_arm_joints = [
 
 
 class Val(BaseVal, MoveitEnabledRobot):
-    def __init__(self, robot_namespace: str = 'val'):
-        self.base_val = BaseVal(robot_namespace)
-        super().__init__(robot_namespace=robot_namespace,
-                         arms_controller_name='both_arms_trajectory_controller',
-                         left_gripper_controller_name='left_gripper_controller',
-                         right_gripper_controller_name='right_gripper_controller',
-                         )
-        rospy.loginfo(Fore.GREEN + "Val ready!")
+    def __init__(self, robot_namespace: str = 'hdt_michigan'):
+        MoveitEnabledRobot.__init__(self,
+                                    robot_namespace=robot_namespace,
+                                    arms_controller_name='both_arms_trajectory_controller')
+        BaseVal.__init__(self, robot_namespace=robot_namespace)
+        self.left_arm_group = 'left_arm'
+        self.right_arm_group = 'right_arm'
+        self.left_tool_name = 'left_tool'
+        self.right_tool_name = 'right_tool'
 
     def get_right_gripper_joints(self):
         return ['rightgripper', 'rightgripper2']
@@ -74,3 +74,6 @@ class Val(BaseVal, MoveitEnabledRobot):
     def get_left_arm_joints(self):
         return left_arm_joints
 
+    def connect(self):
+        super().connect()
+        rospy.loginfo(Fore.GREEN + "Val ready!")
