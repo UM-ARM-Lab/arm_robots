@@ -24,6 +24,7 @@ def make_joint_group_command(command):
     msg.data = command
     return msg
 
+
 left_arm_joints = [
     'joint_1',
     'joint_2',
@@ -46,6 +47,9 @@ right_arm_joints = [
 
 
 class Val(BaseVal, MoveitEnabledRobot):
+    gripper_open_position = 0.5
+    gripper_closed_position = 0.0
+
     def __init__(self, robot_namespace: str = 'hdt_michigan'):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
@@ -62,11 +66,29 @@ class Val(BaseVal, MoveitEnabledRobot):
     def get_left_gripper_joints(self):
         return ['leftgripper', 'leftgripper2']
 
-    def get_gripper_closed_positions(self):
-        return [0, 0]
+    def set_left_gripper(self, position):
+        move_group = self.get_move_group_commander('left_gripper')
+        move_group.set_joint_value_target({'leftgripper_joint': position})
+        plan = move_group.plan()[1]
+        return self.follow_arms_joint_trajectory(plan.joint_trajectory)
 
-    def get_gripper_open_positions(self):
-        return [0.5, 0.5]
+    def set_right_gripper(self, position):
+        move_group = self.get_move_group_commander('right_gripper')
+        move_group.set_joint_value_target({'rightgripper_joint': position})
+        plan = move_group.plan()[1]
+        return self.follow_arms_joint_trajectory(plan.joint_trajectory)
+
+    def open_left_gripper(self):
+        return self.set_left_gripper(self.gripper_open_position)
+
+    def open_right_gripper(self):
+        return self.set_right_gripper(self.gripper_open_position)
+
+    def close_left_gripper(self):
+        return self.set_left_gripper(self.gripper_closed_position)
+
+    def close_right_gripper(self):
+        return self.set_right_gripper(self.gripper_closed_position)
 
     def get_right_arm_joints(self):
         return right_arm_joints

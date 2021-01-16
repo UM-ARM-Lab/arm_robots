@@ -39,11 +39,15 @@ def main():
 
     print("press enter if prompted")
 
-    # # Plan to joint config
+    # Plan to joint config
     myinput("Plan to joint config?")
     victor.plan_to_joint_config(victor.right_arm_group, [0.35, 1, 0.2, -1, 0.2, -1, 0])
-    #
-    # # Plan to pose
+
+    # Plan to joint config by a named group_state
+    myinput("Plan to joint config?")
+    victor.plan_to_joint_config('both_arms', 'home')
+
+    # Plan to pose
     myinput("Plan to pose 1?")
     victor.plan_to_pose(victor.right_arm_group, victor.right_tool_name, [0.6, -0.2, 1.0, 4, 1, 0])
 

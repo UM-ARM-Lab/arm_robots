@@ -198,9 +198,24 @@ class MoveitEnabledRobot(DualArmRobot):
         left_end_effector_pose_stamped = move_group.get_current_pose()
         return left_end_effector_pose_stamped.pose
 
-    def plan_to_joint_config(self, group_name: str, joint_config):
+    def plan_to_joint_config(self, group_name: str, joint_config: Union[List, Dict, str]):
+        """
+        Args:
+            group_name: group name, defined in the SRDF
+            joint_config: Either a dictionary of joint_name: joint value,
+             or a string for the group_state defined in the SRDF. You can technically use a list
+             here instead of a dict but you need to provide all joints in the right order,
+             which is hard to get right and gives bad error messages
+
+        Returns:
+            The result message of following the trajectory
+        """
         move_group = self.get_move_group_commander(group_name)
-        move_group.set_joint_value_target(list(joint_config))
+        if isinstance(joint_config, str):
+            joint_config = move_group.get_named_target_values(joint_config)
+            move_group.set_joint_value_target(joint_config)
+        else:
+            move_group.set_joint_value_target(joint_config)
         planning_result = PlanningResult(move_group.plan())
         execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory)
         return PlanningAndExecutionResult(planning_result, execution_result)

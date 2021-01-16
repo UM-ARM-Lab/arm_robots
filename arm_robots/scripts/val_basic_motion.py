@@ -3,11 +3,14 @@ import colorama
 import numpy as np
 import roscpp_initializer
 
+import rospy
 from arc_utilities.ros_init import rospy_and_cpp_init
 from arm_robots.hdt_michigan import Val
+from geometry_msgs.msg import Pose
 from rospy import rosconsole
+from tf.transformations import quaternion_from_euler
 
-ask_before_moving = False
+ask_before_moving = True
 
 
 def myinput(msg):
@@ -25,24 +28,21 @@ def main():
     val = Val()
     val.connect()
 
-    l = rosconsole.LoggerLevelServiceCaller()
-    loggers = l.get_loggers('cpp_basic_motion')
-
-    # # rospy.sleep(1)
-    # # victor.open_left_gripper()
-    # # rospy.sleep(2)
-    # # victor.close_left_gripper()
-    # # rospy.sleep(2)
-    # # victor.open_right_gripper()
-    # # rospy.sleep(2)
-    # # victor.close_right_gripper()
-    # # rospy.sleep(2)
+    rospy.sleep(1)
+    val.open_left_gripper()
+    rospy.sleep(2)
+    val.close_left_gripper()
+    rospy.sleep(2)
+    val.open_right_gripper()
+    rospy.sleep(2)
+    val.close_right_gripper()
+    rospy.sleep(2)
 
     print("press enter if prompted")
 
     # Plan to joint config
-    myinput("Plan to joint config?")
-    val.plan_to_joint_config(val.right_arm_group, [0.0, 0, 0, 0, 0, 0, 0])
+    myinput("Plan to home joint config?")
+    val.plan_to_joint_config('both_arms', 'both_arms')
 
     # s = rospy.ServiceProxy("hdt_michigan/plan_kinematic_path", GetMotionPlan)
     # req = GetMotionPlanRequest()
@@ -57,23 +57,23 @@ def main():
     # req.motion_plan_request.group_name = 'both_arms'
     # s(req)
 
-    # # Plan to pose
-    # myinput("Plan to pose 1?")
-    # val.plan_to_pose('both_arms', val.right_tool_name, [0.3, 0.8, 0.5, -np.pi / 2, np.pi / 2, 0])
+    # Plan to pose
+    myinput("Plan to pose 1?")
+    val.plan_to_pose(val.right_arm_group, val.right_tool_name, [0.3, 0.8, 0.5, -np.pi / 2, np.pi / 2, 0])
 
     # # Or you can use a geometry msgs Pose
-    # myinput("Plan to pose 2?")
-    # pose = Pose()
-    # pose.position.x = 0.7
-    # pose.position.y = -0.2
-    # pose.position.z = 1.0
-    # q = quaternion_from_euler(np.pi, 0, 0)
-    # pose.orientation.x = q[0]
-    # pose.orientation.y = q[1]
-    # pose.orientation.z = q[2]
-    # pose.orientation.w = q[3]
-    # val.plan_to_pose(val.right_arm_group, val.right_tool_name, pose)
-    #
+    myinput("Plan to pose 2?")
+    pose = Pose()
+    pose.position.x = 0.2
+    pose.position.y = 0.5
+    pose.position.z = 0.1
+    q = quaternion_from_euler(-np.pi, 0, 0)
+    pose.orientation.x = q[0]
+    pose.orientation.y = q[1]
+    pose.orientation.z = q[2]
+    pose.orientation.w = q[3]
+    val.plan_to_pose(val.right_arm_group, val.right_tool_name, pose)
+
     # # # Or with cartesian planning
     # myinput("Cartersian motion back to pose 3?")
     # val.plan_to_position_cartesian(val.right_arm_group, val.right_tool_name, [0.9, -0.4, 0.9], step_size=0.01)
