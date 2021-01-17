@@ -480,8 +480,6 @@ class Victor(BaseVictor, MoveitEnabledRobot):
 
         goal.path_tolerance = [path_tol(n) for n in trajectory.joint_names]
         goal.goal_tolerance = [goal_tol(n) for n in trajectory.joint_names]
-
-        goal.trajectory.header.stamp = rospy.Time.now() + rospy.Duration(nsecs=100_000_000)
         return goal
 
     @staticmethod
