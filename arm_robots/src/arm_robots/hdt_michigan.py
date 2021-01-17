@@ -55,6 +55,7 @@ class Val(BaseVal, MoveitEnabledRobot):
                                     robot_namespace=robot_namespace,
                                     arms_controller_name='both_arms_trajectory_controller')
         BaseVal.__init__(self, robot_namespace=robot_namespace)
+        self.max_velocity_scale_factor = 1.0
         self.left_arm_group = 'left_arm'
         self.right_arm_group = 'right_arm'
         self.left_tool_name = 'left_tool'
