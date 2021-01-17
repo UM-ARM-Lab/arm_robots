@@ -80,7 +80,6 @@ def set_move_group_log_level(event):
 
 
 class MoveitEnabledRobot(DualArmRobot):
-    max_velocity_scale_factor = 0.1
 
     def __init__(self,
                  robot_namespace: str,
@@ -89,6 +88,7 @@ class MoveitEnabledRobot(DualArmRobot):
                  block: bool = True,
                  force_trigger: float = 9.0):
         super().__init__(robot_namespace)
+        self.max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.execute = execute
         self.block = block
