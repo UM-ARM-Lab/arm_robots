@@ -90,6 +90,7 @@ class DualArmRobot:
         self.right_gripper_command_pub.publish(self.get_close_gripper_msg())
 
     def get_close_gripper_msg(self):
+        # FIXME: this is a bad abstraction, not all grippers work like this
         raise NotImplementedError()
 
     def get_open_gripper_msg(self):
