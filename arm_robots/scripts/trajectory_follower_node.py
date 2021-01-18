@@ -23,8 +23,8 @@ def main():
 
     if args.robot_name == "victor":
         base_robot = BaseVictor(args.robot_name)
-    elif args.robot_name == "val":
-        base_robot = BaseVal(args.robot_name)
+    elif args.robot_name == "val" or args.robot_name == "hdt_michigan":
+        base_robot = BaseVal('hdt_michigan')
     else:
         raise NotImplementedError(f"Invalid robot name {args.robot_name}")
     fwd = TrajectoryFollower(base_robot, args.controller_name)
