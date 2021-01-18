@@ -19,13 +19,13 @@ DEFAULT_GOAL_TOLERANCE_POSITION = 0.1
 LAG_IN_S = 0.07
 
 
-def get_ordered_tolerance_list(joint_names, tolerance: Sequence[JointTolerance], is_goal: bool = False) -> List[float]:
+def get_ordered_tolerance_list(joint_names, tolerance: Sequence[JointTolerance], is_goal: bool = False):
     def default_tolerance():
         tol = 0.01 if is_goal else 0.1
         rospy.logwarn_throttle(1, f"using default path tolerance {tol}")
         return tol
 
-    tolerance_of = defaultdict(lambda: default_tolerance)
+    tolerance_of = defaultdict(default_tolerance)
     tolerance_of.update({t.name: t.position for t in tolerance})
     return [tolerance_of[name] for name in joint_names]
 

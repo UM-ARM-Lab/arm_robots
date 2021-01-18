@@ -14,9 +14,9 @@
     </group>
   </group>
 
-  <group ns="hdt_michigan" if="$(arg use_val)">
+  <group if="$(arg use_val)">
     <!-- add grippers / controller names -->
-    <node pkg="arm_robots" type="trajectory_follower.py" name="victor_trajectory_follower" args="_robot:=val"/>
+    <node pkg="arm_robots" type="trajectory_follower_node.py" name="val_trajectory_follower" args="hdt_michigan both_arms_trajectory_controller"/>
     <group ns="static_transform_publishers">
       <node pkg="tf2_ros" type="static_transform_publisher" name="active_robot_root_broadcaster" required="true"
             args="0 0 0 0 0 0 val_root robot_root">
