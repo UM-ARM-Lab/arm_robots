@@ -5,7 +5,7 @@ from arm_robots.hdt_michigan import Val
 from arm_robots.victor import Victor
 
 
-def get_moveit_robot(robot_namespace: Optional[str] = None):
+def get_moveit_robot(robot_namespace: Optional[str] = None, **kwargs):
     default = 'victor'
     if robot_namespace is None:
         if rospy.has_param("robot_namespace"):
@@ -17,8 +17,8 @@ def get_moveit_robot(robot_namespace: Optional[str] = None):
             robot_namespace = default
 
     if robot_namespace == 'victor':
-        return Victor(robot_namespace)
+        return Victor(robot_namespace, **kwargs)
     elif robot_namespace in ['val', 'hdt_michigan']:
-        return Val(robot_namespace)
+        return Val(robot_namespace, **kwargs)
     else:
         raise NotImplementedError(f"robot with namespace {robot_namespace} not implemented")

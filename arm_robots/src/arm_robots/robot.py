@@ -11,7 +11,7 @@ from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg
 from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningResult, PlanningAndExecutionResult, \
-    ExecutionResult
+    ExecutionResult, is_empty_trajectory
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
 from geometry_msgs.msg import Point, Pose, Quaternion
@@ -184,7 +184,7 @@ class MoveitEnabledRobot(DualArmRobot):
                                 trajectory: JointTrajectory,
                                 client: SimpleActionClient,
                                 stop_condition: Optional[Callable] = None):
-        if len(trajectory.points) == 0:
+        if is_empty_trajectory(trajectory):
             rospy.logdebug(f"ignoring empty trajectory")
             result = FollowJointTrajectoryResult()
             result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
@@ -209,7 +209,7 @@ class MoveitEnabledRobot(DualArmRobot):
             if self.block:
                 client.wait_for_result()
                 result = client.get_result()
-            if self.raise_on_failure and result != FollowJointTrajectoryResult.SUCCESSFUL:
+            if self.raise_on_failure and result.error_code != FollowJointTrajectoryResult.SUCCESSFUL:
                 raise RuntimeError(f"Follow Joint Trajectory Failed: ({result.error_code}) {result.error_string}")
 
         return ExecutionResult(trajectory=trajectory,
