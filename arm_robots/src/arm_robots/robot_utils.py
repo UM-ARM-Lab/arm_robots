@@ -35,7 +35,7 @@ def get_ordered_tolerance_list(joint_names, tolerance: Sequence[JointTolerance],
 
 def make_joint_tolerance(position_tolerance, name):
     return JointTolerance(position=position_tolerance,
-                          velocity=1,
+                          velocity=2,
                           acceleration=100,  # high because if we bump the arm, the controller will abort unnecessarily
                           name=name)
 

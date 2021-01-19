@@ -1,13 +1,10 @@
 #! /usr/bin/env python
 import colorama
 import numpy as np
-import roscpp_initializer
 
-import rospy
 from arc_utilities.ros_init import rospy_and_cpp_init
 from arm_robots.hdt_michigan import Val
 from geometry_msgs.msg import Pose
-from rospy import rosconsole
 from tf.transformations import quaternion_from_euler
 
 ask_before_moving = True
@@ -25,24 +22,24 @@ def main():
 
     rospy_and_cpp_init("basic_motion")
 
-    val = Val()
+    val = Val(raise_on_failure=True)
     val.connect()
 
-    rospy.sleep(1)
-    val.open_left_gripper()
-    rospy.sleep(2)
-    val.close_left_gripper()
-    rospy.sleep(2)
-    val.open_right_gripper()
-    rospy.sleep(2)
-    val.close_right_gripper()
-    rospy.sleep(2)
+    # rospy.sleep(1)
+    # val.open_left_gripper()
+    # rospy.sleep(2)
+    # val.close_left_gripper()
+    # rospy.sleep(2)
+    # val.open_right_gripper()
+    # rospy.sleep(2)
+    # val.close_right_gripper()
+    # rospy.sleep(2)
 
     print("press enter if prompted")
 
     # Plan to joint config
-    myinput("Plan to home joint config?")
-    val.plan_to_joint_config('both_arms', 'both_arms')
+    # myinput("Plan to home joint config?")
+    val.plan_to_joint_config('both_arms', 'home')
 
     # s = rospy.ServiceProxy("hdt_michigan/plan_kinematic_path", GetMotionPlan)
     # req = GetMotionPlanRequest()
@@ -58,11 +55,11 @@ def main():
     # s(req)
 
     # Plan to pose
-    myinput("Plan to pose 1?")
-    val.plan_to_pose(val.right_arm_group, val.right_tool_name, [0.3, 0.8, 0.5, -np.pi / 2, np.pi / 2, 0])
-
-    # # Or you can use a geometry msgs Pose
-    myinput("Plan to pose 2?")
+    # myinput("Plan to pose 1?")
+    # val.plan_to_pose(val.right_arm_group, val.right_tool_name, [0.3, 0.8, 0.5, -np.pi / 2, np.pi / 2, 0])
+    #
+    # # # Or you can use a geometry msgs Pose
+    # myinput("Plan to pose 2?")
     pose = Pose()
     pose.position.x = 0.2
     pose.position.y = 0.5
@@ -75,15 +72,24 @@ def main():
     val.plan_to_pose(val.right_arm_group, val.right_tool_name, pose)
 
     # # # Or with cartesian planning
-    # myinput("Cartersian motion back to pose 3?")
+    # myinput("Cartesian motion back to pose 3?")
     # val.plan_to_position_cartesian(val.right_arm_group, val.right_tool_name, [0.9, -0.4, 0.9], step_size=0.01)
     # val.plan_to_position_cartesian(val.right_arm_group, val.right_tool_name, [0.7, -0.4, 0.9], step_size=0.01)
     #
     # Move hand straight works either with jacobian following
-    myinput("Follow jacobian to pose 2?")
+    # myinput("Follow jacobian to pose 2?")
     val.store_current_tool_orientations([val.right_tool_name])
-    val.follow_jacobian_to_position('both_arms', [val.right_tool_name], [[[0.3, 0.9, 0.4]]], vel_scaling=1.0)
-    roscpp_initializer.shutdown()
+
+    j = [-0.0208909590972981, 0.30571615955042386, 2.2035334724890276e-05, -1.1273044151494105e-06, 8.6424966716514e-05,
+         -5.286047277053285e-05, -7.785048456954158e-05, -3.908594273838162e-05, -5.34043457358635e-05,
+         6.017180012007534, -2.528550200283428, -1.4580031505310607, -0.47424552142509757, 2.929741212951332,
+         1.5706280249196416, 3.9696152804865275]
+    p = [0, 0, 0]
+    for i in range(10):
+        val.plan_to_joint_config('both_arms', j)
+        val.follow_jacobian_to_position('both_arms', [val.right_tool_name], [[p]], vel_scaling=1.0)
+        val.plan_to_joint_config('both_arms', 'home')
+        val.plan_to_pose(val.right_arm_group, val.right_tool_name, pose)
 
 
 if __name__ == "__main__":

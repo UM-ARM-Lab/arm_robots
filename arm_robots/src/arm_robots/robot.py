@@ -167,7 +167,10 @@ class MoveitEnabledRobot(DualArmRobot):
         """
         move_group = self.get_move_group_commander(group_name)
         if isinstance(joint_config, str):
-            joint_config = move_group.get_named_target_values(joint_config)
+            joint_config_name = joint_config
+            joint_config = move_group.get_named_target_values(joint_config_name)
+            if len(joint_config) == 0:
+                raise ValueError(f"No group state named {joint_config_name}")
             move_group.set_joint_value_target(joint_config)
         else:
             move_group.set_joint_value_target(joint_config)
