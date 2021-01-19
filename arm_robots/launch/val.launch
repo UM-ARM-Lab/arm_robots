@@ -4,7 +4,7 @@
     <arg name="gui" default="true"/>
     <arg name="update_description" default="true"/>
     <arg name="verbose" default="false"/>
-    <arg name="world_name" default="$(find arm_robots)/world/victor_table_and_walls.world"/>
+    <arg name="world_name" default="$(find arm_robots)/world/val_walls.world"/>
 
     <group ns="static_transform_publishers">
         <node pkg="tf2_ros" type="static_transform_publisher" name="rename_origin" required="true"
