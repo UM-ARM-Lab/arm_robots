@@ -1,13 +1,16 @@
 #! /usr/bin/env python
 import itertools
 from collections import defaultdict
-from typing import List, Sequence
+from dataclasses import dataclass
+from typing import List, Sequence, Optional, Tuple
 
 import numpy as np
 from more_itertools import pairwise
 
 import rospy
-from control_msgs.msg import JointTolerance, FollowJointTrajectoryGoal
+from control_msgs.msg import JointTolerance, FollowJointTrajectoryGoal, FollowJointTrajectoryResult
+from moveit_msgs.msg import RobotTrajectory, MoveItErrorCodes
+from rospy.logger_level_service_caller import LoggerLevelServiceCaller
 from trajectory_msgs.msg import JointTrajectoryPoint, JointTrajectory
 
 # These may be different because by making path tolerance larger,
@@ -111,3 +114,55 @@ def make_follow_joint_trajectory_goal(trajectory: JointTrajectory) -> FollowJoin
     goal.goal_tolerance = [make_joint_tolerance(0.02, n) for n in trajectory.joint_names]
     goal.goal_time_tolerance = rospy.Duration(nsecs=500_000_000)
     return goal
+
+
+@dataclass
+class ExecutionResult:
+    trajectory: Optional[JointTrajectory]
+    execution_result: Optional[FollowJointTrajectoryResult]
+    action_client_state: int
+    success: bool
+
+
+class PlanningResult:
+
+    def __init__(self,
+                 move_group_plan_tuple: Optional[Tuple[bool, RobotTrajectory, float, MoveItErrorCodes]] = None,
+                 success: Optional[bool] = None,
+                 plan: Optional[RobotTrajectory] = None,
+                 planning_time: Optional[float] = None,
+                 planning_error_code: Optional[int] = None,
+                 ):
+        if move_group_plan_tuple is not None:
+            self.success = move_group_plan_tuple[0]
+            self.plan = move_group_plan_tuple[1]
+            self.planning_time = move_group_plan_tuple[2]
+            self.planning_error_code = move_group_plan_tuple[3]
+        else:
+            self.success = success
+            self.plan = plan
+            self.planning_time = planning_time
+            self.planning_error_code = planning_error_code
+
+
+class PlanningAndExecutionResult:
+    def __init__(self, planning_result: PlanningResult, execution_result: ExecutionResult):
+        self.planning_result = planning_result
+        self.execution_result = execution_result
+        self.success = planning_result.success or execution_result.success
+
+
+def set_move_group_log_level(event):
+    # Up the logging level for MoveGroupInterface because it's annoying
+    log_level = LoggerLevelServiceCaller()
+    node_name = "cpp_" + rospy.get_name().strip("/")
+    logger_name = "ros.moveit_ros_planning_interface.move_group_interface"
+    node_names = log_level.get_node_names()
+    if node_name in node_names:
+        loggers = log_level.get_loggers(node_name)
+        if logger_name in loggers:
+            try:
+                success = log_level.send_logger_change_message(node_name, logger_name, "WARN")
+                rospy.logdebug_once(f"status of changing move_group_interface logger level: {success}")
+            except Exception:
+                pass
