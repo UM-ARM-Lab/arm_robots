@@ -166,3 +166,11 @@ def set_move_group_log_level(event):
                 rospy.logdebug_once(f"status of changing move_group_interface logger level: {success}")
             except Exception:
                 pass
+
+
+def is_empty_trajectory(trajectory: JointTrajectory):
+    if len(trajectory.points) == 0:
+        return True
+    elif len(trajectory.points) == 1 and trajectory.points[0].time_from_start == rospy.Duration(0):
+        return True
+    return False

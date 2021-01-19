@@ -342,10 +342,11 @@ class BaseVictor(DualArmRobot):
 class Victor(BaseVictor, MoveitEnabledRobot):
     trajectory_delay_in_s_before_log = 0.1
 
-    def __init__(self, robot_namespace: str = 'victor', force_trigger: float = -0.0):
+    def __init__(self, robot_namespace: str = 'victor', force_trigger: float = -0.0, **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
-                                    arms_controller_name='both_arms_trajectory_controller')
+                                    arms_controller_name='both_arms_trajectory_controller',
+                                    **kwargs)
         BaseVictor.__init__(self, robot_namespace=robot_namespace)
         self.left_arm_group = 'left_arm'
         self.right_arm_group = 'right_arm'

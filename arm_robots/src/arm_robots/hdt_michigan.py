@@ -48,12 +48,13 @@ right_arm_joints = [
 
 class Val(BaseVal, MoveitEnabledRobot):
     gripper_open_position = 0.5
-    gripper_closed_position = 0.0
+    gripper_closed_position = 0.2
 
-    def __init__(self, robot_namespace: str = 'hdt_michigan'):
+    def __init__(self, robot_namespace: str = 'hdt_michigan', **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
-                                    arms_controller_name='both_arms_trajectory_controller')
+                                    arms_controller_name='both_arms_trajectory_controller',
+                                    **kwargs)
         BaseVal.__init__(self, robot_namespace=robot_namespace)
         self.max_velocity_scale_factor = 1.0
         self.left_arm_group = 'left_arm'
@@ -69,13 +70,15 @@ class Val(BaseVal, MoveitEnabledRobot):
 
     def set_left_gripper(self, position):
         move_group = self.get_move_group_commander('left_gripper')
-        move_group.set_joint_value_target({'leftgripper_joint': position})
+        move_group.set_joint_value_target({'leftgripper_joint':  position,
+                                           'leftgripper2_joint': position, })
         plan = move_group.plan()[1]
-        return self.follow_arms_joint_trajectory(plan.joint_trajectory)
+        self.follow_arms_joint_trajectory(plan.joint_trajectory)
 
     def set_right_gripper(self, position):
         move_group = self.get_move_group_commander('right_gripper')
-        move_group.set_joint_value_target({'rightgripper_joint': position})
+        move_group.set_joint_value_target({'rightgripper_joint':  position,
+                                           'rightgripper2_joint': position, })
         plan = move_group.plan()[1]
         return self.follow_arms_joint_trajectory(plan.joint_trajectory)
 
