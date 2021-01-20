@@ -237,10 +237,10 @@ robot_trajectory::RobotTrajectory JacobianFollower::moveInWorldFrame(std::string
     vis_pub_->publish(msg);
   }
 
-  auto const cmd = jacobianPath3d(planning_scene, jmg, tool_names, preferred_tool_orientations, tool_paths);
+  auto const traj = jacobianPath3d(planning_scene, jmg, tool_names, preferred_tool_orientations, tool_paths);
 
   // Debugging - visualize JacobiakIK result tip
-  {
+  if (!traj.empty()) {
     visualization_msgs::MarkerArray msg;
     msg.markers.resize(num_ees);
 
@@ -254,31 +254,31 @@ robot_trajectory::RobotTrajectory JacobianFollower::moveInWorldFrame(std::string
       m.header.stamp = stamp;
       m.action = m.ADD;
       m.type = m.POINTS;
-      m.points.resize(cmd.getWayPointCount());
+      m.points.resize(traj.getWayPointCount());
       m.scale.x = 0.01;
       m.scale.y = 0.01;
-      m.colors.resize(cmd.getWayPointCount());
+      m.colors.resize(traj.getWayPointCount());
     }
 
     auto const start_color = ColorBuilder::MakeFromFloatColors(0, 0, 1, 1);
     auto const end_color = ColorBuilder::MakeFromFloatColors(1, 0, 1, 1);
-    for (size_t step_idx = 0; step_idx < cmd.getWayPointCount(); ++step_idx)
+    for (size_t step_idx = 0; step_idx < traj.getWayPointCount(); ++step_idx)
     {
-      auto const &state = cmd.getWayPoint(step_idx);
+      auto const &state = traj.getWayPoint(step_idx);
       auto const tool_poses = getToolTransforms(tool_names, state);
       for (auto tool_idx = 0ul; tool_idx < num_ees; ++tool_idx)
       {
         auto &m = msg.markers[tool_idx];
         m.points[step_idx] = ConvertTo<gm::Point>(Eigen::Vector3d(tool_poses[tool_idx].translation()));
         auto const ratio =
-            static_cast<float>(step_idx) / static_cast<float>(std::max((cmd.getWayPointCount() - 1), 1ul));
+            static_cast<float>(step_idx) / static_cast<float>(std::max((traj.getWayPointCount() - 1), 1ul));
         m.colors[step_idx] = arc_helpers::InterpolateColor(start_color, end_color, ratio);
       }
     }
     vis_pub_->publish(msg);
   }
 
-  return cmd;
+  return traj;
 }
 
 robot_trajectory::RobotTrajectory
