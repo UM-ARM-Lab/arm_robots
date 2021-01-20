@@ -45,7 +45,7 @@ def main():
 
     # Plan to joint config by a named group_state
     myinput("Plan to joint config?")
-    victor.plan_to_joint_config('both_arms', 'home')
+    victor.plan_to_joint_config('both_arms', 'zero')
 
     # Plan to pose
     myinput("Plan to pose 1?")
@@ -66,8 +66,8 @@ def main():
 
     # # Or with cartesian planning
     myinput("Cartersian motion back to pose 3?")
-    victor.plan_to_position_cartesian(victor.right_arm_group, victor.right_tool_name, [0.9, -0.4, 0.9], step_size=0.01)
-    victor.plan_to_position_cartesian(victor.right_arm_group, victor.right_tool_name, [0.7, -0.4, 0.9], step_size=0.01)
+    # victor.plan_to_position_cartesian(victor.right_arm_group, victor.right_tool_name, [0.9, -0.4, 0.9], step_size=0.01)
+    # victor.plan_to_position_cartesian(victor.right_arm_group, victor.right_tool_name, [0.7, -0.4, 0.9], step_size=0.01)
 
     # Move hand straight works either with jacobian following
     myinput("Follow jacobian to pose 2?")

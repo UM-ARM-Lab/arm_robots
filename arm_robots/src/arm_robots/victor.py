@@ -65,10 +65,10 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
         return [joint_position_of[name] for name in joint_ordering]
 
     positions_by_interface = {
-        'right_arm'    : fill_using(RIGHT_ARM_JOINT_NAMES),
-        'left_arm'     : fill_using(LEFT_ARM_JOINT_NAMES),
+        'right_arm': fill_using(RIGHT_ARM_JOINT_NAMES),
+        'left_arm': fill_using(LEFT_ARM_JOINT_NAMES),
         'right_gripper': fill_using(RIGHT_GRIPPER_JOINT_NAMES),
-        'left_gripper' : fill_using(LEFT_GRIPPER_JOINT_NAMES),
+        'left_gripper': fill_using(LEFT_GRIPPER_JOINT_NAMES),
     }
     # set equality ignores order
 
@@ -143,6 +143,7 @@ class BaseVictor(DualArmRobot):
             return np.trunc(values * 10 ** decs) / (10 ** decs)
 
         velocities = trunc(np.array(velocities), 3)  # Kuka does not like sending small but non-zero velocity commands
+        rospy.logerr(f'{velocities}')
         # FIXME: what if we allow the BaseRobot class to use moveit, but just don't have it require that
         # any actions are running?
         # NOTE: why are these values not checked by the lower-level code? the Java code knows what the joint limits
@@ -163,7 +164,7 @@ class BaseVictor(DualArmRobot):
         command_pub.publish(cmd)
 
     def get_gripper_statuses(self):
-        return {'left' : self.get_left_gripper_status(),
+        return {'left': self.get_left_gripper_status(),
                 'right': self.get_right_gripper_status()}
 
     def get_right_gripper_status(self) -> Robotiq3FingerStatus:
@@ -188,7 +189,7 @@ class BaseVictor(DualArmRobot):
         return finger_a_closed and finger_b_closed and finger_c_closed
 
     def get_arms_statuses(self):
-        return {'left' : self.get_left_arm_status(),
+        return {'left': self.get_left_arm_status(),
                 'right': self.get_right_arm_status()}
 
     def get_right_arm_status(self) -> MotionStatus:
@@ -286,7 +287,7 @@ class BaseVictor(DualArmRobot):
         desired_right_pose.position.z += delta_positions['right'].z
 
         poses = {
-            'left' : desired_left_pose,
+            'left': desired_left_pose,
             'right': desired_right_pose,
         }
         self.send_cartesian_command(poses)
@@ -408,9 +409,6 @@ class Victor(BaseVictor, MoveitEnabledRobot):
 
     def get_left_gripper_joints(self):
         return LEFT_GRIPPER_JOINT_NAMES
-
-    # def get_joint_positions(self, joint_names: Optional[List[str]] = None):
-    #     return self.get_joint_positions(joint_names)
 
     def speak(self, message: str):
         rospy.loginfo(f"Victor says: {message}")

@@ -89,6 +89,22 @@ class DualArmRobot:
     def close_right_gripper(self):
         self.right_gripper_command_pub.publish(self.get_close_gripper_msg())
 
+    def open_gripper(self, name: str):
+        if name == 'right':
+            self.open_right_gripper()
+        elif name == 'left':
+            self.open_left_gripper()
+        else:
+            raise ValueError(f"name = {name} but it must be left or right")
+
+    def close_gripper(self, name: str):
+        if name == 'right':
+            self.close_right_gripper()
+        elif name == 'left':
+            self.close_left_gripper()
+        else:
+            raise ValueError(f"name = {name} but it must be left or right")
+
     def get_close_gripper_msg(self):
         # FIXME: this is a bad abstraction, not all grippers work like this
         raise NotImplementedError()
