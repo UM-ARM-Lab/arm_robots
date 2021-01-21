@@ -1,14 +1,22 @@
 #! /usr/bin/env python
 import collections
-from typing import List, Dict, Tuple, Sequence
-
-import numpy as np
-from colorama import Fore
-from scipy import signal
+from typing import List, Dict, Tuple, Sequence, Optional
 
 import moveit_commander
+import numpy as np
 import rospy
 from actionlib import SimpleActionClient
+from colorama import Fore
+from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal, FollowJointTrajectoryResult
+from moveit_msgs.msg import DisplayRobotState
+from scipy import signal
+from std_msgs.msg import String, Float32
+from trajectory_msgs.msg import JointTrajectoryPoint
+from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, MotionCommand, Robotiq3FingerCommand, \
+    Robotiq3FingerStatus
+from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
+    GetControlModeResponse, SetControlModeResponse
+
 from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
 from arc_utilities.listener import Listener
 from arm_robots.base_robot import DualArmRobot
@@ -19,16 +27,8 @@ from arm_robots.config.victor_config import NAMED_POSITIONS, default_robotiq_com
     KUKA_FULL_SPEED_PATH_JOINT_IMPEDANCE_TOLERANCE, KUKA_GOAL_JOINT_IMPEDANCE_TOLERANCE
 from arm_robots.robot import MoveitEnabledRobot
 from arm_robots.robot_utils import make_joint_tolerance
-from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal, FollowJointTrajectoryResult
-from moveit_msgs.msg import DisplayRobotState
-from std_msgs.msg import String, Float32
-from trajectory_msgs.msg import JointTrajectoryPoint
 from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list, \
     default_gripper_command, gripper_status_to_list
-from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, MotionCommand, Robotiq3FingerCommand, \
-    Robotiq3FingerStatus
-from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
-    GetControlModeResponse, SetControlModeResponse
 
 
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
@@ -143,7 +143,8 @@ class BaseVictor(DualArmRobot):
             return np.trunc(values * 10 ** decs) / (10 ** decs)
 
         velocities = trunc(np.array(velocities), 3)  # Kuka does not like sending small but non-zero velocity commands
-        rospy.logerr(f'{velocities}')
+        # rospy.logerr(f'{velocities}')
+
         # FIXME: what if we allow the BaseRobot class to use moveit, but just don't have it require that
         # any actions are running?
         # NOTE: why are these values not checked by the lower-level code? the Java code knows what the joint limits
@@ -488,6 +489,17 @@ class Victor(BaseVictor, MoveitEnabledRobot):
                       status.estimated_external_wrench.z])
         return np.linalg.norm(f)
 
+    @staticmethod
+    def get_total_joint_torque_from_status(status: MotionStatus):
+        return np.sum(np.abs([status.measured_joint_torque.joint_1,
+                              status.measured_joint_torque.joint_2,
+                              status.measured_joint_torque.joint_3,
+                              status.measured_joint_torque.joint_4,
+                              status.measured_joint_torque.joint_5,
+                              status.measured_joint_torque.joint_6,
+                              status.measured_joint_torque.joint_7,
+                              ]))
+
     def get_median_filtered_left_force(self):
         status = self.get_left_arm_status()
         f = self.get_force_norm(status)
@@ -508,6 +520,23 @@ class Victor(BaseVictor, MoveitEnabledRobot):
 
     get_median_filtered_right_force.queue = collections.deque(maxlen=100)
 
+    def get_median_filtered_force(self, arm: str):
+        if arm == 'right':
+            return self.get_median_filtered_right_force()
+        elif arm == 'left':
+            return self.get_median_filtered_right_force()
+        else:
+            raise ValueError(f"Invalid arm {arm}")
+
+    def get_total_joint_torque(self, arm: str):
+        if arm == 'right':
+            status = self.get_right_arm_status()
+        elif arm == 'left':
+            status = self.get_left_arm_status()
+        else:
+            raise ValueError(f"Invalid arm {arm}")
+        return self.get_total_joint_torque_from_status(status)
+
     def stop_on_force_cb(self, client, feedback):
         rospy.logwarn("wrong cb 1")
         if self.use_force_trigger:
@@ -517,12 +546,12 @@ class Victor(BaseVictor, MoveitEnabledRobot):
             left_force_change = np.abs(left_force - self.get_median_filtered_left_force())
             right_force_change = np.abs(right_force - self.get_median_filtered_right_force())
 
-            rospy.logerr(f"{left_force_change} {right_force_change}")
+            # rospy.logerr(f"{left_force_change} {right_force_change}")
             left_force_change_msg = Float32()
             left_force_change_msg.data = left_force_change
             self.left_force_change_sub.publish(left_force_change_msg)
 
-            rospy.logerr(f"{right_force_change} {right_force_change}")
+            # rospy.logerr(f"{right_force_change} {right_force_change}")
             right_force_change_msg = Float32()
             right_force_change_msg.data = right_force_change
             self.right_force_change_sub.publish(right_force_change_msg)
@@ -535,3 +564,11 @@ class Victor(BaseVictor, MoveitEnabledRobot):
     def connect(self):
         super().connect()
         rospy.loginfo(Fore.GREEN + "Victor ready!")
+
+    def stop(self, group_name: Optional[str] = None):
+        if group_name is None:
+            group_name = 'both_arms'
+        group = self.get_move_group_commander(group_name)
+        current_config = group.get_current_joint_values()
+        self.set_control_mode(ControlMode.JOINT_POSITION, vel=0.1)
+        self.plan_to_joint_config(group, current_config)

@@ -214,6 +214,8 @@ class MoveitEnabledRobot(DualArmRobot):
                 result = client.get_result()
             if self.raise_on_failure and result.error_code != FollowJointTrajectoryResult.SUCCESSFUL:
                 raise RuntimeError(f"Follow Joint Trajectory Failed: ({result.error_code}) {result.error_string}")
+        else:
+            result = client.get_result()
 
         return ExecutionResult(trajectory=trajectory,
                                execution_result=result,

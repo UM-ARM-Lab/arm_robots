@@ -6,12 +6,6 @@
     <arg name="verbose" default="false"/>
     <arg name="world_name" default="$(find arm_robots)/world/victor_table_and_walls.world"/>
 
-    <group ns="static_transform_publishers">
-        <node pkg="tf2_ros" type="static_transform_publisher" name="rename_origin" required="true"
-              args="0 0 0 0 0 0 robot_root world">
-        </node>
-    </group>
-
     <group if="$(arg update_description)">
         <!-- uploads robot description and setups up other parameters -->
         <include file="$(find victor_moveit_config)/launch/planning_context.launch">
@@ -21,6 +15,9 @@
 
 
     <group if="$(arg sim)">
+        <group ns="static_transform_publishers">
+        </group>
+
         <!-- Start gazebo -->
         <group> <!-- this empty group tag creates a scope for the "remap" command -->
             <!-- because we use ros_control only for the joints of the arms, not the grippers,
