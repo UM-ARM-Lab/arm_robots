@@ -19,28 +19,7 @@ class BaseVal(DualArmRobot):
         DualArmRobot.__init__(self, robot_namespace=robot_namespace)
         self.first_valid_command = False
         self.should_disconnect = False
-        self.min_velocities = {
-            'joint1':  0.05,
-            'joint2':  0.05,
-            'joint3':  0.05,
-            'joint4':  0.05,
-            'joint41': 0.05,
-            'joint42': 0.05,
-            'joint43': 0.05,
-            'joint44': 0.05,
-            'joint45': 0.05,
-            'joint46': 0.05,
-            'joint47': 0.05,
-            'joint5':  0.05,
-            'joint56': 0.05,
-            'joint57': 0.05,
-            'joint6':  0.05,
-            'joint7':  0.05,
-            'rightgripper': 0.05,
-            'leftgripper': 0.05,
-            'rightgripper2': 0.05,
-            'leftgripper2':  0.05,
-        }
+        self.min_velocity = 0.05
         self.command_thread = Thread(target=self.command_thread_func)
 
         self.command_pub = rospy.Publisher("/hdt_adroit_coms/joint_cmd", JointState, queue_size=10)
@@ -69,11 +48,11 @@ class BaseVal(DualArmRobot):
         fixed_velocities = []
         for j, v in zip(joint_names, velocities):
             if v > 0:
-                fixed_velocity = max(self.min_velocities[j], v)
+                fixed_velocity = max(self.min_velocity, v)
             else:
                 # the HDT robot only uses positive velocities (absolute value)
                 # because the HDT driver code determines direction
-                fixed_velocity = -min(-self.min_velocities[j], v)
+                fixed_velocity = -min(-self.min_velocity, v)
 
             fixed_velocities.append(fixed_velocity)
 
@@ -91,7 +70,6 @@ class BaseVal(DualArmRobot):
         self.latest_cmd.name = joint_names
         self.latest_cmd.position = trajectory_point.positions
         self.latest_cmd.velocity = self.threshold_velocities(joint_names, trajectory_point.velocities)
-        # self.latest_cmd.velocity = trajectory_point.velocities
         self.latest_cmd.effort = [0] * len(joint_names)
 
         # TODO: check the status of the robot and report errors here
