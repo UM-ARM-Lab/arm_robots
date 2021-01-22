@@ -3,3 +3,4 @@ nohup.out
 .idea
 *.pyc
 __pycache__
+*~

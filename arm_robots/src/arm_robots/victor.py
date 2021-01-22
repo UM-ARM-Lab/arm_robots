@@ -24,7 +24,7 @@ from moveit_msgs.msg import DisplayRobotState
 from std_msgs.msg import String, Float32
 from trajectory_msgs.msg import JointTrajectoryPoint
 from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list, \
-    default_gripper_command, gripper_status_to_list
+    default_gripper_command #, gripper_status_to_list
 from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, MotionCommand, Robotiq3FingerCommand, \
     Robotiq3FingerStatus
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \

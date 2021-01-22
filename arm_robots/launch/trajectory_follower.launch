@@ -3,7 +3,18 @@
 
   <arg name="use_victor" default="false"/>
   <arg name="use_val" default="false"/>
+  <arg name="use_thanos" default="false"/>
 
+  <group if="$(arg use_thanos)">
+    <node pkg="arm_robots" type="trajectory_follower_node.py" name="arms_trajectory_follower"
+	  args="thanos arm_trajectory_controller" output="screen"/>
+    <group ns="thanos/static_transform_publishers">
+      <node pkg="tf2_ros" type="static_transform_publisher" name="active_robot_root_broadcaster" required="true"
+            args="0 0 0 0 0 0 thanos_base robot_root">
+      </node>
+    </group>
+  </group>
+  
   <group if="$(arg use_victor)">
     <node pkg="arm_robots" type="trajectory_follower_node.py" name="arms_trajectory_follower"
           args="victor both_arms_trajectory_controller"/>

@@ -25,7 +25,7 @@ def get_ordered_tolerance_list(joint_names, tolerance: Sequence[JointTolerance],
         rospy.logwarn_throttle(1, f"using default path tolerance {tol}")
         return tol
 
-    tolerance_of = defaultdict(lambda: default_tolerance)
+    tolerance_of = defaultdict(lambda: default_tolerance())
     tolerance_of.update({t.name: t.position for t in tolerance})
     return [tolerance_of[name] for name in joint_names]
 
