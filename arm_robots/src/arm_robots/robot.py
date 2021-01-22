@@ -321,3 +321,12 @@ class MoveitEnabledRobot(DualArmRobot):
         left_gripper = self.robot_commander.get_link(self.left_tool_name)
         right_gripper = self.robot_commander.get_link(self.right_tool_name)
         return left_gripper.pose().pose.position, right_gripper.pose().pose.position
+
+    def is_gripper_closed(self, gripper: str):
+        raise NotImplementedError()
+
+    def is_left_gripper_closed(self):
+        return self.is_gripper_closed('left')
+
+    def is_right_gripper_closed(self):
+        return self.is_gripper_closed('right')

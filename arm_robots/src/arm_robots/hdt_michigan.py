@@ -162,3 +162,13 @@ class Val(BaseVal, MoveitEnabledRobot):
     def connect(self):
         super().connect()
         rospy.loginfo(Fore.GREEN + "Val ready!")
+
+    def is_gripper_closed(self, gripper: str):
+        if gripper == 'left':
+            move_group = self.get_move_group_commander('right_gripper')
+        elif gripper == 'right':
+            move_group = self.get_move_group_commander('right_gripper')
+        else:
+            raise NotImplementedError(f"invalid gripper {gripper}")
+        current_joint_values = move_group.get_current_joint_values()
+        return np.allclose(current_joint_values, self.gripper_closed_position, atol=0.01)
