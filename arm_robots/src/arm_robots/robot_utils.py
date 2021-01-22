@@ -5,10 +5,9 @@ from dataclasses import dataclass
 from typing import List, Sequence, Optional, Tuple
 
 import numpy as np
-from more_itertools import pairwise
-
 import rospy
 from control_msgs.msg import JointTolerance, FollowJointTrajectoryGoal, FollowJointTrajectoryResult
+from more_itertools import pairwise
 from moveit_msgs.msg import RobotTrajectory, MoveItErrorCodes
 from rospy.logger_level_service_caller import LoggerLevelServiceCaller
 from trajectory_msgs.msg import JointTrajectoryPoint, JointTrajectory
@@ -49,6 +48,10 @@ def waypoint_error(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint) 
 def is_waypoint_reached(actual: JointTrajectoryPoint, desired: JointTrajectoryPoint, tolerance: Sequence[float]):
     error = waypoint_error(actual, desired)
     tolerance = np.array(tolerance)
+    # for i, (e, t) in enumerate(zip(error, tolerance)):
+    #     if e >= t:
+    #         rospy.loginfo(f'{i}: {e:.4f} > {t:.4f}')
+    #         break
     if np.all(error < tolerance):
         return True
 
