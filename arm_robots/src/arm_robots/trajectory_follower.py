@@ -1,16 +1,16 @@
 #! /usr/bin/env python
-import pathlib
 from typing import List, Callable, Optional
 
 import actionlib
 import rospy
-from arm_robots.base_robot import DualArmRobot
-from arm_robots.robot_utils import get_ordered_tolerance_list, interpolate_joint_trajectory_points, is_waypoint_reached, \
-    waypoint_error
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, FollowJointTrajectoryFeedback, \
     FollowJointTrajectoryResult
 from rosgraph.names import ns_join
 from trajectory_msgs.msg import JointTrajectoryPoint
+
+from arm_robots.base_robot import DualArmRobot
+from arm_robots.robot_utils import get_ordered_tolerance_list, interpolate_joint_trajectory_points, is_waypoint_reached, \
+    waypoint_error
 
 
 class TrajectoryFollower:
@@ -126,4 +126,3 @@ class TrajectoryFollower:
     def get_actual_trajectory_point(self, trajectory_joint_names: List[str], time_from_start) -> JointTrajectoryPoint:
         return JointTrajectoryPoint(positions=self.robot.get_joint_positions(trajectory_joint_names),
                                     time_from_start=time_from_start)
-
