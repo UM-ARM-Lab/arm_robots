@@ -10,8 +10,8 @@ from arc_utilities.ros_init import rospy_and_cpp_init
 from arm_robots.hdt_michigan import BaseVal
 
 """
-This scipt calculates the Kuka arms max joint speeds and max joint accels.
-These values should be set in the Kuka "machine data" (as per the kuka manual), however I (Brad) cannot find it
+This scipt calculates the max joint speeds for a HDT joint.
+It's currently very janky, do not use it!
 """
 
 joints_to_use = ['joint45']
@@ -133,6 +133,7 @@ def main():
     rospy_and_cpp_init("calc_hdt_max_joint_speeds")
 
     val = BaseVal('hdt_michigan')
+    rospy.logwarn("Don't use this!")
 
     joints = [
         # 'joint41',
