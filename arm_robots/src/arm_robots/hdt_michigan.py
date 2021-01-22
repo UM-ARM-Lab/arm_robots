@@ -18,6 +18,7 @@ class BaseVal(DualArmRobot):
     def __init__(self, robot_namespace: str):
         DualArmRobot.__init__(self, robot_namespace=robot_namespace)
         self.first_valid_command = False
+        self.should_disconnect = False
         self.min_velocities = {
             'joint1':  0.05,
             'joint2':  0.05,
@@ -35,6 +36,10 @@ class BaseVal(DualArmRobot):
             'joint57': 0.05,
             'joint6':  0.05,
             'joint7':  0.05,
+            'rightgripper': 0.05,
+            'leftgripper': 0.05,
+            'rightgripper2': 0.05,
+            'leftgripper2':  0.05,
         }
         self.command_thread = Thread(target=self.command_thread_func)
 
@@ -46,10 +51,14 @@ class BaseVal(DualArmRobot):
 
         self.command_thread.start()
 
+    def disconnect(self):
+        self.should_disconnect = True
+        self.command_thread.join()
+
     def command_thread_func(self):
-        while not self.first_valid_command:
+        while not self.first_valid_command and not self.should_disconnect:
             rospy.sleep(0.1)
-        while True:
+        while not self.should_disconnect:
             # actually send commands periodically
             self.latest_cmd.header.stamp = rospy.Time.now()
             rospy.logdebug_throttle(1, self.latest_cmd)
