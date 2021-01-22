@@ -65,10 +65,10 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
         return [joint_position_of[name] for name in joint_ordering]
 
     positions_by_interface = {
-        'right_arm'    : fill_using(RIGHT_ARM_JOINT_NAMES),
-        'left_arm'     : fill_using(LEFT_ARM_JOINT_NAMES),
+        'right_arm':     fill_using(RIGHT_ARM_JOINT_NAMES),
+        'left_arm':      fill_using(LEFT_ARM_JOINT_NAMES),
         'right_gripper': fill_using(RIGHT_GRIPPER_JOINT_NAMES),
-        'left_gripper' : fill_using(LEFT_GRIPPER_JOINT_NAMES),
+        'left_gripper':  fill_using(LEFT_GRIPPER_JOINT_NAMES),
     }
     # set equality ignores order
 
@@ -163,7 +163,7 @@ class BaseVictor(DualArmRobot):
         command_pub.publish(cmd)
 
     def get_gripper_statuses(self):
-        return {'left' : self.get_left_gripper_status(),
+        return {'left':  self.get_left_gripper_status(),
                 'right': self.get_right_gripper_status()}
 
     def get_right_gripper_status(self) -> Robotiq3FingerStatus:
@@ -172,23 +172,24 @@ class BaseVictor(DualArmRobot):
     def get_left_gripper_status(self) -> Robotiq3FingerStatus:
         return self.left_gripper_status_listener.get()
 
-    def is_left_gripper_closed(self):
-        status = self.get_left_gripper_status()
-        return self.is_gripper_closed(status)
-
-    def is_right_gripper_closed(self):
-        status = self.get_right_gripper_status()
-        return self.is_gripper_closed(status)
-
-    def is_gripper_closed(self, status: Robotiq3FingerStatus):
+    def is_gripper_closed_from_status(self, status: Robotiq3FingerStatus):
         # [0.5, 0.4, 0.4, 0.8]
         finger_a_closed = status.finger_a_status.position > 0.5 - 1e-2
         finger_b_closed = status.finger_b_status.position > 0.5 - 1e-2
         finger_c_closed = status.finger_c_status.position > 0.5 - 1e-2
         return finger_a_closed and finger_b_closed and finger_c_closed
 
+    def is_gripper_closed(self, gripper: str):
+        if gripper == 'left':
+            status = self.get_left_gripper_status()
+        elif gripper == 'right':
+            status = self.get_right_gripper_status()
+        else:
+            raise NotImplementedError(f"invalid gripper {gripper}")
+        return self.is_gripper_closed_from_status(status)
+
     def get_arms_statuses(self):
-        return {'left' : self.get_left_arm_status(),
+        return {'left':  self.get_left_arm_status(),
                 'right': self.get_right_arm_status()}
 
     def get_right_arm_status(self) -> MotionStatus:
@@ -286,7 +287,7 @@ class BaseVictor(DualArmRobot):
         desired_right_pose.position.z += delta_positions['right'].z
 
         poses = {
-            'left' : desired_left_pose,
+            'left':  desired_left_pose,
             'right': desired_right_pose,
         }
         self.send_cartesian_command(poses)
