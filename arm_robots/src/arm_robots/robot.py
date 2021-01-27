@@ -14,11 +14,14 @@ from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningRe
     ExecutionResult, is_empty_trajectory
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
-from geometry_msgs.msg import Point, Pose, Quaternion
-from moveit_msgs.msg import RobotTrajectory
+from geometry_msgs.msg import Point, Pose, Quaternion, Vector3
+from moveit_msgs.msg import RobotTrajectory, DisplayRobotState
 from rosgraph.names import ns_join
 from rospy import logfatal
+from sensor_msgs.msg import JointState
+from std_msgs.msg import ColorRGBA
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from visualization_msgs.msg import Marker
 
 STORED_ORIENTATION = None
 
@@ -42,8 +45,12 @@ class MoveitEnabledRobot(DualArmRobot):
         self.execute = execute
         self.block = block
         self.force_trigger = force_trigger
+        self.display_goals = True
 
         self.arms_controller_name = arms_controller_name
+
+        self.display_robot_state_pub = rospy.Publisher('display_robot_state', DisplayRobotState, queue_size=10)
+        self.display_goal_position_pub = rospy.Publisher('goal_position', Marker, queue_size=10)
 
         # Override these in base classes!
         self.left_tool_name = None
@@ -80,6 +87,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def get_move_group_commander(self, group_name) -> moveit_commander.MoveGroupCommander:
         move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group.set_planning_time(30.0)
         # TODO Make this a settable param or at least make the hardcoded param more obvious
         # The purpose of this safety factor is to make sure we never send victor a velocity
         # faster than the kuka controller's max velocity, otherwise the kuka controllers will error out.
@@ -138,6 +146,9 @@ class MoveitEnabledRobot(DualArmRobot):
         move_group.set_pose_target(target_pose_stamped)
         move_group.set_goal_position_tolerance(0.002)
         move_group.set_goal_orientation_tolerance(0.02)
+
+        if self.display_goals:
+            self.display_goal_pose(target_pose_stamped.pose)
 
         planning_result = PlanningResult(move_group.plan())
         if self.raise_on_failure and not planning_result.success:
@@ -330,3 +341,26 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def is_right_gripper_closed(self):
         return self.is_gripper_closed('right')
+
+    def display_robot_state(self, joint_state: JointState):
+        display_robot_state_msg = DisplayRobotState()
+        display_robot_state_msg.state.joint_state = joint_state
+        display_robot_state_msg.state.joint_state.header.stamp = rospy.Time.now()
+        display_robot_state_msg.state.is_diff = False
+        self.display_robot_state_pub.publish(display_robot_state_msg)
+
+    def display_goal_position(self, point: Point):
+        m = Marker()
+        m.header.stamp = rospy.Time.now()
+        m.id = 0
+        m.action = Marker.ADD
+        m.action = Marker.SPHERE
+        m.color = ColorRGBA(r=0, g=1, b=0, a=1)
+        s = 0.02
+        m.scale = Vector3(x=s, y=s, z=s)
+        m.pose.position = point
+        m.pose.orientation.w = 1
+        self.display_goal_position_pub.publish(m)
+
+    def display_goal_pose(self, pose: Pose):
+        self.tf_wrapper.send_transform_from_pose_msg(pose, 'robot_root', 'arm_robots_goal')

@@ -31,8 +31,6 @@ class BaseVal(DualArmRobot):
         self.command_rate = rospy.Rate(100)
         self.ready = 0
 
-        self.command_thread.start()
-
     def disconnect(self):
         self.should_disconnect = True
         self.command_thread.join()
@@ -164,6 +162,7 @@ class Val(BaseVal, MoveitEnabledRobot):
 
     def connect(self):
         super().connect()
+        self.command_thread.start()
         rospy.loginfo(Fore.GREEN + "Val ready!")
 
     def is_gripper_closed(self, gripper: str):
