@@ -31,9 +31,13 @@ class BaseVal(DualArmRobot):
         self.command_rate = rospy.Rate(100)
         self.ready = 0
 
+    def __del__(self):
+        self.disconnect()
+
     def disconnect(self):
         self.should_disconnect = True
-        self.command_thread.join()
+        if self.command_thread.is_alive():
+            self.command_thread.join()
 
     def command_thread_func(self):
         while not self.first_valid_command:
