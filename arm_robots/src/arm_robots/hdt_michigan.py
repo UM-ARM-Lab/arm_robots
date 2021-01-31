@@ -1,16 +1,18 @@
 #! /usr/bin/env python
+import weakref
 from threading import Thread
-from typing import List, Dict
+from time import sleep
+from typing import List
 
 import numpy as np
-import rospy
 from colorama import Fore
+
+import rospy
+from arm_robots.base_robot import DualArmRobot
+from arm_robots.robot import MoveitEnabledRobot
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray
 from trajectory_msgs.msg import JointTrajectoryPoint
-
-from arm_robots.base_robot import DualArmRobot
-from arm_robots.robot import MoveitEnabledRobot
 
 
 class BaseVal(DualArmRobot):
@@ -20,7 +22,7 @@ class BaseVal(DualArmRobot):
         self.first_valid_command = False
         self.should_disconnect = False
         self.min_velocity = 0.05
-        self.command_thread = Thread(target=self.command_thread_func)
+        self.command_thread = Thread(target=BaseVal.command_thread_func, args=(weakref.proxy(self),))
 
         self.command_pub = rospy.Publisher("/hdt_adroit_coms/joint_cmd", JointState, queue_size=10)
         # the initialized velocities will be zero, so we need not worry about it accidentally moving on startup
@@ -28,21 +30,31 @@ class BaseVal(DualArmRobot):
         self.command_rate = rospy.Rate(100)
         self.ready = 0
 
-        self.command_thread.start()
+    def __del__(self):
+        self.disconnect()
 
     def disconnect(self):
         self.should_disconnect = True
-        self.command_thread.join()
+        if self.command_thread.is_alive():
+            self.command_thread.join()
 
     def command_thread_func(self):
-        while not self.first_valid_command and not self.should_disconnect:
-            rospy.sleep(0.1)
-        while not self.should_disconnect:
-            # actually send commands periodically
-            self.latest_cmd.header.stamp = rospy.Time.now()
-            rospy.logdebug_throttle(1, self.latest_cmd)
-            self.command_pub.publish(self.latest_cmd)
-            self.command_rate.sleep()
+        try:
+            while not self.first_valid_command:
+                if self.should_disconnect:
+                    break
+                sleep(0.1)
+
+            while True:
+                if self.should_disconnect:
+                    break
+                # actually send commands periodically
+                self.latest_cmd.header.stamp = rospy.Time.now()
+                rospy.logdebug_throttle(1, self.latest_cmd)
+                self.command_pub.publish(self.latest_cmd)
+                self.command_rate.sleep()
+        except ReferenceError:
+            pass
 
     def threshold_velocities(self, joint_names, velocities):
         fixed_velocities = []
@@ -161,4 +173,5 @@ class Val(BaseVal, MoveitEnabledRobot):
 
     def connect(self):
         super().connect()
+        self.command_thread.start()
         rospy.loginfo(Fore.GREEN + "Val ready!")
