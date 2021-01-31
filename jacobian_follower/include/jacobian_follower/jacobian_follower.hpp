@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <moveit/trajectory_processing/iterative_time_parameterization.h>
@@ -21,9 +22,12 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <trajectory_msgs/JointTrajectory.h>
 
+using PlanResult = std::pair<robot_trajectory::RobotTrajectory, bool>;
+using PlanResultMsg = std::pair<moveit_msgs::RobotTrajectory, bool>;
+
 class JacobianFollower
 {
-public:
+ public:
   enum
   {
     NeedsToAlign = ((sizeof(Pose) % 16) == 0)
@@ -63,22 +67,51 @@ public:
   [[nodiscard]] PoseSequence getToolTransforms(std::vector<std::string> const &tool_names,
                                                robot_state::RobotState const &state) const;
 
-  moveit_msgs::RobotTrajectory plan(std::string const &group_name,
-                                    std::vector<std::string> const &tool_names,
-                                    std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
-                                    std::vector<std::vector<Eigen::Vector3d>> const &grippers,
-                                    double max_velocity_scaling_factor,
-                                    double max_acceleration_scaling_factor);
 
-  robot_trajectory::RobotTrajectory moveInRobotFrame(std::string const &group_name,
-                                                     std::vector<std::string> const &tool_names,
-                                                     EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
-                                                     PointSequence const &target_tool_positions);
+  PlanResultMsg plan_return_msg(std::string const &group_name,
+                                std::vector<std::string> const &tool_names,
+                                std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
+                                moveit_msgs::RobotState const &start_state,
+                                std::vector<std::vector<Eigen::Vector3d>> const &grippers,
+                                double max_velocity_scaling_factor,
+                                double max_acceleration_scaling_factor);
 
-  robot_trajectory::RobotTrajectory moveInWorldFrame(std::string const &group_name,
-                                                     std::vector<std::string> const &tool_names,
-                                                     EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
-                                                     PointSequence const &target_tool_positions);
+  PlanResultMsg plan_return_msg(std::string const &group_name,
+                                std::vector<std::string> const &tool_names,
+                                std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
+                                std::vector<std::vector<Eigen::Vector3d>> const &grippers,
+                                double max_velocity_scaling_factor,
+                                double max_acceleration_scaling_factor);
+
+  PlanResult plan(std::string const &group_name,
+                  std::vector<std::string> const &tool_names,
+                  std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
+                  std::vector<std::vector<Eigen::Vector3d>> const &grippers,
+                  double max_velocity_scaling_factor,
+                  double max_acceleration_scaling_factor);
+
+  PlanResult plan(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
+                  std::string const &group_name,
+                  std::vector<std::string> const &tool_names,
+                  std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
+                  robot_state::RobotState const &start_state,
+                  std::vector<std::vector<Eigen::Vector3d>> const &grippers,
+                  double max_velocity_scaling_factor,
+                  double max_acceleration_scaling_factor);
+
+  PlanResult moveInRobotFrame(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
+                              std::string const &group_name,
+                              std::vector<std::string> const &tool_names,
+                              EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
+                              robot_state::RobotState const &start_state,
+                              PointSequence const &target_tool_positions);
+
+  PlanResult moveInWorldFrame(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
+                              std::string const &group_name,
+                              std::vector<std::string> const &tool_names,
+                              EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
+                              robot_state::RobotState const &start_state,
+                              PointSequence const &target_tool_positions);
 
   robot_trajectory::RobotTrajectory jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
                                                    moveit::core::JointModelGroup const *jmg,
@@ -101,4 +134,5 @@ public:
                                         std::vector<std::string> const &tool_names,
                                         robot_state::RobotState const &state, PoseSequence const &robotTservo);
 
+  void debugLogState(std::string prefix, robot_state::RobotState const &state);
 };
