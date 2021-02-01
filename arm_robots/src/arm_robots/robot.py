@@ -3,6 +3,7 @@ from typing import List, Union, Tuple, Callable, Optional, Dict
 
 import numpy as np
 import pyjacobian_follower
+from matplotlib import colors
 
 import moveit_commander
 import ros_numpy
@@ -15,7 +16,8 @@ from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningRe
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
 from geometry_msgs.msg import Point, Pose, Quaternion, Vector3
-from moveit_msgs.msg import RobotTrajectory, DisplayRobotState
+from link_bot_pycommon.ros_pycommon import get_oneshot_publisher
+from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor
 from rosgraph.names import ns_join
 from rospy import logfatal
 from sensor_msgs.msg import JointState
@@ -27,6 +29,19 @@ STORED_ORIENTATION = None
 
 store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
+
+
+def to_color_msg(color):
+    """
+
+    Args:
+        color: anything matplotlib can handle
+
+    Returns:
+
+    """
+    r, g, b, a = colors.to_rgba(color)
+    return ColorRGBA(r=r, g=g, b=b, a=a)
 
 
 class MoveitEnabledRobot(DualArmRobot):
@@ -347,12 +362,22 @@ class MoveitEnabledRobot(DualArmRobot):
     def is_right_gripper_closed(self):
         return self.is_gripper_closed('right')
 
-    def display_robot_state(self, joint_state: JointState):
+    def display_robot_state(self, joint_state: JointState, label: str, **kwargs):
+        topic_name = rospy.names.ns_join('display_robot_state', label)
+        display_robot_state_pub = get_oneshot_publisher(topic_name, DisplayRobotState, queue_size=10)
+
         display_robot_state_msg = DisplayRobotState()
         display_robot_state_msg.state.joint_state = joint_state
         display_robot_state_msg.state.joint_state.header.stamp = rospy.Time.now()
         display_robot_state_msg.state.is_diff = False
-        self.display_robot_state_pub.publish(display_robot_state_msg)
+
+        if 'color' in kwargs:
+            color = kwargs["color"]
+            for link_name in self.robot_commander.get_link_names():
+                object_color = ObjectColor(id=link_name, color=to_color_msg(color))
+                display_robot_state_msg.highlight_links.append(object_color)
+
+        display_robot_state_pub.publish(display_robot_state_msg)
 
     def display_goal_position(self, point: Point):
         m = Marker()

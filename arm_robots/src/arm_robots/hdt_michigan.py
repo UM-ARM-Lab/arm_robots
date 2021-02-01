@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 from threading import Thread
-from typing import List, Dict
+from time import sleep
+from typing import List
 
 import numpy as np
 import rospy
@@ -11,9 +12,6 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 
 from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot import MoveitEnabledRobot
-from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64MultiArray
-from trajectory_msgs.msg import JointTrajectoryPoint
 
 
 class BaseVal(DualArmRobot):
@@ -41,8 +39,13 @@ class BaseVal(DualArmRobot):
 
     def command_thread_func(self):
         while not self.first_valid_command:
-            rospy.sleep(0.1)
+            if self.should_disconnect:
+                break
+            sleep(0.1)
+
         while True:
+            if self.should_disconnect:
+                break
             # actually send commands periodically
             self.latest_cmd.header.stamp = rospy.Time.now()
             rospy.logdebug_throttle(1, self.latest_cmd)
