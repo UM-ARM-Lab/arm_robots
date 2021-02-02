@@ -359,6 +359,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def display_robot_state(self, joint_state: JointState, label: str, **kwargs):
         topic_name = rospy.names.ns_join('display_robot_state', label)
+        topic_name = topic_name.rstrip('/')
         display_robot_state_pub = get_oneshot_publisher(topic_name, DisplayRobotState, queue_size=10)
 
         display_robot_state_msg = DisplayRobotState()
