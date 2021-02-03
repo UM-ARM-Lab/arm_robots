@@ -20,7 +20,8 @@ def main():
     parser.add_argument("robot_name", type=str)
     parser.add_argument("controller_name", type=str)
     args = parser.parse_args(args=rospy.myargv(argv=sys.argv)[1:])
-
+    rospy.loginfo(args.robot_name)
+    rospy.loginfo(args.controller_name)
     if args.robot_name == "victor":
         base_robot = BaseVictor(args.robot_name)
     elif args.robot_name == "val" or args.robot_name == "hdt_michigan":

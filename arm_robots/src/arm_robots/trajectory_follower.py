@@ -25,7 +25,6 @@ class TrajectoryFollower:
 
     def start_server(self):
         self.server.start()
-
     def follow_trajectory_goal(self,
                                traj_msg: FollowJointTrajectoryGoal,
                                feedback_cb: Optional[Callable] = None,
