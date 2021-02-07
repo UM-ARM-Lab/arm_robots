@@ -90,12 +90,6 @@ class BaseVal(DualArmRobot):
         return failed, error_msg
 
 
-def make_joint_group_command(command):
-    msg = Float64MultiArray()
-    msg.data = command
-    return msg
-
-
 left_arm_joints = [
     'joint_1',
     'joint_2',
