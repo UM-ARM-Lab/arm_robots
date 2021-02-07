@@ -189,7 +189,10 @@ PlanResult JacobianFollower::plan(planning_scene_monitor::LockedPlanningSceneRW 
     ROS_ERROR_STREAM_NAMED(LOGGER_NAME, "Time parametrization for the solution path failed.");
   }
 
-  visual_tools_.publishTrajectoryPath(robot_trajectory);
+  if (not robot_trajectory.empty())
+  {
+    visual_tools_.publishTrajectoryPath(robot_trajectory);
+  }
 
   return {robot_trajectory, reached_target};
 }

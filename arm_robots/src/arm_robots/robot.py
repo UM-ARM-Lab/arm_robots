@@ -15,7 +15,7 @@ from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningRe
     ExecutionResult, is_empty_trajectory
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
-from geometry_msgs.msg import Point, Pose, Quaternion, Vector3
+from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PoseStamped
 from link_bot_pycommon.ros_pycommon import get_oneshot_publisher
 from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor
 from rosgraph.names import ns_join
@@ -172,12 +172,10 @@ class MoveitEnabledRobot(DualArmRobot):
         execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
-    def get_link_pose(self, group_name: str, link_name: str):
-        self.check_inputs(group_name, link_name)
-        move_group = self.get_move_group_commander(group_name)
-        move_group.set_end_effector_link(link_name)
-        left_end_effector_pose_stamped = move_group.get_current_pose()
-        return left_end_effector_pose_stamped.pose
+    def get_link_pose(self, link_name: str):
+        link: moveit_commander.RobotCommander.Link = self.robot_commander.get_link(link_name)
+        pose_stamped: PoseStamped = link.pose()
+        return pose_stamped.pose
 
     def plan_to_joint_config(self, group_name: str, joint_config: Union[List, Dict, str]):
         """
@@ -255,11 +253,8 @@ class MoveitEnabledRobot(DualArmRobot):
     def follow_arms_joint_trajectory(self, trajectory: JointTrajectory, stop_condition: Optional[Callable] = None):
         return self.follow_joint_trajectory(trajectory, self.arms_client, stop_condition=stop_condition)
 
-    def distance(self,
-                 group_name: str,
-                 ee_link_name: str,
-                 target_position):
-        current_pose = self.get_link_pose(group_name, ee_link_name)
+    def distance(self, ee_link_name: str, target_position):
+        current_pose = self.get_link_pose(ee_link_name)
         error = np.linalg.norm(ros_numpy.numpify(current_pose.position) - target_position)
         return error
 
@@ -291,7 +286,12 @@ class MoveitEnabledRobot(DualArmRobot):
                                     vel_scaling=0.1,
                                     stop_condition: Optional[Callable] = None,
                                     ):
-        """ If preferred_tool_orientations is None, we use the stored ones as a fallback """
+        if isinstance(tool_names, str):
+            err_msg = "you need to pass in a list of strings, not a single string."
+            rospy.logerr(err_msg)
+            raise ValueError(err_msg)
+
+        # If preferred_tool_orientations is None, we use the stored ones as a fallback
         if preferred_tool_orientations == STORED_ORIENTATION:
             preferred_tool_orientations = []
             if self.stored_tool_orientations is None:
