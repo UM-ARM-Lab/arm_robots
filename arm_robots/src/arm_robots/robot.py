@@ -324,8 +324,12 @@ class MoveitEnabledRobot(DualArmRobot):
     def get_both_arm_joints(self):
         return self.get_left_arm_joints() + self.get_right_arm_joints()
 
-    def get_n_joints(self):
-        return len(self.robot_commander.get_joint_names())
+    def get_joint_names(self, group_name: str = 'whole_body'):
+        move_group = self.get_move_group_commander(group_name)
+        return move_group.get_active_joints()
+
+    def get_n_joints(self, group_name: str = 'whole_body'):
+        return len(self.get_joint_names(group_name))
 
     def get_right_arm_joints(self):
         raise NotImplementedError()
