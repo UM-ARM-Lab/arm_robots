@@ -305,8 +305,7 @@ class MoveitEnabledRobot(DualArmRobot):
                                            success=False)
                 preferred_tool_orientations.append(self.stored_tool_orientations[k])
         robot_trajectory_msg: RobotTrajectory
-        planning_success: bool
-        robot_trajectory_msg, planning_success = self.jacobian_follower.plan(
+        robot_trajectory_msg, _ = self.jacobian_follower.plan(
             group_name=group_name,
             tool_names=tool_names,
             preferred_tool_orientations=preferred_tool_orientations,
@@ -314,6 +313,7 @@ class MoveitEnabledRobot(DualArmRobot):
             max_velocity_scaling_factor=vel_scaling,
             max_acceleration_scaling_factor=0.1,
         )
+        planning_success = True
         planning_result = PlanningResult(success=planning_success, plan=robot_trajectory_msg)
         if self.raise_on_failure and not planning_success:
             raise RuntimeError(f"Jacobian planning failed")
