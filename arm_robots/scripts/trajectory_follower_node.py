@@ -20,6 +20,7 @@ def main():
     args = parser.parse_args(args=rospy.myargv(argv=sys.argv)[1:])
 
     base_robot = get_base_robot(args.robot_name)
+    base_robot.connect()
 
     fwd = TrajectoryFollower(base_robot, args.controller_name)
     fwd.start_server()

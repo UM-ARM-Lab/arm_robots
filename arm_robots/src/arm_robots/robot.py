@@ -77,6 +77,8 @@ class MoveitEnabledRobot(DualArmRobot):
         self.feedback_callbacks = []
 
     def connect(self):
+        super().connect()
+
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
 
