@@ -174,7 +174,6 @@ class Val(BaseVal, MoveitEnabledRobot):
 
     def connect(self):
         super().connect()
-        self.command_thread.start()
         rospy.loginfo(Fore.GREEN + "Val ready!")
 
     def is_gripper_closed(self, gripper: str):
