@@ -33,6 +33,10 @@ class BaseVal(DualArmRobot):
     def __del__(self):
         self.disconnect()
 
+    def connect(self):
+        super().connect()
+        self.command_thread.start()
+
     def disconnect(self):
         self.should_disconnect = True
         if self.command_thread.is_alive():
@@ -49,9 +53,13 @@ class BaseVal(DualArmRobot):
                 if self.should_disconnect:
                     break
                 # actually send commands periodically
-                self.latest_cmd.header.stamp = rospy.Time.now()
-                rospy.logdebug_throttle(1, self.latest_cmd)
-                self.command_pub.publish(self.latest_cmd)
+                now = rospy.Time.now()
+                if (now - self.latest_cmd.header.stamp) < rospy.Duration(secs=1):
+                    self.latest_cmd.header.stamp = now
+                    rospy.logdebug_throttle(1, self.latest_cmd)
+                    self.command_pub.publish(self.latest_cmd)
+                else:
+                    rospy.logdebug_throttle(1, "latest command is too old, ignoring")
                 self.command_rate.sleep()
         except ReferenceError:
             pass
@@ -83,17 +91,12 @@ class BaseVal(DualArmRobot):
         self.latest_cmd.position = trajectory_point.positions
         self.latest_cmd.velocity = self.threshold_velocities(joint_names, trajectory_point.velocities)
         self.latest_cmd.effort = [0] * len(joint_names)
+        self.latest_cmd.header.stamp = rospy.Time.now()
 
         # TODO: check the status of the robot and report errors here
         failed = False
         error_msg = ""
         return failed, error_msg
-
-
-def make_joint_group_command(command):
-    msg = Float64MultiArray()
-    msg.data = command
-    return msg
 
 
 left_arm_joints = [
@@ -175,3 +178,13 @@ class Val(BaseVal, MoveitEnabledRobot):
         super().connect()
         self.command_thread.start()
         rospy.loginfo(Fore.GREEN + "Val ready!")
+
+    def is_gripper_closed(self, gripper: str):
+        if gripper == 'left':
+            move_group = self.get_move_group_commander('right_gripper')
+        elif gripper == 'right':
+            move_group = self.get_move_group_commander('right_gripper')
+        else:
+            raise NotImplementedError(f"invalid gripper {gripper}")
+        current_joint_values = move_group.get_current_joint_values()
+        return np.allclose(current_joint_values, self.gripper_closed_position, atol=0.01)

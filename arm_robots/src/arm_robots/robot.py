@@ -3,6 +3,7 @@ from typing import List, Union, Tuple, Callable, Optional, Dict
 
 import numpy as np
 import pyjacobian_follower
+from matplotlib import colors
 
 import moveit_commander
 import ros_numpy
@@ -14,16 +15,33 @@ from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningRe
     ExecutionResult, is_empty_trajectory
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
-from geometry_msgs.msg import Point, Pose, Quaternion
-from moveit_msgs.msg import RobotTrajectory
+from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PoseStamped
+from link_bot_pycommon.ros_pycommon import get_oneshot_publisher
+from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor
 from rosgraph.names import ns_join
 from rospy import logfatal
+from sensor_msgs.msg import JointState
+from std_msgs.msg import ColorRGBA
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from visualization_msgs.msg import Marker
 
 STORED_ORIENTATION = None
 
 store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
+
+
+def to_color_msg(color):
+    """
+
+    Args:
+        color: anything matplotlib can handle
+
+    Returns:
+
+    """
+    r, g, b, a = colors.to_rgba(color)
+    return ColorRGBA(r=r, g=g, b=b, a=a)
 
 
 class MoveitEnabledRobot(DualArmRobot):
@@ -42,8 +60,12 @@ class MoveitEnabledRobot(DualArmRobot):
         self.execute = execute
         self.block = block
         self.force_trigger = force_trigger
+        self.display_goals = True
 
         self.arms_controller_name = arms_controller_name
+
+        self.display_robot_state_pub = rospy.Publisher('display_robot_state', DisplayRobotState, queue_size=10)
+        self.display_goal_position_pub = rospy.Publisher('goal_position', Marker, queue_size=10)
 
         # Override these in base classes!
         self.left_tool_name = None
@@ -55,6 +77,8 @@ class MoveitEnabledRobot(DualArmRobot):
         self.feedback_callbacks = []
 
     def connect(self):
+        super().connect()
+
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
 
@@ -80,6 +104,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def get_move_group_commander(self, group_name) -> moveit_commander.MoveGroupCommander:
         move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group.set_planning_time(30.0)
         # TODO Make this a settable param or at least make the hardcoded param more obvious
         # The purpose of this safety factor is to make sure we never send victor a velocity
         # faster than the kuka controller's max velocity, otherwise the kuka controllers will error out.
@@ -139,6 +164,9 @@ class MoveitEnabledRobot(DualArmRobot):
         move_group.set_goal_position_tolerance(0.002)
         move_group.set_goal_orientation_tolerance(0.02)
 
+        if self.display_goals:
+            self.display_goal_pose(target_pose_stamped.pose)
+
         planning_result = PlanningResult(move_group.plan())
         if self.raise_on_failure and not planning_result.success:
             raise RuntimeError(f"Plan to pose failed {planning_result.planning_error_code}")
@@ -146,12 +174,10 @@ class MoveitEnabledRobot(DualArmRobot):
         execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
-    def get_link_pose(self, group_name: str, link_name: str):
-        self.check_inputs(group_name, link_name)
-        move_group = self.get_move_group_commander(group_name)
-        move_group.set_end_effector_link(link_name)
-        left_end_effector_pose_stamped = move_group.get_current_pose()
-        return left_end_effector_pose_stamped.pose
+    def get_link_pose(self, link_name: str):
+        link: moveit_commander.RobotCommander.Link = self.robot_commander.get_link(link_name)
+        pose_stamped: PoseStamped = link.pose()
+        return pose_stamped.pose
 
     def plan_to_joint_config(self, group_name: str, joint_config: Union[List, Dict, str]):
         """
@@ -229,11 +255,8 @@ class MoveitEnabledRobot(DualArmRobot):
     def follow_arms_joint_trajectory(self, trajectory: JointTrajectory, stop_condition: Optional[Callable] = None):
         return self.follow_joint_trajectory(trajectory, self.arms_client, stop_condition=stop_condition)
 
-    def distance(self,
-                 group_name: str,
-                 ee_link_name: str,
-                 target_position):
-        current_pose = self.get_link_pose(group_name, ee_link_name)
+    def distance(self, ee_link_name: str, target_position):
+        current_pose = self.get_link_pose(ee_link_name)
         error = np.linalg.norm(ros_numpy.numpify(current_pose.position) - target_position)
         return error
 
@@ -265,7 +288,12 @@ class MoveitEnabledRobot(DualArmRobot):
                                     vel_scaling=0.1,
                                     stop_condition: Optional[Callable] = None,
                                     ):
-        """ If preferred_tool_orientations is None, we use the stored ones as a fallback """
+        if isinstance(tool_names, str):
+            err_msg = "you need to pass in a list of strings, not a single string."
+            rospy.logerr(err_msg)
+            raise ValueError(err_msg)
+
+        # If preferred_tool_orientations is None, we use the stored ones as a fallback
         if preferred_tool_orientations == STORED_ORIENTATION:
             preferred_tool_orientations = []
             if self.stored_tool_orientations is None:
@@ -278,7 +306,8 @@ class MoveitEnabledRobot(DualArmRobot):
                                            action_client_state=self.arms_client.get_state(),
                                            success=False)
                 preferred_tool_orientations.append(self.stored_tool_orientations[k])
-        robot_trajectory_msg: RobotTrajectory = self.jacobian_follower.plan(
+        robot_trajectory_msg: RobotTrajectory
+        robot_trajectory_msg, _ = self.jacobian_follower.plan(
             group_name=group_name,
             tool_names=tool_names,
             preferred_tool_orientations=preferred_tool_orientations,
@@ -298,8 +327,12 @@ class MoveitEnabledRobot(DualArmRobot):
     def get_both_arm_joints(self):
         return self.get_left_arm_joints() + self.get_right_arm_joints()
 
-    def get_n_joints(self):
-        return len(self.robot_commander.get_joint_names())
+    def get_joint_names(self, group_name: str = 'whole_body'):
+        move_group = self.get_move_group_commander(group_name)
+        return move_group.get_active_joints()
+
+    def get_n_joints(self, group_name: str = 'whole_body'):
+        return len(self.get_joint_names(group_name))
 
     def get_right_arm_joints(self):
         raise NotImplementedError()
@@ -318,6 +351,47 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def get_gripper_positions(self):
         # NOTE: this function requires that gazebo be playing
-        left_gripper = self.robot_commander.get_link(self.left_tool_name)
-        right_gripper = self.robot_commander.get_link(self.right_tool_name)
-        return left_gripper.pose().pose.position, right_gripper.pose().pose.position
+        return self.get_link_pose(self.left_tool_name).position, self.get_link_pose(self.right_tool_name).position
+
+    def is_gripper_closed(self, gripper: str):
+        raise NotImplementedError()
+
+    def is_left_gripper_closed(self):
+        return self.is_gripper_closed('left')
+
+    def is_right_gripper_closed(self):
+        return self.is_gripper_closed('right')
+
+    def display_robot_state(self, joint_state: JointState, label: str, **kwargs):
+        topic_name = rospy.names.ns_join('display_robot_state', label)
+        topic_name = topic_name.rstrip('/')
+        display_robot_state_pub = get_oneshot_publisher(topic_name, DisplayRobotState, queue_size=10)
+
+        display_robot_state_msg = DisplayRobotState()
+        display_robot_state_msg.state.joint_state = joint_state
+        display_robot_state_msg.state.joint_state.header.stamp = rospy.Time.now()
+        display_robot_state_msg.state.is_diff = False
+
+        if 'color' in kwargs:
+            color = kwargs["color"]
+            for link_name in self.robot_commander.get_link_names():
+                object_color = ObjectColor(id=link_name, color=to_color_msg(color))
+                display_robot_state_msg.highlight_links.append(object_color)
+
+        display_robot_state_pub.publish(display_robot_state_msg)
+
+    def display_goal_position(self, point: Point):
+        m = Marker()
+        m.header.stamp = rospy.Time.now()
+        m.id = 0
+        m.action = Marker.ADD
+        m.action = Marker.SPHERE
+        m.color = ColorRGBA(r=0, g=1, b=0, a=1)
+        s = 0.02
+        m.scale = Vector3(x=s, y=s, z=s)
+        m.pose.position = point
+        m.pose.orientation.w = 1
+        self.display_goal_position_pub.publish(m)
+
+    def display_goal_pose(self, pose: Pose):
+        self.tf_wrapper.send_transform_from_pose_msg(pose, 'robot_root', 'arm_robots_goal')
