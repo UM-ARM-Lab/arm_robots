@@ -1,15 +1,13 @@
 #! /usr/bin/env python
 
+import argparse
+import sys
+
 import numpy as np
 
-import sys
 import rospy
-import argparse
-from arm_robots.hdt_michigan import BaseVal
+from arm_robots.get_robot import get_base_robot
 from arm_robots.trajectory_follower import TrajectoryFollower
-from arm_robots.victor import BaseVictor
-
-
 
 
 def main():
@@ -21,12 +19,9 @@ def main():
     parser.add_argument("controller_name", type=str)
     args = parser.parse_args(args=rospy.myargv(argv=sys.argv)[1:])
 
-    if args.robot_name == "victor":
-        base_robot = BaseVictor(args.robot_name)
-    elif args.robot_name == "val" or args.robot_name == "hdt_michigan":
-        base_robot = BaseVal('hdt_michigan')
-    else:
-        raise NotImplementedError(f"Invalid robot name {args.robot_name}")
+    base_robot = get_base_robot(args.robot_name)
+    base_robot.connect()
+
     fwd = TrajectoryFollower(base_robot, args.controller_name)
     fwd.start_server()
 
