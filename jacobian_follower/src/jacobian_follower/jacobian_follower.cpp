@@ -189,7 +189,10 @@ PlanResult JacobianFollower::plan(planning_scene_monitor::LockedPlanningSceneRW 
     ROS_ERROR_STREAM_NAMED(LOGGER_NAME, "Time parametrization for the solution path failed.");
   }
 
-  visual_tools_.publishTrajectoryPath(robot_trajectory);
+  if (not robot_trajectory.empty())
+  {
+    visual_tools_.publishTrajectoryPath(robot_trajectory);
+  }
 
   return {robot_trajectory, reached_target};
 }
@@ -287,11 +290,6 @@ PlanResult JacobianFollower::moveInWorldFrame(planning_scene_monitor::LockedPlan
           max_dist = std::max(max_dist, dist);
         }
 
-  if (max_dist < translation_step_size_)
-  {
-    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Motion of distance " << max_dist << " requested. Ignoring");
-    return {robot_trajectory::RobotTrajectory{model_, group_name}, true};
-  }
   auto const steps = static_cast<std::size_t>(std::ceil(max_dist / translation_step_size_)) + 1;
   std::vector<PointSequence> tool_paths;
   BOOST_FOREACH(boost::tie(start_transform, target_position),
