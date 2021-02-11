@@ -10,8 +10,8 @@ from inputs import get_gamepad
 import ros_numpy
 import rospy
 from arc_utilities import ros_init
-from arc_utilities.xbox import Logitech
 from arm_robots.get_robot import get_moveit_robot
+from arm_robots.logitech import Logitech
 
 
 class CartesianTeleop:
