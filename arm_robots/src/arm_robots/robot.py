@@ -31,6 +31,19 @@ store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
 
 
+def to_color_msg(color):
+    """
+
+    Args:
+        color: anything matplotlib can handle
+
+    Returns:
+
+    """
+    r, g, b, a = colors.to_rgba(color)
+    return ColorRGBA(r=r, g=g, b=b, a=a)
+
+
 class MoveitEnabledRobot(DualArmRobot):
 
     def __init__(self,
