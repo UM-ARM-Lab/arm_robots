@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+import sys
 from threading import Thread
 from typing import List
 
@@ -71,6 +72,7 @@ class CartesianTeleop:
         self.robot.follow_jacobian_to_position(self.group_name, self.tool_names, target_positions, vel_scaling=1.0)
 
 
+@ros_init.with_ros("cartesian_teleop")
 def main():
     np.set_printoptions(precision=3, suppress=True)
 
@@ -79,12 +81,10 @@ def main():
     parser.add_argument("group_name", type=str, help="moveit group name, e.g. 'both_arms'")
     parser.add_argument("tool_names", type=str, help="the links you want to move, e.g. 'left_tool'", nargs='+')
 
-    args = parser.parse_args()
+    args = parser.parse_args(rospy.myargv(argv=sys.argv)[1:])
 
-    ros_init.rospy_and_cpp_init("cartesian_teleop")
     ct = CartesianTeleop(args.robot_name, args.group_name, args.tool_names)
     rospy.spin()
-    ros_init.shutdown()
 
 
 if __name__ == '__main__':
