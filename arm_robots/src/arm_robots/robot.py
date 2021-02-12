@@ -10,13 +10,13 @@ import ros_numpy
 import rospy
 from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg
+from arc_utilities.ros_helpers import get_connected_publisher
 from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningResult, PlanningAndExecutionResult, \
     ExecutionResult, is_empty_trajectory
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
 from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PoseStamped
-from link_bot_pycommon.ros_pycommon import get_oneshot_publisher
 from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor
 from rosgraph.names import ns_join
 from rospy import logfatal
@@ -29,9 +29,6 @@ STORED_ORIENTATION = None
 
 store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
-
-
-
 
 
 class MoveitEnabledRobot(DualArmRobot):
@@ -364,7 +361,7 @@ class MoveitEnabledRobot(DualArmRobot):
         """
         topic_name = rospy.names.ns_join('display_robot_state', label)
         topic_name = topic_name.rstrip('/')
-        display_robot_state_pub = get_oneshot_publisher(topic_name, DisplayRobotState, queue_size=10)
+        display_robot_state_pub = get_connected_publisher(topic_name, DisplayRobotState, queue_size=10)
 
         display_robot_state_msg = DisplayRobotState()
         display_robot_state_msg.state.joint_state = joint_state
