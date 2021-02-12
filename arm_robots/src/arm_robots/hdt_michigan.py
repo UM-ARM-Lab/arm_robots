@@ -56,7 +56,6 @@ class BaseVal(DualArmRobot):
                 now = rospy.Time.now()
                 if (now - self.latest_cmd.header.stamp) < rospy.Duration(secs=1):
                     self.latest_cmd.header.stamp = now
-                    rospy.logdebug_throttle(1, self.latest_cmd)
                     self.command_pub.publish(self.latest_cmd)
                 else:
                     rospy.logdebug_throttle(1, "latest command is too old, ignoring")
@@ -181,7 +180,7 @@ class Val(BaseVal, MoveitEnabledRobot):
 
     def is_gripper_closed(self, gripper: str):
         if gripper == 'left':
-            move_group = self.get_move_group_commander('right_gripper')
+            move_group = self.get_move_group_commander('left_gripper')
         elif gripper == 'right':
             move_group = self.get_move_group_commander('right_gripper')
         else:
