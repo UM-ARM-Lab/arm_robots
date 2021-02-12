@@ -36,6 +36,15 @@ class DualArmRobot:
             rospy.logerr("You may need to load the moveit planning context and robot description")
             print(e)
 
+    def __del__(self):
+        self.disconnect()
+
+    def connect(self):
+        pass
+
+    def disconnect(self):
+        pass
+
     def ns(self, name: str):
         return ns_join(self.robot_namespace, name)
 
