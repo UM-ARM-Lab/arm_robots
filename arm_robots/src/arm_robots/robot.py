@@ -31,17 +31,7 @@ store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
 
 
-def to_color_msg(color):
-    """
 
-    Args:
-        color: anything matplotlib can handle
-
-    Returns:
-
-    """
-    r, g, b, a = colors.to_rgba(color)
-    return ColorRGBA(r=r, g=g, b=b, a=a)
 
 
 class MoveitEnabledRobot(DualArmRobot):
@@ -328,10 +318,9 @@ class MoveitEnabledRobot(DualArmRobot):
         return self.get_left_arm_joints() + self.get_right_arm_joints()
 
     def get_joint_names(self, group_name: str = 'whole_body'):
-        move_group = self.get_move_group_commander(group_name)
-        return move_group.get_active_joints()
+        return self.get_move_group_commander(group_name).get_active_joints()
 
-    def get_n_joints(self, group_name: str = 'whole_body'):
+    def get_num_joints(self, group_name: str = 'whole_body'):
         return len(self.get_joint_names(group_name))
 
     def get_right_arm_joints(self):
@@ -362,7 +351,17 @@ class MoveitEnabledRobot(DualArmRobot):
     def is_right_gripper_closed(self):
         return self.is_gripper_closed('right')
 
-    def display_robot_state(self, joint_state: JointState, label: str, **kwargs):
+    def display_robot_state(self, joint_state: JointState, label: str, color):
+        """
+
+        Args:
+            joint_state:
+            label:
+            color: any kind of matplotlib color, e.g "blue", [0,0.6,1], "#ff0044", etc...
+
+        Returns:
+
+        """
         topic_name = rospy.names.ns_join('display_robot_state', label)
         topic_name = topic_name.rstrip('/')
         display_robot_state_pub = get_oneshot_publisher(topic_name, DisplayRobotState, queue_size=10)
@@ -372,10 +371,10 @@ class MoveitEnabledRobot(DualArmRobot):
         display_robot_state_msg.state.joint_state.header.stamp = rospy.Time.now()
         display_robot_state_msg.state.is_diff = False
 
-        if 'color' in kwargs:
-            color = kwargs["color"]
+        if color is not None:
+            color = ColorRGBA(colors.to_rgba(color))
             for link_name in self.robot_commander.get_link_names():
-                object_color = ObjectColor(id=link_name, color=to_color_msg(color))
+                object_color = ObjectColor(id=link_name, color=color)
                 display_robot_state_msg.highlight_links.append(object_color)
 
         display_robot_state_pub.publish(display_robot_state_msg)
