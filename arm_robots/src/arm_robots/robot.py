@@ -348,7 +348,7 @@ class MoveitEnabledRobot(DualArmRobot):
     def is_right_gripper_closed(self):
         return self.is_gripper_closed('right')
 
-    def display_robot_state(self, joint_state: JointState, label: str, color):
+    def display_robot_state(self, joint_state: JointState, label: str, color: Optional = None):
         """
 
         Args:
