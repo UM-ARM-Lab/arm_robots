@@ -27,3 +27,4 @@ moveit_msgs/PlanningSceneWorld world
 
 # Flag indicating whether this scene is to be interpreted as a diff with respect to some other scene
 bool is_diff
+
