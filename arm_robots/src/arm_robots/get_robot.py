@@ -6,11 +6,11 @@ from arm_robots.victor import BaseVictor, Victor
 
 
 def get_moveit_robot(robot_name: Optional[str] = None, **kwargs):
-    get_robot(Val, Victor, robot_name, **kwargs)
+    return get_robot(Val, Victor, robot_name, **kwargs)
 
 
 def get_base_robot(robot_name: Optional[str] = None, **kwargs):
-    get_robot(BaseVal, BaseVictor, robot_name, **kwargs)
+    return get_robot(BaseVal, BaseVictor, robot_name, **kwargs)
 
 
 def get_robot(val_type: Type, victor_type: Type, robot_name: Optional[str] = None, **kwargs):
