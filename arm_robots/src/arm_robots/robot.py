@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+from functools import lru_cache
 from typing import List, Union, Tuple, Callable, Optional, Dict
 
 import numpy as np
@@ -89,7 +90,8 @@ class MoveitEnabledRobot(DualArmRobot):
     def set_block(self, block: bool):
         self.block = block
 
-    def get_move_group_commander(self, group_name) -> moveit_commander.MoveGroupCommander:
+    @lru_cache
+    def get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
         move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
         move_group.set_planning_time(30.0)
         # TODO Make this a settable param or at least make the hardcoded param more obvious
