@@ -171,8 +171,6 @@ PlanResult JacobianFollower::plan(planning_scene_monitor::LockedPlanningSceneRW 
     return {robot_trajectory, true};
   }
 
-  auto const world_to_robot = lookupTransform(tf_buffer_, world_frame_, robot_frame_);
-
   // NOTE: positions are assumed to be in robot_root frame
   auto const n_points = grippers[0].size();
   PointSequence target_point_sequence;
