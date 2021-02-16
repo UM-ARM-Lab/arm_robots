@@ -33,11 +33,9 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, double con
       model_(model_loader_->getModel()),
       scene_monitor_(std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(model_loader_)),
       visual_tools_("robot_root", ros::names::append(robot_namespace, "/moveit_visual_markers"), model_),
-      tf_buffer_(std::make_shared<tf2_ros::Buffer>()),
+      tf_listener_(tf_buffer_),
       world_frame_("robot_root"),
       robot_frame_(model_->getRootLinkName()),
-      worldTrobot(lookupTransform(*tf_buffer_, world_frame_, robot_frame_)),
-      robotTworld(worldTrobot.inverse(Eigen::Isometry)),
       translation_step_size_(translation_step_size),
       minimize_rotation_(minimize_rotation)
 {
@@ -237,12 +235,14 @@ bool JacobianFollower::isRequestValid(std::string const &group_name,
   return true;
 }
 
-PoseSequence JacobianFollower::getToolTransforms(std::vector<std::string> const &tool_names,
+PoseSequence JacobianFollower::getToolTransforms(Pose const &world_to_robot,
+                                                 std::vector<std::string> const &tool_names,
                                                  robot_state::RobotState const &state) const
 {
-  auto get_tool_pose = [this, state](std::string const &tool_name)
+  auto get_tool_pose = [&](std::string const &tool_name)
   {
-    auto const tool_pose = worldTrobot * state.getGlobalLinkTransform(tool_name);
+    // the results of getGlobalLinkTransform is in the same moveit "model frame", as given by RobotModel::getModelFrame
+    auto const tool_pose = world_to_robot * state.getGlobalLinkTransform(tool_name);
     return tool_pose;
   };
   PoseSequence tool_poses;
@@ -258,12 +258,13 @@ PlanResult JacobianFollower::moveInRobotFrame(planning_scene_monitor::LockedPlan
                                               robot_state::RobotState const &start_state,
                                               PointSequence const &target_tool_positions)
 {
+  auto const world_to_robot = lookupTransform(tf_buffer_, world_frame_, robot_frame_);
   return moveInWorldFrame(planning_scene,
                           group_name,
                           tool_names,
                           preferred_tool_orientations,
                           start_state,
-                          Transform(worldTrobot, target_tool_positions));
+                          Transform(world_to_robot, target_tool_positions));
 }
 
 PlanResult JacobianFollower::moveInWorldFrame(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
@@ -275,7 +276,9 @@ PlanResult JacobianFollower::moveInWorldFrame(planning_scene_monitor::LockedPlan
 {
   auto const *const jmg = model_->getJointModelGroup(group_name);
 
-  auto const start_tool_transforms = getToolTransforms(tool_names, start_state);
+  auto const world_to_robot = lookupTransform(tf_buffer_, world_frame_, robot_frame_);
+
+  auto const start_tool_transforms = getToolTransforms(world_to_robot, tool_names, start_state);
   auto const num_ees = start_tool_transforms.size();
 
   double max_dist = 0.0;
@@ -334,7 +337,8 @@ PlanResult JacobianFollower::moveInWorldFrame(planning_scene_monitor::LockedPlan
   }
 
   planning_scene->setCurrentState(start_state);
-  auto const traj = jacobianPath3d(planning_scene, jmg, tool_names, preferred_tool_orientations, tool_paths);
+  auto const traj = jacobianPath3d(planning_scene, world_to_robot, jmg, tool_names, preferred_tool_orientations,
+                                   tool_paths);
   auto const reached_target = traj.getWayPointCount() == (tool_paths[0].size() - 1);
 
   // Debugging - visualize JacobiakIK result tip
@@ -364,7 +368,7 @@ PlanResult JacobianFollower::moveInWorldFrame(planning_scene_monitor::LockedPlan
     for (size_t step_idx = 0; step_idx < traj.getWayPointCount(); ++step_idx)
     {
       auto const &state = traj.getWayPoint(step_idx);
-      auto const tool_poses = getToolTransforms(tool_names, state);
+      auto const tool_poses = getToolTransforms(world_to_robot, tool_names, state);
       for (auto tool_idx = 0ul; tool_idx < num_ees; ++tool_idx)
       {
         auto &m = msg.markers[tool_idx];
@@ -382,6 +386,7 @@ PlanResult JacobianFollower::moveInWorldFrame(planning_scene_monitor::LockedPlan
 
 robot_trajectory::RobotTrajectory
 JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
+                                 Pose const &world_to_robot,
                                  moveit::core::JointModelGroup const *const jmg,
                                  std::vector<std::string> const &tool_names,
                                  EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
@@ -391,7 +396,8 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
   auto const steps = tool_paths[0].size();
 
   auto const &start_state = planning_scene->getCurrentState();
-  auto const start_tool_transforms = getToolTransforms(tool_names, start_state);
+  auto const robot_to_world = world_to_robot.inverse(Eigen::Isometry);
+  auto const start_tool_transforms = getToolTransforms(world_to_robot, tool_names, start_state);
 
   // Initialize the command with the current state for the first target point
   robot_trajectory::RobotTrajectory cmd{model_, jmg};
@@ -404,12 +410,12 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
     PoseSequence robotTtargets(num_ees);
     for (auto ee_idx = 0ul; ee_idx < num_ees; ++ee_idx)
     {
-      robotTtargets[ee_idx].translation() = robotTworld * tool_paths[ee_idx][step_idx];
+      robotTtargets[ee_idx].translation() = robot_to_world * tool_paths[ee_idx][step_idx];
       robotTtargets[ee_idx].linear() = preferred_tool_orientations[ee_idx].toRotationMatrix();
     }
 
     // Note that jacobianIK is assumed to have modified the state in the planning scene
-    const auto iksoln = jacobianIK(planning_scene, jmg, tool_names, robotTtargets);
+    const auto iksoln = jacobianIK(planning_scene, world_to_robot, jmg, tool_names, robotTtargets);
     if (!iksoln)
     {
       ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "IK Stalled at idx " << step_idx << ", returning early");
@@ -431,11 +437,14 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
 // Note that robotTtargets is the target points for the tools, measured in robot frame
 bool JacobianFollower::jacobianIK(
     planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
+    Pose const &world_to_robot,
     moveit::core::JointModelGroup const *const jmg,
     std::vector<std::string> const &tool_names,
     PoseSequence const &robotTtargets)
 {
   constexpr bool bPRINT = false;
+
+  auto const robot_to_world = world_to_robot.inverse(Eigen::Isometry);
 
   auto const num_ees = static_cast<long>(tool_names.size());
   robot_state::RobotState &state = planning_scene->getCurrentStateNonConst();
@@ -502,7 +511,7 @@ bool JacobianFollower::jacobianIK(
 
   for (int itr = 0; itr < maxItr; itr++)
   {
-    auto const robotTcurr = Transform(robotTworld, getToolTransforms(tool_names, state));
+    auto const robotTcurr = Transform(robot_to_world, getToolTransforms(world_to_robot, tool_names, state));
     auto const poseError = calcPoseError(robotTcurr, robotTtargets);
     auto const[posErrorVec, rotErrorVec] = calcVecError(poseError);
     auto currPositionError = posErrorVec.norm();

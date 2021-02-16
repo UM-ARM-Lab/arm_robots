@@ -19,6 +19,7 @@
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
 #include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <trajectory_msgs/JointTrajectory.h>
 
@@ -44,11 +45,10 @@ class JacobianFollower
   // Debugging
   moveit_visual_tools::MoveItVisualTools visual_tools_;
 
-  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_;
   std::string const world_frame_;
   std::string const robot_frame_;
-  Pose const worldTrobot;
-  Pose const robotTworld;
 
   // For use when moving the EE positions using moveIn[Robot/World]Frame
   double const translation_step_size_;
@@ -64,7 +64,8 @@ class JacobianFollower
                                     std::vector<std::vector<Eigen::Vector3d>>
                                     const &grippers) const;
 
-  [[nodiscard]] PoseSequence getToolTransforms(std::vector<std::string> const &tool_names,
+  [[nodiscard]] PoseSequence getToolTransforms(Pose const &world_to_robot,
+                                               std::vector<std::string> const &tool_names,
                                                robot_state::RobotState const &state) const;
 
 
@@ -114,6 +115,7 @@ class JacobianFollower
                               PointSequence const &target_tool_positions);
 
   robot_trajectory::RobotTrajectory jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
+                                                   Pose const &world_to_robot,
                                                    moveit::core::JointModelGroup const *jmg,
                                                    std::vector<std::string> const &tool_names,
                                                    EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
@@ -121,6 +123,7 @@ class JacobianFollower
 
   // Note that robot_goal_points is the target points for the tools, measured in robot frame
   bool jacobianIK(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
+                  Pose const &world_to_robot,
                   moveit::core::JointModelGroup const *jmg,
                   std::vector<std::string> const &tool_names,
                   PoseSequence const &robotTtargets);
