@@ -369,7 +369,7 @@ class MoveitEnabledRobot(DualArmRobot):
         display_robot_state_msg.state.is_diff = False
 
         if color is not None:
-            color = ColorRGBA(colors.to_rgba(color))
+            color = ColorRGBA(*colors.to_rgba(color))
             for link_name in self.robot_commander.get_link_names():
                 object_color = ObjectColor(id=link_name, color=color)
                 display_robot_state_msg.highlight_links.append(object_color)
