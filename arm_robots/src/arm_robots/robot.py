@@ -79,7 +79,8 @@ class MoveitEnabledRobot(DualArmRobot):
 
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
                                                                       translation_step_size=0.005,
-                                                                      minimize_rotation=True)
+                                                                      minimize_rotation=True,
+                                                                      collision_check=True)
         if preload_move_groups:
             for group_name in self.robot_commander.get_group_names():
                 self.get_move_group_commander(group_name)
