@@ -42,15 +42,10 @@ PoseSequence getToolTransforms(Pose const &world_to_robot,
   return tool_poses;
 }
 
-<<<<<<< HEAD
-JacobianFollower::JacobianFollower(std::string const robot_namespace, double const translation_step_size,
-                                   bool const minimize_rotation)
-=======
 JacobianFollower::JacobianFollower(std::string const robot_namespace,
                                    double const translation_step_size,
                                    bool const minimize_rotation,
                                    bool const collision_check)
->>>>>>> refactoring out the constraint checking in the jacobian follower
     : model_loader_(std::make_shared<robot_model_loader::RobotModelLoader>()),
       model_(model_loader_->getModel()),
       scene_monitor_(std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(model_loader_)),
