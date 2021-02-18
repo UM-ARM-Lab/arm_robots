@@ -42,8 +42,15 @@ PoseSequence getToolTransforms(Pose const &world_to_robot,
   return tool_poses;
 }
 
+<<<<<<< HEAD
 JacobianFollower::JacobianFollower(std::string const robot_namespace, double const translation_step_size,
                                    bool const minimize_rotation)
+=======
+JacobianFollower::JacobianFollower(std::string const robot_namespace,
+                                   double const translation_step_size,
+                                   bool const minimize_rotation,
+                                   bool const collision_check)
+>>>>>>> refactoring out the constraint checking in the jacobian follower
     : model_loader_(std::make_shared<robot_model_loader::RobotModelLoader>()),
       model_(model_loader_->getModel()),
       scene_monitor_(std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(model_loader_)),
@@ -52,7 +59,8 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, double con
       world_frame_("robot_root"),
       robot_frame_(model_->getRootLinkName()),
       translation_step_size_(translation_step_size),
-      minimize_rotation_(minimize_rotation)
+      minimize_rotation_(minimize_rotation),
+      collision_check_(collision_check)
 {
   if (!ros::isInitialized())
   {
@@ -72,6 +80,11 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, double con
   visual_tools_.loadTrajectoryPub(display_planned_path_topic, false);
   auto const display_robot_state_topic = ros::names::append(robot_namespace, "jacobian_follower_robot_state");
   visual_tools_.loadRobotStatePub(display_robot_state_topic, false);
+
+  if (collision_check_)
+  {
+    constraint_fun_ = checkCollision;
+  }
 }
 
 
@@ -250,7 +263,6 @@ bool JacobianFollower::isRequestValid(std::string const &group_name,
   return true;
 }
 
-
 PlanResult JacobianFollower::moveInRobotFrame(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
                                               std::string const &group_name,
                                               std::vector<std::string> const &tool_names,
@@ -341,7 +353,7 @@ PlanResult JacobianFollower::moveInWorldFrame(planning_scene_monitor::LockedPlan
                                    tool_paths);
   auto const reached_target = traj.getWayPointCount() == (tool_paths[0].size() - 1);
 
-  // Debugging - visualize JacobiakIK result tip
+  // Debugging - visualize JacobianIK result tip
   if (!traj.empty())
   {
     visualization_msgs::MarkerArray msg;
@@ -415,7 +427,7 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
     }
 
     // Note that jacobianIK is assumed to have modified the state in the planning scene
-    const auto iksoln = jacobianIK(planning_scene, world_to_robot, jmg, tool_names, robotTtargets);
+    const auto iksoln = jacobianIK(planning_scene, world_to_robot, jmg, tool_names, robotTtargets, constraint_fun_);
     if (!iksoln)
     {
       ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "IK Stalled at idx " << step_idx << ", returning early");
@@ -434,13 +446,31 @@ JacobianFollower::jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &
   return cmd;
 }
 
+bool checkCollision(planning_scene_monitor::LockedPlanningSceneRW &planning_scene, robot_state::RobotState const &state)
+{
+  collision_detection::CollisionRequest collisionRequest;
+  collisionRequest.contacts = true;
+  collisionRequest.max_contacts = 1;
+  collisionRequest.max_contacts_per_pair = 1;
+  collision_detection::CollisionResult collisionResult;
+  planning_scene->checkCollision(collisionRequest, collisionResult, state);
+  if (collisionResult.collision)
+  {
+    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Collision Result: " << collisionResult);
+    return true;
+  }
+
+  return false;
+}
+
 // Note that robotTtargets is the target points for the tools, measured in robot frame
 bool JacobianFollower::jacobianIK(
     planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
     Pose const &world_to_robot,
     moveit::core::JointModelGroup const *const jmg,
     std::vector<std::string> const &tool_names,
-    PoseSequence const &robotTtargets)
+    PoseSequence const &robotTtargets,
+    ConstraintFn const &check_constraint)
 {
   constexpr bool bPRINT = false;
 
@@ -498,11 +528,6 @@ bool JacobianFollower::jacobianIK(
   const auto dampingThreshold = EigenHelpers::SuggestedRcond();
   const auto damping = EigenHelpers::SuggestedRcond();
 
-  collision_detection::CollisionRequest collisionRequest;
-  collisionRequest.contacts = true;
-  collisionRequest.max_contacts = 1;
-  collisionRequest.max_contacts_per_pair = 1;
-  collision_detection::CollisionResult collisionResult;
   VecArrayXb goodJoints = VecArrayXb::Ones(ndof);
   const int maxItr = 200;
   const double maxStepSize = 0.1;
@@ -719,13 +744,15 @@ bool JacobianFollower::jacobianIK(
     state.setJointGroupPositions(jmg, currConfig);
     state.update();
 
-    planning_scene->checkCollision(collisionRequest, collisionResult, state);
-    if (collisionResult.collision)
+    if (check_constraint)
     {
-      ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Projection stalled at itr " << itr << ". " << collisionResult);
-      return false;
+      auto const constraint_violated = check_constraint(planning_scene, state);
+      if (constraint_violated)
+      {
+        ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Projection stalled at itr " << itr);
+        return false;
+      }
     }
-    collisionResult.clear();
   }
 
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Iteration limit reached");

@@ -25,6 +25,15 @@
 
 using PlanResult = std::pair<robot_trajectory::RobotTrajectory, bool>;
 using PlanResultMsg = std::pair<moveit_msgs::RobotTrajectory, bool>;
+using ConstraintFn = std::function<bool(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
+                                        robot_state::RobotState const &state)>;
+
+bool checkCollision(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
+                    robot_state::RobotState const &state);
+
+[[nodiscard]] PoseSequence getToolTransforms(Pose const &world_to_robot,
+                                             std::vector<std::string> const &tool_names,
+                                             robot_state::RobotState const &state);
 
 [[nodiscard]] PoseSequence getToolTransforms(Pose const &world_to_robot,
                                              std::vector<std::string> const &tool_names,
@@ -60,9 +69,14 @@ class JacobianFollower
 
   trajectory_processing::IterativeParabolicTimeParameterization time_param_;
 
-  bool minimize_rotation_{true};
+  bool minimize_rotation_;
+  bool collision_check_;
+  ConstraintFn constraint_fun_;
 
-  explicit JacobianFollower(std::string robot_namespace, double translation_step_size, bool minimize_rotation = true);
+  explicit JacobianFollower(std::string robot_namespace,
+                            double translation_step_size,
+                            bool minimize_rotation = true,
+                            bool collision_check = true);
 
   [[nodiscard]] bool isRequestValid(std::string const &group_name,
                                     std::vector<std::string> const &tool_names,
@@ -126,7 +140,8 @@ class JacobianFollower
                   Pose const &world_to_robot,
                   moveit::core::JointModelGroup const *jmg,
                   std::vector<std::string> const &tool_names,
-                  PoseSequence const &robotTtargets);
+                  PoseSequence const &robotTtargets,
+                  const ConstraintFn &check_constraint);
 
   Eigen::VectorXd projectRotationIntoNullspace(Eigen::VectorXd positionCorrectionStep,
                                                Eigen::VectorXd rotationCorrectionStep,
