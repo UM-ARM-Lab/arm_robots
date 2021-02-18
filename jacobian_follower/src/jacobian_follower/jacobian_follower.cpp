@@ -27,6 +27,21 @@ using VecArrayXb = Eigen::Array<bool, Eigen::Dynamic, 1>;
 
 constexpr auto const LOGGER_NAME{"JacobianFollower"};
 
+PoseSequence getToolTransforms(Pose const &world_to_robot,
+                               std::vector<std::string> const &tool_names,
+                               robot_state::RobotState const &state)
+{
+  auto get_tool_pose = [&](std::string const &tool_name)
+  {
+    // the results of getGlobalLinkTransform is in the same moveit "model frame", as given by RobotModel::getModelFrame
+    auto const tool_pose = world_to_robot * state.getGlobalLinkTransform(tool_name);
+    return tool_pose;
+  };
+  PoseSequence tool_poses;
+  std::transform(tool_names.cbegin(), tool_names.cend(), std::back_inserter(tool_poses), get_tool_pose);
+  return tool_poses;
+}
+
 JacobianFollower::JacobianFollower(std::string const robot_namespace, double const translation_step_size,
                                    bool const minimize_rotation)
     : model_loader_(std::make_shared<robot_model_loader::RobotModelLoader>()),
@@ -233,21 +248,6 @@ bool JacobianFollower::isRequestValid(std::string const &group_name,
     }
   }
   return true;
-}
-
-PoseSequence JacobianFollower::getToolTransforms(Pose const &world_to_robot,
-                                                 std::vector<std::string> const &tool_names,
-                                                 robot_state::RobotState const &state) const
-{
-  auto get_tool_pose = [&](std::string const &tool_name)
-  {
-    // the results of getGlobalLinkTransform is in the same moveit "model frame", as given by RobotModel::getModelFrame
-    auto const tool_pose = world_to_robot * state.getGlobalLinkTransform(tool_name);
-    return tool_pose;
-  };
-  PoseSequence tool_poses;
-  std::transform(tool_names.cbegin(), tool_names.cend(), std::back_inserter(tool_poses), get_tool_pose);
-  return tool_poses;
 }
 
 

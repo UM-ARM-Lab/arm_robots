@@ -26,6 +26,11 @@
 using PlanResult = std::pair<robot_trajectory::RobotTrajectory, bool>;
 using PlanResultMsg = std::pair<moveit_msgs::RobotTrajectory, bool>;
 
+[[nodiscard]] PoseSequence getToolTransforms(Pose const &world_to_robot,
+                                             std::vector<std::string> const &tool_names,
+                                             robot_state::RobotState const &state);
+
+
 class JacobianFollower
 {
  public:
@@ -63,11 +68,6 @@ class JacobianFollower
                                     std::vector<std::string> const &tool_names,
                                     std::vector<std::vector<Eigen::Vector3d>>
                                     const &grippers) const;
-
-  [[nodiscard]] PoseSequence getToolTransforms(Pose const &world_to_robot,
-                                               std::vector<std::string> const &tool_names,
-                                               robot_state::RobotState const &state) const;
-
 
   PlanResultMsg plan_return_msg(std::string const &group_name,
                                 std::vector<std::string> const &tool_names,
