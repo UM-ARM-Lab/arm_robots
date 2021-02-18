@@ -39,6 +39,6 @@ def get_robot(val_type: Type, victor_type: Type, robot_name: Optional[str] = Non
     if robot_name == 'victor':
         return victor_type(robot_name, **kwargs)
     elif robot_name in ['val', 'hdt_michigan']:
-        return val_type(robot_name, **kwargs)
+        return val_type('hdt_michigan', **kwargs)
     else:
         raise NotImplementedError(f"robot with name {robot_name} not implemented")
