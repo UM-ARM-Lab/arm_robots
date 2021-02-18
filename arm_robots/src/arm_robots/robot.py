@@ -72,7 +72,8 @@ class MoveitEnabledRobot(DualArmRobot):
 
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
                                                                       translation_step_size=0.005,
-                                                                      minimize_rotation=True)
+                                                                      minimize_rotation=True,
+                                                                      collision_check=True)
 
     def setup_joint_trajectory_controller_client(self, controller_name):
         action_name = ns_join(self.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
