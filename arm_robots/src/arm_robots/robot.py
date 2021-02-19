@@ -32,6 +32,12 @@ store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
 
 
+@lru_cache
+def _get_move_group_commander(group_name, robot_namespace):
+    move_group = moveit_commander.MoveGroupCommander(group_name, ns=robot_namespace)
+    return move_group
+
+
 class MoveitEnabledRobot(DualArmRobot):
 
     def __init__(self,
@@ -90,9 +96,8 @@ class MoveitEnabledRobot(DualArmRobot):
     def set_block(self, block: bool):
         self.block = block
 
-    @lru_cache
     def get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = _get_move_group_commander(group_name, self.robot_namespace)
         move_group.set_planning_time(30.0)
         # TODO Make this a settable param or at least make the hardcoded param more obvious
         # The purpose of this safety factor is to make sure we never send victor a velocity
