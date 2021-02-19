@@ -180,6 +180,39 @@ class MoveitEnabledRobot(DualArmRobot):
         execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
+
+    def plan_cartesian_path(self, group_name: str, ee_link_name, waypoints, ask_before_moving = False):
+        """
+        Args:
+            group_name: group name, defined in the SRDF
+            waypoints: a list of cartesion waypoints of type geometry_msgs.msg.Pose()
+        Returns:
+            The result message of following the trajectory
+        """       
+        self.check_inputs(group_name, ee_link_name)
+        move_group = self.get_move_group_commander(group_name)
+        move_group.set_end_effector_link(ee_link_name)
+        (plan, fraction) = move_group.compute_cartesian_path(
+                                    waypoints,   # waypoints to follow
+                                    0.01,        # eef_step
+                                    0.0)         # jump_threshold
+                                    
+        print ("============ Waiting while RVIZ displays plan3...")
+        rospy.sleep(1)
+        if ask_before_moving:
+            input("Execute cartesian path?")
+        #planning_result = PlanningResult(move_group.plan())
+        #if self.raise_on_failure and not planning_result.success:
+            #raise RuntimeError(f"Plan cartesian path failed {planning_result.planning_error_code}")
+        
+        execution_result = self.follow_arms_joint_trajectory(plan.joint_trajectory)
+        #print(PlanningAndExecutionResult(planning_result, execution_result))
+        #move_group.go(wait=True) #, does this also work? 
+        #return PlanningAndExecutionResult(planning_result, execution_result)
+        
+
+
+
     def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
         return make_follow_joint_trajectory_goal(trajectory)
 

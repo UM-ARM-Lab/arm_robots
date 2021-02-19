@@ -9,14 +9,18 @@ from arc_utilities import ros_init
 from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
 
+from tempfile import TemporaryFile
+import time
+
 #REQUIRES: list trans, and rot_q (quaternion of rotation)
 #EFFECTS: returns 4 by 4 homogeneous transform of type numpy array 
 def quat2matrix(trans, rot_q):
     return np.block([[np.asarray(R.from_quat(rot_q).as_matrix()), np.asarray(trans).reshape(3,1)],[0, 0, 0, 1]])
 
 if __name__ == '__main__':
+    data_cal = TemporaryFile()
     #Initialize parameter
-    n = 100 # total number of data collected
+    n = 40 # total number of data collected
     r = 10.0 # data collection rate 
     traj_v = np.zeros((3,n)) #x, y, z trajectory from vicon
     traj_r = np.zeros((3,n)) #x, y, z trajectory from robot fk
@@ -58,27 +62,39 @@ if __name__ == '__main__':
             continue
         rate.sleep()
 
+
+    #save data
+    np.savez('data_cal', traj_v = traj_v, traj_r = traj_r)
+    npzfile = np.load('data_cal.npz')
+    print(npzfile.files)
+    #print(npzfile['traj_v'])
+    #print(npzfile['traj_r'])
+
     fig = plt.figure()
     ax = plt.axes(projection='3d')
 
+    #change unit from meter to millimeter
+    traj_r *= 1000.0
+    traj_v *= 1000.0
     # Data for a three-dimensional line
-    xline = traj_v[0,:]
+    xline = traj_v[0,:] 
     yline = traj_v[1,:]
     zline = traj_v[2,:]
-    #ax.plot3D(xline, yline, zline, 'gray')
-    ax.scatter3D(xline, yline, zline, 'blue')
+    ax.scatter3D(xline, yline, zline, 'blue', label = 'Motion Capture')
 
-    xline = traj_r[0,:]
+    #align first point
+    traj_r -= (traj_r[:,0:1]-traj_v[:,0:1])
+
+    xline = traj_r[0,:] 
     yline = traj_r[1,:]
     zline = traj_r[2,:]
-    ax.scatter3D(xline, yline, zline, 'red')
-    # Data for three-dimensional scattered points
-    '''
-    zdata = 15 * np.random.random(100)
-    xdata = np.sin(zdata) + 0.1 * np.random.randn(100)
-    ydata = np.cos(zdata) + 0.1 * np.random.randn(100)
-    ax.scatter3D(xdata, ydata, zdata, c=zdata, cmap='Greens')
-    '''
+    ax.scatter3D(xline, yline, zline, 'red', label = 'Forward Kinematics')
+
+    plt.title('End Effector Trajectory measured from \n Forward Kinematics and Motion Capture System')
+    plt.xlabel('x(mm)')
+    plt.ylabel('y(mm)')
+    #plt.zlabel('z(m)')
+    plt.legend(loc = 'top right')
     plt.show()
 
 
