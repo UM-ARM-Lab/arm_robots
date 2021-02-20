@@ -31,7 +31,6 @@ store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
 
 
-
 class MoveitEnabledRobot(DualArmRobot):
 
     def __init__(self,
