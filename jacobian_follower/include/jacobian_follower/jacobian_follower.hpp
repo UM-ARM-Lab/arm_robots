@@ -141,7 +141,7 @@ class JacobianFollower
                   moveit::core::JointModelGroup const *jmg,
                   std::vector<std::string> const &tool_names,
                   PoseSequence const &robotTtargets,
-                  const ConstraintFn &check_constraint);
+                  const ConstraintFn &constraint_fn);
 
   Eigen::VectorXd projectRotationIntoNullspace(Eigen::VectorXd positionCorrectionStep,
                                                Eigen::VectorXd rotationCorrectionStep,
@@ -151,6 +151,8 @@ class JacobianFollower
   Eigen::MatrixXd getJacobianServoFrame(moveit::core::JointModelGroup const *jmg,
                                         std::vector<std::string> const &tool_names,
                                         robot_state::RobotState const &state, PoseSequence const &robotTservo);
+
+  bool check_collision(moveit_msgs::RobotState const &start_state);
 
   void debugLogState(std::string prefix, robot_state::RobotState const &state);
 };

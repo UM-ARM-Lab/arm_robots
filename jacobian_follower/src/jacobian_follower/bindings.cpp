@@ -17,7 +17,8 @@ PYBIND11_MODULE(pyjacobian_follower, m)
            py::arg("minimize_rotation"),
            py::arg("collision_check")
       )
-      .def("plan_from_start_state", py::overload_cast<std::string const &,
+      .def("plan_from_start_state",
+           py::overload_cast<std::string const &,
                std::vector<std::string> const &,
                std::vector<Eigen::Vector4d> const &,
                moveit_msgs::RobotState const &,
@@ -32,7 +33,8 @@ PYBIND11_MODULE(pyjacobian_follower, m)
            py::arg("max_velocity_scaling_factor"),
            py::arg("max_acceleration_scaling_factor")
       )
-      .def("plan", py::overload_cast<std::string const &,
+      .def("plan",
+           py::overload_cast<std::string const &,
                std::vector<std::string> const &,
                std::vector<Eigen::Vector4d> const &,
                std::vector<std::vector<Eigen::Vector3d>> const &,
@@ -44,5 +46,9 @@ PYBIND11_MODULE(pyjacobian_follower, m)
            py::arg("grippers"),
            py::arg("max_velocity_scaling_factor"),
            py::arg("max_acceleration_scaling_factor")
+      )
+      .def("check_collision",
+           py::overload_cast<moveit_msgs::RobotState const &>(&JacobianFollower::check_collision),
+           py::arg("start_state")
       );
 }

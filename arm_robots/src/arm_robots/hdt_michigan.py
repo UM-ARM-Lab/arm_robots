@@ -34,8 +34,9 @@ class BaseVal(DualArmRobot):
 
     def connect(self):
         super().connect()
-        if not self.command_thread.is_alive():
-            self.command_thread.start()
+        rospy.logerr("DISABLED COMMAND THREAD!")
+        # if not self.command_thread.is_alive():
+        #     self.command_thread.start()
 
     def disconnect(self):
         self.should_disconnect = True

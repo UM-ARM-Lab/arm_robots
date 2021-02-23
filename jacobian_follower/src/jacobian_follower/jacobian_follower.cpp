@@ -465,7 +465,7 @@ bool JacobianFollower::jacobianIK(
     moveit::core::JointModelGroup const *const jmg,
     std::vector<std::string> const &tool_names,
     PoseSequence const &robotTtargets,
-    ConstraintFn const &check_constraint)
+    ConstraintFn const &constraint_fn)
 {
   constexpr bool bPRINT = false;
 
@@ -739,9 +739,9 @@ bool JacobianFollower::jacobianIK(
     state.setJointGroupPositions(jmg, currConfig);
     state.update();
 
-    if (check_constraint)
+    if (constraint_fn)
     {
-      auto const constraint_violated = check_constraint(planning_scene, state);
+      auto const constraint_violated = constraint_fn(planning_scene, state);
       if (constraint_violated)
       {
         ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Projection stalled at itr " << itr);
@@ -795,4 +795,12 @@ Eigen::MatrixXd JacobianFollower::getJacobianServoFrame(moveit::core::JointModel
     jacobian.block(static_cast<long>(idx * 6), 0, 6, columns) = block;
   }
   return jacobian;
+}
+
+bool JacobianFollower::check_collision(moveit_msgs::RobotState const &state_msg)
+{
+  planning_scene_monitor::LockedPlanningSceneRW planning_scene(scene_monitor_);
+  planning_scene->setCurrentState(state_msg);
+  auto const &state = planning_scene->getCurrentState();
+  return checkCollision(planning_scene, state);
 }
