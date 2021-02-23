@@ -34,9 +34,8 @@ class BaseVal(DualArmRobot):
 
     def connect(self):
         super().connect()
-        rospy.logerr("DISABLED COMMAND THREAD!")
-        # if not self.command_thread.is_alive():
-        #     self.command_thread.start()
+        if not self.command_thread.is_alive():
+            self.command_thread.start()
 
     def disconnect(self):
         self.should_disconnect = True
@@ -44,6 +43,9 @@ class BaseVal(DualArmRobot):
             self.command_thread.join()
 
     def command_thread_func(self):
+        if rospy.get_param("use_sim_time", False):
+            rospy.loginfo("Simulation detected, no command thread will be started.")
+            return
         try:
             while not self.first_valid_command:
                 if self.should_disconnect:
