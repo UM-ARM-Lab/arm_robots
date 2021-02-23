@@ -86,7 +86,7 @@ class JacobianFollower
   PlanResultMsg plan_return_msg(std::string const &group_name,
                                 std::vector<std::string> const &tool_names,
                                 std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
-                                moveit_msgs::RobotState const &start_state,
+                                moveit_msgs::RobotState const &start_state_msg,
                                 std::vector<std::vector<Eigen::Vector3d>> const &grippers,
                                 double max_velocity_scaling_factor,
                                 double max_acceleration_scaling_factor);
@@ -153,6 +153,9 @@ class JacobianFollower
                                         robot_state::RobotState const &state, PoseSequence const &robotTservo);
 
   bool check_collision(moveit_msgs::RobotState const &start_state);
+
+  std::vector<Eigen::Vector3d> get_tool_positions(std::vector<std::string> tool_names,
+                                                  moveit_msgs::RobotState const &state_msg);
 
   void debugLogState(std::string prefix, robot_state::RobotState const &state);
 };

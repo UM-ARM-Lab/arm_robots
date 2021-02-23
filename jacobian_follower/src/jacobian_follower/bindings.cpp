@@ -50,5 +50,11 @@ PYBIND11_MODULE(pyjacobian_follower, m)
       .def("check_collision",
            py::overload_cast<moveit_msgs::RobotState const &>(&JacobianFollower::check_collision),
            py::arg("start_state")
+      )
+      .def("get_tool_positions",
+           py::overload_cast<std::vector<std::string>,
+               moveit_msgs::RobotState const &>(&JacobianFollower::get_tool_positions),
+           py::arg("tool_names"),
+           py::arg("state")
       );
 }

@@ -117,13 +117,13 @@ PlanResultMsg JacobianFollower::plan_return_msg(std::string const &group_name,
 PlanResultMsg JacobianFollower::plan_return_msg(std::string const &group_name,
                                                 std::vector<std::string> const &tool_names,
                                                 std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
-                                                moveit_msgs::RobotState const &start_state,
+                                                moveit_msgs::RobotState const &start_state_msg,
                                                 std::vector<std::vector<Eigen::Vector3d>> const &grippers,
                                                 double const max_velocity_scaling_factor,
                                                 double const max_acceleration_scaling_factor)
 {
   robot_state::RobotState robot_start_state(model_);
-  robotStateMsgToRobotState(start_state, robot_start_state);
+  robotStateMsgToRobotState(start_state_msg, robot_start_state);
   planning_scene_monitor::LockedPlanningSceneRW planning_scene(scene_monitor_);
   auto const plan_result = plan(planning_scene,
                                 group_name,
@@ -803,4 +803,17 @@ bool JacobianFollower::check_collision(moveit_msgs::RobotState const &state_msg)
   planning_scene->setCurrentState(state_msg);
   auto const &state = planning_scene->getCurrentState();
   return checkCollision(planning_scene, state);
+}
+
+std::vector<Eigen::Vector3d> JacobianFollower::get_tool_positions(std::vector<std::string> tool_names,
+                                                                  moveit_msgs::RobotState const &state_msg)
+{
+  auto const world_to_robot = lookupTransform(tf_buffer_, world_frame_, robot_frame_);
+  robot_state::RobotState state(model_);
+  robotStateMsgToRobotState(state_msg, state);
+  auto const tool_transforms = getToolTransforms(world_to_robot, tool_names, state);
+  std::vector<Eigen::Vector3d> positions;
+  auto get_translation = [](auto const &t) { return t.translation(); };
+  std::transform(tool_transforms.cbegin(), tool_transforms.cend(), std::back_inserter(positions), get_translation);
+  return positions;
 }
