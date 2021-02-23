@@ -1,11 +1,12 @@
 #! /usr/bin/env python
 import colorama
 import numpy as np
+import copy
 from geometry_msgs.msg import Pose
 from tf.transformations import quaternion_from_euler
 
 from arc_utilities import ros_init
-from arm_robots.hdt_michigan import Val
+from arm_robots.hdt_michigan import Val         
 
 ask_before_moving = True
 
@@ -24,7 +25,7 @@ def main():
 
     val = Val(raise_on_failure=True)
     val.connect()
-
+ 
     val.open_left_gripper()
     val.close_left_gripper()
     val.open_right_gripper()
@@ -32,6 +33,28 @@ def main():
 
     print("press enter if prompted")
 
+    # Plan to joint config
+    myinput("Plan to home joint config?")
+    val.plan_to_joint_config('both_arms', 'home')
+    
+    '''
+    # cartesian path planning 
+    myinput("Plan cartesian path?")
+    waypoints = []
+    print(val.right_tool_name)
+    #pose = val.get_link_pose(val.right_arm_group, 'end_effector_right')
+    pose = val.get_link_pose(val.right_arm_group, 'end_effector_right')
+    print("current pose", pose)
+    #waypoints.append(copy.deepcopy(pose))
+    pose.position.y += 0.05
+    waypoints.append(copy.deepcopy(pose))
+    print("moved pose", pose)
+    pose.position.z -= 0.05
+    waypoints.append(copy.deepcopy(pose))
+    #print(waypoints)
+    result = val.plan_cartesian_path(val.right_arm_group, 'end_effector_right', waypoints)
+    
+    '''
     # Plan to joint config
     myinput("Plan to home joint config?")
     val.plan_to_joint_config('both_arms', 'home')
@@ -60,6 +83,7 @@ def main():
     myinput("follow jacobian to pose 4?")
     val.store_current_tool_orientations([val.right_tool_name])
     val.follow_jacobian_to_position('both_arms', [val.right_tool_name], [[[0.3, 0.5, 0.3]]], vel_scaling=1.0)
+
 
     val.disconnect()
     ros_init.shutdown()

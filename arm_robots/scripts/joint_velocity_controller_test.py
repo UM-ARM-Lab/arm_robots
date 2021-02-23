@@ -2,7 +2,8 @@
 import rospy
 import math
 from sensor_msgs.msg import JointState
-
+from arm_robots.hdt_michigan import Val
+from arc_utilities import ros_init
 '''
 list of joints: 
 name: 
@@ -28,14 +29,13 @@ name:
 - rightgripper2
 '''
 
-def joint_vel_ctl(joint_name, joint_vel, time = 1.0):
+def joint_vel_ctl(pub, joint_name, joint_vel, time = 1.0):
     print("{} velocity = {}, time = {}".format(joint_name, joint_vel, time))
-    rospy.init_node("send_joint_command")
-    pub = rospy.Publisher("hdt_adroit_coms/joint_cmd", JointState, queue_size=10)
+    #rospy.init_node("send_joint_command")
 
     r = 100 # control bandwidth
     rate = rospy.Rate(r)
-    joint_state = rospy.wait_for_message("/hdt_michigan/joint_states", JointState, timeout=None)
+    joint_state = rospy.wait_for_message("/hdt_michigan/joint_states", JointState, timeout=5)
     #find index of the joint_name
     id = -1
     for id_, name_i in enumerate(joint_state.name):
@@ -55,7 +55,7 @@ def joint_vel_ctl(joint_name, joint_vel, time = 1.0):
     joint_cmd.position = list(joint_state.position)
     joint_cmd.position[id] = dir
     joint_cmd.velocity = list(joint_state.velocity)
-    joint_cmd.velocity[id] = joint_vel
+    joint_cmd.velocity[id] = abs(joint_vel)
     joint_cmd.name = joint_state.name
     joint_cmd.effort = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -72,7 +72,18 @@ def joint_vel_ctl(joint_name, joint_vel, time = 1.0):
         rate.sleep()
 
 if __name__ == '__main__':
-    joint_vel_ctl('joint7', 0.1, 1.0)
+    rospy.init_node("send_joint_command")
+    pub = rospy.Publisher("hdt_adroit_coms/joint_cmd", JointState, queue_size=10)
+    
+    #val = Val(raise_on_failure=True)
+    #val.connect()
+
+    ##val.open_left_gripper()
+    ##val.close_left_gripper()
+    #val.open_right_gripper()
+    #val.close_right_gripper()
+    
+    joint_vel_ctl(pub, 'joint7', 0.1, 1.0)
 
 
 
