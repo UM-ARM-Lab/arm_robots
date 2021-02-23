@@ -45,7 +45,8 @@ PoseSequence getToolTransforms(Pose const &world_to_robot,
 JacobianFollower::JacobianFollower(std::string const robot_namespace,
                                    double const translation_step_size,
                                    bool const minimize_rotation,
-                                   bool const collision_check)
+                                   bool const collision_check,
+                                   bool const visualize)
     : model_loader_(std::make_shared<robot_model_loader::RobotModelLoader>()),
       model_(model_loader_->getModel()),
       scene_monitor_(std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(model_loader_)),
@@ -55,7 +56,8 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace,
       robot_frame_(model_->getRootLinkName()),
       translation_step_size_(translation_step_size),
       minimize_rotation_(minimize_rotation),
-      collision_check_(collision_check)
+      collision_check_(collision_check),
+      visualize_(visualize)
 {
   if (!ros::isInitialized())
   {
@@ -210,7 +212,7 @@ PlanResult JacobianFollower::plan(planning_scene_monitor::LockedPlanningSceneRW 
     ROS_ERROR_STREAM_NAMED(LOGGER_NAME, "Time parametrization for the solution path failed.");
   }
 
-  if (not robot_trajectory.empty())
+  if (visualize_ and not robot_trajectory.empty())
   {
     visual_tools_.publishTrajectoryPath(robot_trajectory);
   }
@@ -309,6 +311,7 @@ PlanResult JacobianFollower::moveInWorldFrame(planning_scene_monitor::LockedPlan
         }
 
   // visualize interpolated path
+  if (visualize_)
   {
     visualization_msgs::MarkerArray msg;
     msg.markers.resize(num_ees);
@@ -349,7 +352,7 @@ PlanResult JacobianFollower::moveInWorldFrame(planning_scene_monitor::LockedPlan
   auto const reached_target = traj.getWayPointCount() == (tool_paths[0].size() - 1);
 
   // Debugging - visualize JacobianIK result tip
-  if (!traj.empty())
+  if (visualize_ and !traj.empty())
   {
     visualization_msgs::MarkerArray msg;
     msg.markers.resize(num_ees);

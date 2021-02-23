@@ -73,10 +73,13 @@ class JacobianFollower
   bool collision_check_;
   ConstraintFn constraint_fun_;
 
+  bool visualize_;
+
   explicit JacobianFollower(std::string robot_namespace,
                             double translation_step_size,
                             bool minimize_rotation = true,
-                            bool collision_check = true);
+                            bool collision_check = true,
+                            bool visualize = true);
 
   [[nodiscard]] bool isRequestValid(std::string const &group_name,
                                     std::vector<std::string> const &tool_names,
