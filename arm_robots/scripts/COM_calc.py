@@ -61,9 +61,9 @@ def main(vis = True):
                     (p, r) = listener.lookupTransform('val_cal', name, rospy.Time(0))
                     T = quat2matrix(p,r)
                     numerator += np.dot(T, np.vstack((origin, [[1]])))[0:3,0] * mass
-            print("mass tot:", mass_tot)
+            #print("mass tot:", mass_tot)
             com = numerator/mass_tot
-            print("COM", com)
+            #print("COM", com)
             #publish message on topic com
             pt = Point(com[0], com[1], com[2])
             pub.publish(pt)
@@ -74,6 +74,6 @@ def main(vis = True):
             print("tf listener not working")
             continue
         rate.sleep()   
-                        
+
 if __name__ == "__main__":
     main()

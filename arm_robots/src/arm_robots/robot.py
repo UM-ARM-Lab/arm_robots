@@ -196,9 +196,9 @@ class MoveitEnabledRobot(DualArmRobot):
                                     waypoints,   # waypoints to follow
                                     0.01,        # eef_step
                                     0.0)         # jump_threshold
-                                    
+
         print ("============ Waiting while RVIZ displays plan3...")
-        rospy.sleep(1)
+        rospy.sleep(0.05)
         if ask_before_moving:
             input("Execute cartesian path?")
         #planning_result = PlanningResult(move_group.plan())

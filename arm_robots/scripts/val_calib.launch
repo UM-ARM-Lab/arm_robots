@@ -1,6 +1,6 @@
 <launch>
-    <node pkg="arm_robots" type="hand_tf_broadcaster.py"
-        name="hand_tf_broadcaster" />
+    <node pkg="arm_robots" type="COM_calc.py"
+        name="com_publisher" />
     <include file="$(find lightweight_vicon_bridge)/launch/vicon_bridge.launch" />
     <include file="$(find arm_robots)/launch/val.launch" />
     <node type="rviz" name="rviz" pkg="rviz" args="-d $(find arm_robots)/config/config_val_cal.rviz"/>

@@ -110,7 +110,7 @@ def interpolate_joint_trajectory_points(points: Sequence[JointTrajectoryPoint], 
 def make_follow_joint_trajectory_goal(trajectory: JointTrajectory) -> FollowJointTrajectoryGoal:
     goal = FollowJointTrajectoryGoal(trajectory=trajectory)
     goal.path_tolerance = [make_joint_tolerance(0.1, n) for n in trajectory.joint_names]
-    goal.goal_tolerance = [make_joint_tolerance(0.03, n) for n in trajectory.joint_names]
+    goal.goal_tolerance = [make_joint_tolerance(0.05, n) for n in trajectory.joint_names]
     goal.goal_time_tolerance = rospy.Duration(nsecs=500_000_000)
     return goal
 
