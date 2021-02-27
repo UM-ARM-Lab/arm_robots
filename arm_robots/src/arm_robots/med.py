@@ -17,7 +17,7 @@ from arm_robots.config.victor_config import NAMED_POSITIONS, default_robotiq_com
     RIGHT_GRIPPER_JOINT_NAMES, LEFT_ARM_JOINT_NAMES, RIGHT_ARM_JOINT_NAMES, BOTH_ARM_JOINT_NAMES, ALL_JOINT_NAMES, \
     KUKA_GOAL_JOINT_POSITION_TOLERANCE, KUKA_MIN_PATH_JOINT_IMPEDANCE_TOLERANCE, \
     KUKA_FULL_SPEED_PATH_JOINT_IMPEDANCE_TOLERANCE, KUKA_GOAL_JOINT_IMPEDANCE_TOLERANCE
-from arm_robots.config.thanos_config import ARM_JOINT_NAMES
+from arm_robots.config.med_config import ARM_JOINT_NAMES
 from arm_robots.robot import MoveitEnabledRobot
 from arm_robots.robot_utils import make_joint_tolerance
 from control_msgs.msg import FollowJointTrajectoryFeedback, FollowJointTrajectoryGoal, FollowJointTrajectoryResult
@@ -67,7 +67,7 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
 
     return positions_by_interface, False, ""
 
-class BaseThanos(BaseRobot):
+class BaseMed(BaseRobot):
 
     def __init__(self, robot_namespace: str):
         BaseRobot.__init__(self, robot_namespace=robot_namespace)
@@ -143,7 +143,7 @@ class BaseThanos(BaseRobot):
         pose_stamped.pose.orientation = normalize_quaternion(pose_stamped.pose.orientation)
 
         left_arm_command = MotionCommand()
-        left_arm_command.header.frame_id = 'thanos_base'
+        left_arm_command.header.frame_id = 'med_base'
         left_arm_command.cartesian_pose = pose_stamped.pose
         left_arm_command.control_mode = self.get_control_mode()
         while self.arm_command_pub.get_num_connections() < 1:

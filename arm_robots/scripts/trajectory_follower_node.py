@@ -8,7 +8,7 @@ import argparse
 from arm_robots.hdt_michigan import BaseVal
 from arm_robots.trajectory_follower import TrajectoryFollower
 from arm_robots.victor import BaseVictor
-from arm_robots.thanos import BaseThanos
+from arm_robots.med import BaseMed
 
 
 
@@ -25,8 +25,8 @@ def main():
         base_robot = BaseVictor(args.robot_name)
     elif args.robot_name == "val":
         base_robot = BaseVal(args.robot_name)
-    elif args.robot_name == "thanos":
-        base_robot = BaseThanos("victor")
+    elif args.robot_name == "med":
+        base_robot = BaseMed("victor")
     else:
         raise NotImplementedError(f"Invalid robot name {args.robot_name}")
     fwd = TrajectoryFollower(base_robot, args.controller_name)
