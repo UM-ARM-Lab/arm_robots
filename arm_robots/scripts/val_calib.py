@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import sys
 import rospy
 import math
 import tf
@@ -11,91 +12,143 @@ import matplotlib.pyplot as plt
 
 from tempfile import TemporaryFile
 import time
+from sensor_msgs.msg import JointState
+from geometry_msgs.msg import PointStamped
+from std_msgs.msg import Bool 
+# To stop recording data, Ctrl + C in terminal
 
 #REQUIRES: list trans, and rot_q (quaternion of rotation)
 #EFFECTS: returns 4 by 4 homogeneous transform of type numpy array 
 def quat2matrix(trans, rot_q):
     return np.block([[np.asarray(R.from_quat(rot_q).as_matrix()), np.asarray(trans).reshape(3,1)],[0, 0, 0, 1]])
 
+
+def calc_pos(listener, hand):
+    if hand == "right":
+        mocap_hand_topic = '/mocap_RightHand0_RightHand0'
+        robot_hand_topic = '/right_hand'
+    elif hand == "left":
+        mocap_hand_topic = '/mocap_LeftHand0_LeftHand0'
+        robot_hand_topic = '/left_hand'    
+    else:
+        print("hand argument not recognized!")   
+    # val_root pose in vicon world frame 
+    (trans,rot_q) = listener.lookupTransform('/world_origin', '/mocap_val_root_val_root', rospy.Time(0))
+    Twv = quat2matrix(trans, rot_q)
+    # end-effector pose in vicon world frame 
+    (trans,rot_q) = listener.lookupTransform('/world_origin', mocap_hand_topic, rospy.Time(0))
+    Twe = quat2matrix(trans, rot_q)
+    # from vicon: end-effector pose in val_root frame 
+    Tve_v = np.dot(np.linalg.inv(Twv), Twe)
+    #from fk: end-effector pose in vicon world frame 
+    (trans,rot_q) = listener.lookupTransform('/val_cal', robot_hand_topic, rospy.Time(0))
+    Tve_r = quat2matrix(trans, rot_q)
+    
+    return [Tve_v[0:3, 3], Tve_r[0:3, 3]]
+
+def plot_traj(traj_right_hand_robot, traj_right_hand_vicon):
+
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+
+    #change unit from meter to millimeter
+    traj_right_hand_robot *= 1000.0
+    traj_right_hand_vicon *= 1000.0
+    # Data for a three-dimensional line
+    xline = traj_right_hand_vicon[0,:] 
+    yline = traj_right_hand_vicon[1,:]
+    zline = traj_right_hand_vicon[2,:]
+    ax.scatter3D(xline, yline, zline, 'blue', label = 'Motion Capture')
+
+    #align first point
+    #traj_right_hand_robot -= (traj_right_hand_robot[:,0:1]-traj_right_hand_vicon[:,0:1])
+
+    xline = traj_right_hand_robot[0,:] 
+    yline = traj_right_hand_robot[1,:]
+    zline = traj_right_hand_robot[2,:]
+    ax.scatter3D(xline, yline, zline, 'red', label = 'Forward Kinematics')
+
+    plt.title('End Effector Trajectory measured from \n Forward Kinematics and Motion Capture System')
+    plt.xlabel('x(mm)')
+    plt.ylabel('y(mm)')
+    plt.legend(loc = 'upper right')
+    plt.show()
+
 if __name__ == '__main__':
     data_cal = TemporaryFile()
     #Initialize parameter
-    n = 40 # total number of data collected
     r = 10.0 # data collection rate 
-    traj_v = np.zeros((3,n)) #x, y, z trajectory from vicon
-    traj_r = np.zeros((3,n)) #x, y, z trajectory from robot fk
+    joint_cmds= []
+    joint_states = []
+    time = []
+
     #initialize listener
     rospy.init_node("val_calib")
     listener = tf.TransformListener()
     rate = rospy.Rate(r)
     print("tf listener set up")
     i = 0
+    print("Data Collection start, press Ctrl + C to end")
     while not rospy.is_shutdown():
         try:
-            print("v")
-            # val_root pose in vicon world frame 
-            (trans,rot_q) = listener.lookupTransform('/world_origin', '/mocap_val_root_val_root', rospy.Time(0))
-            Twv = quat2matrix(trans, rot_q)
-            # end-effector pose in vicon world frame 
-            (trans,rot_q) = listener.lookupTransform('/world_origin', '/mocap_RightHand0_RightHand0', rospy.Time(0))
-            Twe = quat2matrix(trans, rot_q)
-            # from vicon: end-effector pose in val_root frame 
-            Tve_v = np.dot(np.linalg.inv(Twv), Twe)
-            #from fk: end-effector pose in vicon world frame 
-            (trans,rot_q) = listener.lookupTransform('/val_root', '/end_effector_right', rospy.Time(0))
-            Tve_r = quat2matrix(trans, rot_q)
-            
-            traj_v[:, i] = Tve_v[0:3, 3]
-            traj_r[:, i] = Tve_r[0:3, 3]
+            time.append(rospy.get_rostime())
+            #record right hand position from fk and vicon
+            result_r = calc_pos(listener, "right")
+            #record left hand position from fk and vicon
+            result_l = calc_pos(listener, "left")    
+            #record com position
+            com = rospy.wait_for_message("/com", PointStamped, timeout=5)
+            #record joint state
+            joint_state = rospy.wait_for_message("/hdt_michigan/joint_states", JointState, timeout=5)
+            #record joint command
+            joint_cmd = rospy.wait_for_message("/hdt_adroit_coms/joint_cmd", JointState, timeout=5)
+
+            if i == 0:
+                traj_right_hand_vicon = result_r[0].reshape((3,1))#x, y, z trajectory from vicon
+                traj_right_hand_robot = result_r[1].reshape((3,1))#x, y, z trajectory from robot fk
+                traj_left_hand_vicon = result_l[0].reshape((3,1))#x, y, z trajectory from vicon
+                traj_left_hand_robot = result_l[1].reshape((3,1))#x, y, z trajectory from robot fk  
+                coms = np.array([com.point.x, com.point.y, com.point.z]).reshape((3,1))
+            else:   
+                traj_right_hand_vicon = np.append(traj_right_hand_vicon, result_r[0].reshape((3,1)), axis = 1)#x, y, z trajectory from vicon
+                traj_right_hand_robot = np.append(traj_right_hand_robot, result_r[1].reshape((3,1)), axis = 1)#x, y, z trajectory from robot fk
+                traj_left_hand_vicon  = np.append(traj_left_hand_vicon,  result_l[0].reshape((3,1)), axis = 1) #x, y, z trajectory from vicon
+                traj_left_hand_robot  = np.append(traj_left_hand_robot,  result_l[1].reshape((3,1)), axis = 1) #x, y, z trajectory from robot fk  
+                coms = np.append(coms, np.array([com.point.x, com.point.y, com.point.z]).reshape((3,1)), axis = 1)
+
+            joint_states.append(joint_state)
+            joint_cmds.append(joint_cmd)
+
             i += 1
             print(i)
-            if i == n:
-                print("data collection complete")
-                break
-            '''
-            print("Twv", Twv)
-            print("Twe", Twe)
-            print("Tve", Tve)
-            '''
+
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            print("tf listener not working")
+            print("tf listener waiting for message")
             continue
+
+        except rospy.ROSInterruptException:
+            break
+
         rate.sleep()
 
-
+    print("data collection complete")
+    
     #save data
-    np.savez('data_cal', traj_v = traj_v, traj_r = traj_r)
+    np.savez('data_cal', traj_right_hand_vicon = traj_right_hand_vicon, traj_right_hand_robot = traj_right_hand_robot, 
+                         traj_left_hand_vicon = traj_left_hand_vicon, traj_left_hand_robot = traj_left_hand_robot,
+                         joint_states = joint_states, joint_cmds = joint_cmds, coms = coms, time = time)
     npzfile = np.load('data_cal.npz')
     print(npzfile.files)
-    #print(npzfile['traj_v'])
-    #print(npzfile['traj_r'])
-
-    fig = plt.figure()
-    ax = plt.axes(projection='3d')
-
-    #change unit from meter to millimeter
-    traj_r *= 1000.0
-    traj_v *= 1000.0
-    # Data for a three-dimensional line
-    xline = traj_v[0,:] 
-    yline = traj_v[1,:]
-    zline = traj_v[2,:]
-    ax.scatter3D(xline, yline, zline, 'blue', label = 'Motion Capture')
-
-    #align first point
-    traj_r -= (traj_r[:,0:1]-traj_v[:,0:1])
-
-    xline = traj_r[0,:] 
-    yline = traj_r[1,:]
-    zline = traj_r[2,:]
-    ax.scatter3D(xline, yline, zline, 'red', label = 'Forward Kinematics')
-
-    plt.title('End Effector Trajectory measured from \n Forward Kinematics and Motion Capture System')
-    plt.xlabel('x(mm)')
-    plt.ylabel('y(mm)')
-    #plt.zlabel('z(m)')
-    plt.legend(loc = 'top right')
-    plt.show()
+    print(npzfile['traj_right_hand_vicon'].shape)
+    print(npzfile['traj_right_hand_robot'].shape)
+    print(npzfile['traj_left_hand_robot'].shape)
+    print(npzfile['traj_left_hand_robot'].shape)
+    #print(len(npzfile['joint_states']))
+    #print(len(npzfile['joint_cmds']))
+    print(npzfile['coms'].shape)   
+    #print(len(npzfile['time'])) 
+    plot_traj(traj_right_hand_robot, traj_right_hand_vicon)
+    plot_traj(traj_left_hand_robot, traj_left_hand_vicon)
 
 
 

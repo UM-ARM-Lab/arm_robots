@@ -7,7 +7,7 @@ from urdf_parser_py.urdf import URDF
 import tf
 from val_calib import quat2matrix
 import numpy as np
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import PointStamped, Point
 from visualization_msgs.msg import Marker
 # look up tf and urdf info, and do the calculation and publish Center of Mass (COM) on a topic com
 # optionally publish marker on com_marker topic, can be shown in rviz
@@ -43,7 +43,7 @@ def main(vis = True):
     rate = rospy.Rate(r)
     print("tf listener set up")
     #initialize publisher
-    pub = rospy.Publisher("com", Point, queue_size=10)
+    pub = rospy.Publisher("com", PointStamped, queue_size=10)
     pub_marker = rospy.Publisher("com_marker", Marker, queue_size=10)
     #initialize URDF parser
     robot = URDF.from_parameter_server()
@@ -66,7 +66,10 @@ def main(vis = True):
             #print("COM", com)
             #publish message on topic com
             pt = Point(com[0], com[1], com[2])
-            pub.publish(pt)
+            pt_stamped = PointStamped()
+            pt_stamped.header.stamp = rospy.get_rostime()
+            pt_stamped.point = pt
+            pub.publish(pt_stamped)
             if vis:
                 pub_marker_f('val_cal', pt, pub_marker)
 

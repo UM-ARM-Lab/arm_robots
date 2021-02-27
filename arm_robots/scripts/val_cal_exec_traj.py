@@ -12,7 +12,7 @@ from arm_robots.hdt_michigan import Val
 from val_calib import quat2matrix
 
 from geometry_msgs.msg import Pose
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point,PointStamped
 import tf_conversions.posemath as pm
 import PyKDL
 import math, time
@@ -40,7 +40,7 @@ config = {
     'joint2':  -0.030105292797088623,
     'joint3':  0.42895248532295227, 
     'joint4':  -0.08494678139686584, 
-    'joint5':  6.152984619140625,
+    'joint5':  6.152984619140625 - 6.28,
     'joint6': 0.6138027906417847,
     'joint7':  -1.5069904327392578
 }
@@ -90,17 +90,18 @@ def comp_waypt(initial_left_pos, initial_right_pos):
     y_vec = np.array([0.0, math.cos(slope_angle), -math.sin(slope_angle)])
     z_vec = np.array([0.0, math.sin(slope_angle), math.cos(slope_angle)])
 
+    step = 0.15 # old 0.1
     # original waypoint
-    whole_body_path = [['left_arm',    initial_left_pos                                + 0.1 * z_vec],
-                        ['right_arm', initial_right_pos + 0.1 * x_vec                 - 0.05 * z_vec],
-                        ['left_arm', initial_left_pos   + 0.1 * x_vec + 0.013 * y_vec - 0.0 * z_vec],
-                        ['right_arm', initial_right_pos + 0.2 * x_vec  + 0.013 * y_vec - 0.0 * z_vec],
-                        ['left_arm', initial_left_pos   + 0.2 * x_vec  + 0.013 * y_vec - 0.0 * z_vec],
-                        ['right_arm', initial_right_pos + 0.3 * x_vec + 0.013 * y_vec - 0.1 * z_vec],
-                        ['left_arm', initial_left_pos   + 0.3 * x_vec + 0.021 * y_vec - 0.1 * z_vec],
-                        ['right_arm', initial_right_pos + 0.4 * x_vec  - 0.012 * y_vec + 0.07 * z_vec],
-                        ['left_arm', initial_left_pos   + 0.4 * x_vec  - 0.012 * y_vec + 0.07* z_vec],
-                        ['right_arm', initial_right_pos + 0.5 * x_vec - 0.01 * y_vec  - 0.1 * z_vec],
+    whole_body_path = [['left_arm',    initial_left_pos                                + step * z_vec],
+                        ['right_arm', initial_right_pos + step * x_vec                 - step / 2 * z_vec],
+                        ['left_arm', initial_left_pos   + step * x_vec + 0.013 * y_vec - 0.0 * z_vec],
+                        ['right_arm', initial_right_pos + step * 2 * x_vec  + 0.013 * y_vec - 0.0 * z_vec],
+                        ['left_arm', initial_left_pos   + step * 2 * x_vec  + 0.013 * y_vec - 0.0 * z_vec],
+                        ['right_arm', initial_right_pos + step * 3 * x_vec + 0.013 * y_vec  - step * z_vec],
+                        ['left_arm', initial_left_pos   + step * 3 * x_vec + 0.021 * y_vec  - step * z_vec],
+                        ['right_arm', initial_right_pos + step * 4 * x_vec  - 0.012 * y_vec + step * 0.7 * z_vec],
+                        ['left_arm', initial_left_pos   + step * 4 * x_vec  - 0.012 * y_vec + step * 0.7* z_vec],
+                        ['right_arm', initial_right_pos + step * 5 * x_vec - 0.01 * y_vec   - step * z_vec],
     ]
     return whole_body_path
 
@@ -120,7 +121,7 @@ def move_both_hands_backwards(val, d):
                                      [[goal_poses["left_hand"].position.x, goal_poses["left_hand"].position.y, goal_poses["left_hand"].position.z]]], vel_scaling=vel_scale)
 
 def main():
-    time.sleep(10)
+    time.sleep(5)
     #initialize val
     np.set_printoptions(suppress=True, precision=3, linewidth=200)
     colorama.init(autoreset=True)
@@ -166,11 +167,12 @@ def main():
         prev_right_hand_position = right_hand_position
 
         #arm_move_height = 0.18 # height of the parabolic path of end-effector from one contact position to another.
-        arm_move_height = 0.1 # height of the parabolic path of end-effector from one contact position to another.
+        arm_move_height = 0.2 # height of the parabolic path of end-effector from one contact position to another.
+        # old  0.1
 
         #if just finished executing left arm, move both hands backwards to compensate for the moving base
         if whole_body_path[waypoint_index][0] == 'right_arm':
-            com = rospy.wait_for_message("com", Point, timeout=5)
+            com = rospy.wait_for_message("com", PointStamped, timeout=5)
             #d = left_hand_position[0] - com.x
             d = 0.1 #hard coding backwards movement 
             base_dx_tot += d # total both hand x movement
@@ -245,7 +247,7 @@ def main():
         waypoint_index += 1
         print ("Finish Moving Arm")
         time.sleep(0.5)
-        
+
     time.sleep(3)
     print("All path finished, moving home!")
     val.plan_to_joint_config('both_arms', config)
