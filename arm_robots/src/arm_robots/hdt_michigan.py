@@ -28,19 +28,25 @@ class BaseVal(DualArmRobot):
         self.latest_cmd = JointState()
         self.command_rate = rospy.Rate(100)
         self.ready = 0
+        self.has_started_command_thread = False
 
     def __del__(self):
         self.disconnect()
 
     def connect(self):
         super().connect()
-        if not self.command_thread.is_alive():
+        if not self.has_started_command_thread:
+            rospy.loginfo('Starting val command thread')
+            self.has_started_command_thread = True
             self.command_thread.start()
 
     def disconnect(self):
+        super().disconnect()
+
         self.should_disconnect = True
         if self.command_thread.is_alive():
             self.command_thread.join()
+            rospy.loginfo('joined val command thread')
 
     def command_thread_func(self):
         if rospy.get_param("use_sim_time", False):
@@ -145,14 +151,14 @@ class Val(BaseVal, MoveitEnabledRobot):
         return ['leftgripper', 'leftgripper2']
 
     def set_left_gripper(self, position):
-        move_group = self.move_groups['left_gripper']
+        move_group = self.get_move_group_commander('left_gripper')
         move_group.set_joint_value_target({'leftgripper':  position,
                                            'leftgripper2': position, })
         plan = move_group.plan()[1]
         self.follow_arms_joint_trajectory(plan.joint_trajectory)
 
     def set_right_gripper(self, position):
-        move_group = self.move_groups['right_gripper']
+        move_group = self.get_move_group_commander('right_gripper')
         move_group.set_joint_value_target({'rightgripper':  position,
                                            'rightgripper2': position, })
         plan = move_group.plan()[1]
@@ -182,9 +188,9 @@ class Val(BaseVal, MoveitEnabledRobot):
 
     def is_gripper_closed(self, gripper: str):
         if gripper == 'left':
-            move_group = self.move_groups['left_gripper']
+            move_group = self.get_move_group_commander('left_gripper')
         elif gripper == 'right':
-            move_group = self.move_groups['right_gripper']
+            move_group = self.get_move_group_commander('right_gripper')
         else:
             raise NotImplementedError(f"invalid gripper {gripper}")
         current_joint_values = move_group.get_current_joint_values()

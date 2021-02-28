@@ -55,11 +55,8 @@ bool DualGripperShim::executeDualGripperTrajectory(arm_robots_msgs::GrippersTraj
   {
     return Eigen::Quaterniond{Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX())};
   });
-  auto const is_valid = planner_->isRequestValid(req.group_name, req.tool_names, grippers);
-  if (not is_valid)
-  {
-    return true;
-  }
+
+  JacobianWaypointsCommand waypoints_command;
 
   // NOTE: positions are assumed to be in robot_root frame
   auto const n_points = grippers[0].size();
@@ -72,12 +69,22 @@ bool DualGripperShim::executeDualGripperTrajectory(arm_robots_msgs::GrippersTraj
     }
     planning_scene_monitor::LockedPlanningSceneRW planning_scene(planner_->scene_monitor_);
     auto const &start_state = planning_scene->getCurrentState();
-    auto const[traj, target_reached] = planner_->moveInWorldFrame(planning_scene,
-                                                                  req.group_name,
-                                                                  req.tool_names,
-                                                                  preferred_orientations,
-                                                                  start_state,
-                                                                  target_point_sequence);
+    JacobianWaypointCommand waypoint_command{
+        {planning_scene,
+         req.group_name,
+         req.tool_names},
+        target_point_sequence,
+        preferred_orientations,
+        start_state
+    };
+
+    auto const is_valid = planner_->isRequestValid(waypoints_command);
+    if (not is_valid)
+    {
+      return true;
+    }
+
+    auto const[traj, target_reached] = planner_->moveInWorldFrame(waypoint_command);
     followJointTrajectory(traj);
   }
 

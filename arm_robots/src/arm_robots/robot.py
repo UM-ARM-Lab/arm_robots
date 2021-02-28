@@ -38,15 +38,24 @@ class MoveitEnabledRobot(DualArmRobot):
                  arms_controller_name: str,
                  execute: bool = True,
                  block: bool = True,
-                 raise_on_failure: bool = False,
-                 force_trigger: float = 9.0):
+                 raise_on_failure: bool = False):
+        """
+
+        Args:
+            robot_namespace: the namespace of the robot,
+                which should match the move_group and joint trajectory follower namespace
+            arms_controller_name: the name of the joint trajectory follower, which is defined in *_controllers.yaml or
+                trajectory follower roslaunch file
+            execute:
+            block:
+            raise_on_failure:
+        """
         super().__init__(robot_namespace)
         self.max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
         self.execute = execute
         self.block = block
-        self.force_trigger = force_trigger
         self.display_goals = True
 
         self.arms_controller_name = arms_controller_name
@@ -59,7 +68,11 @@ class MoveitEnabledRobot(DualArmRobot):
         self.right_tool_name = None
 
         self.arms_client = None
-        self.jacobian_follower = None
+        self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
+                                                                      translation_step_size=0.005,
+                                                                      minimize_rotation=True,
+                                                                      collision_check=True,
+                                                                      visualize=True)
 
         self.feedback_callbacks = []
         self._move_groups = {}
@@ -76,15 +89,25 @@ class MoveitEnabledRobot(DualArmRobot):
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
 
-        self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
-                                                                      translation_step_size=0.005,
-                                                                      minimize_rotation=True,
-                                                                      collision_check=True,
-                                                                      visualize=True)
+        self.jacobian_follower.connect_to_psm()
 
         if preload_move_groups:
             for group_name in self.robot_commander.get_group_names():
                 self.get_move_group_commander(group_name)
+
+    def disconnect(self):
+        try:
+            del self.jacobian_follower
+        except (NameError, AttributeError):
+            pass
+        try:
+            del self.arms_client
+        except (NameError, AttributeError):
+            pass
+        try:
+            del self._move_groups
+        except (NameError, AttributeError):
+            pass
 
     def setup_joint_trajectory_controller_client(self, controller_name):
         action_name = ns_join(self.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
@@ -118,7 +141,7 @@ class MoveitEnabledRobot(DualArmRobot):
                          group_name: str,
                          ee_link_name: str,
                          target_position):
-        move_group = self.move_groups[group_name]
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
         move_group.set_position_target(list(target_position))
 
@@ -135,7 +158,7 @@ class MoveitEnabledRobot(DualArmRobot):
                                    target_position: Union[Point, List, np.array],
                                    step_size: float = 0.02,
                                    ):
-        move_group = self.move_groups[group_name]
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
 
         # by starting with the current pose, we will be preserving the orientation
@@ -158,7 +181,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root'):
         self.check_inputs(group_name, ee_link_name)
-        move_group = self.move_groups[group_name]
+        move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
         target_pose_stamped = convert_to_pose_msg(target_pose)
         target_pose_stamped.header.frame_id = frame_id
@@ -193,7 +216,7 @@ class MoveitEnabledRobot(DualArmRobot):
         Returns:
             The result message of following the trajectory
         """
-        move_group = self.move_groups[group_name]
+        move_group = self.get_move_group_commander(group_name)
         if isinstance(joint_config, str):
             joint_config_name = joint_config
             joint_config = move_group.get_named_target_values(joint_config_name)

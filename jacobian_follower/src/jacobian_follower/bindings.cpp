@@ -18,12 +18,30 @@ PYBIND11_MODULE(pyjacobian_follower, m)
            py::arg("collision_check"),
            py::arg("visualize")
       )
+      .def("plan_from_scene_and_state",
+           py::overload_cast<std::string const &,
+               std::vector<std::string> const &,
+               std::vector<Eigen::Vector4d> const &,
+               moveit_msgs::RobotState const &,
+               moveit_msgs::PlanningScene const &,
+               std::vector<PointSequence> const &,
+               double,
+               double>(&JacobianFollower::plan_return_msg),
+           py::arg("group_name"),
+           py::arg("tool_names"),
+           py::arg("preferred_tool_orientations"),
+           py::arg("start_state"),
+           py::arg("scene"),
+           py::arg("grippers"),  // TODO: rename 'grippers' to 'tool_names'
+           py::arg("max_velocity_scaling_factor"),
+           py::arg("max_acceleration_scaling_factor")
+      )
       .def("plan_from_start_state",
            py::overload_cast<std::string const &,
                std::vector<std::string> const &,
                std::vector<Eigen::Vector4d> const &,
                moveit_msgs::RobotState const &,
-               std::vector<std::vector<Eigen::Vector3d>> const &,
+               std::vector<PointSequence> const &,
                double,
                double>(&JacobianFollower::plan_return_msg),
            py::arg("group_name"),
@@ -38,7 +56,7 @@ PYBIND11_MODULE(pyjacobian_follower, m)
            py::overload_cast<std::string const &,
                std::vector<std::string> const &,
                std::vector<Eigen::Vector4d> const &,
-               std::vector<std::vector<Eigen::Vector3d>> const &,
+               std::vector<PointSequence> const &,
                double,
                double>(&JacobianFollower::plan_return_msg),
            py::arg("group_name"),
@@ -49,13 +67,15 @@ PYBIND11_MODULE(pyjacobian_follower, m)
            py::arg("max_acceleration_scaling_factor")
       )
       .def("check_collision",
-           py::overload_cast<moveit_msgs::RobotState const &>(&JacobianFollower::check_collision),
+           &JacobianFollower::check_collision,
            py::arg("start_state")
       )
       .def("get_tool_positions",
-           py::overload_cast<std::vector<std::string>,
-               moveit_msgs::RobotState const &>(&JacobianFollower::get_tool_positions),
+           &JacobianFollower::get_tool_positions,
            py::arg("tool_names"),
            py::arg("state")
+      )
+      .def("connect_to_psm",
+           &JacobianFollower::connect_to_psm
       );
 }
