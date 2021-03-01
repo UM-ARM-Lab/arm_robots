@@ -64,11 +64,11 @@ class MoveitEnabledRobot(DualArmRobot):
         self.feedback_callbacks = []
         self._move_groups = {}
 
-    def connect(self, preload_commander_groups=True):
+    def connect(self, preload_move_groups=True):
         """
         Args:
-            preload_commander_groups: Load the move_group_commander objects on connect (if False, loaded lazily)
-            
+            preload_move_groups: Load the move_group_commander objects on connect (if False, loaded lazily)
+
         Returns:
         """
         super().connect()
@@ -79,7 +79,7 @@ class MoveitEnabledRobot(DualArmRobot):
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
                                                                       translation_step_size=0.005,
                                                                       minimize_rotation=True)
-        if preload_commander_groups:
+        if preload_move_groups:
             for group_name in self.robot_commander.get_group_names():
                 self.get_move_group_commander(group_name)
 
