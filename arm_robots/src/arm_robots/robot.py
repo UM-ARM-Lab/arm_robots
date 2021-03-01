@@ -62,6 +62,7 @@ class MoveitEnabledRobot(DualArmRobot):
         self.jacobian_follower = None
 
         self.feedback_callbacks = []
+        self._move_groups = {}
 
     def connect(self):
         super().connect()
@@ -90,7 +91,9 @@ class MoveitEnabledRobot(DualArmRobot):
         self.block = block
 
     def get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        if group_name not in self._move_groups:
+            self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self._move_groups[group_name]
         move_group.set_planning_time(30.0)
         # TODO Make this a settable param or at least make the hardcoded param more obvious
         # The purpose of this safety factor is to make sure we never send victor a velocity
