@@ -332,10 +332,10 @@ class MoveitEnabledRobot(DualArmRobot):
     def get_both_arm_joints(self):
         return self.get_left_arm_joints() + self.get_right_arm_joints()
 
-    def get_joint_names(self, group_name: str = 'whole_body'):
-        return self.get_move_group_commander(group_name).get_active_joints()
+    def get_joint_names(self, group_name: Optional[str] = None):
+        return self.robot_commander.get_active_joint_names(group_name)
 
-    def get_num_joints(self, group_name: str = 'whole_body'):
+    def get_num_joints(self, group_name: Optional[str] = None):
         return len(self.get_joint_names(group_name))
 
     def get_right_arm_joints(self):
