@@ -62,8 +62,15 @@ class MoveitEnabledRobot(DualArmRobot):
         self.jacobian_follower = None
 
         self.feedback_callbacks = []
+        self._move_groups = {}
 
-    def connect(self):
+    def connect(self, preload_move_groups=True):
+        """
+        Args:
+            preload_move_groups: Load the move_group_commander objects on connect (if False, loaded lazily)
+
+        Returns:
+        """
         super().connect()
 
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
@@ -72,6 +79,9 @@ class MoveitEnabledRobot(DualArmRobot):
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
                                                                       translation_step_size=0.005,
                                                                       minimize_rotation=True)
+        if preload_move_groups:
+            for group_name in self.robot_commander.get_group_names():
+                self.get_move_group_commander(group_name)
 
     def setup_joint_trajectory_controller_client(self, controller_name):
         action_name = ns_join(self.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
@@ -90,7 +100,9 @@ class MoveitEnabledRobot(DualArmRobot):
         self.block = block
 
     def get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        if group_name not in self._move_groups:
+            self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self._move_groups[group_name]
         move_group.set_planning_time(30.0)
         # TODO Make this a settable param or at least make the hardcoded param more obvious
         # The purpose of this safety factor is to make sure we never send victor a velocity
