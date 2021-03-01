@@ -68,8 +68,7 @@ class MoveitEnabledRobot(DualArmRobot):
     def connect(self):
         super().connect()
 
-        self.move_groups = {group_name: self._get_move_group_commander(group_name) for group_name in
-                            self.robot_commander.get_group_names()}
+        self.update_move_groups()
 
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
@@ -77,6 +76,10 @@ class MoveitEnabledRobot(DualArmRobot):
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
                                                                       translation_step_size=0.005,
                                                                       minimize_rotation=True)
+
+    def update_move_groups(self):
+        self.move_groups = {group_name: self._get_move_group_commander(group_name) for group_name in
+                            self.robot_commander.get_group_names()}
 
     def setup_joint_trajectory_controller_client(self, controller_name):
         action_name = ns_join(self.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
