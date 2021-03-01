@@ -64,7 +64,13 @@ class MoveitEnabledRobot(DualArmRobot):
         self.feedback_callbacks = []
         self._move_groups = {}
 
-    def connect(self):
+    def connect(self, preload_commander_groups=True):
+        """
+        Args:
+            preload_commander_groups: Load the move_group_commander objects on connect (if False, loaded lazily)
+            
+        Returns:
+        """
         super().connect()
 
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
@@ -73,6 +79,9 @@ class MoveitEnabledRobot(DualArmRobot):
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
                                                                       translation_step_size=0.005,
                                                                       minimize_rotation=True)
+        if preload_commander_groups:
+            for group_name in self.robot_commander.get_group_names():
+                self.get_move_group_commander(group_name)
 
     def setup_joint_trajectory_controller_client(self, controller_name):
         action_name = ns_join(self.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
