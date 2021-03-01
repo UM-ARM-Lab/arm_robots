@@ -73,6 +73,9 @@ class MoveitEnabledRobot(DualArmRobot):
         """
         super().connect()
 
+        self.move_groups = {group_name: self._get_move_group_commander(group_name) for group_name in
+                            self.robot_commander.get_group_names()}
+
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
 
@@ -118,7 +121,7 @@ class MoveitEnabledRobot(DualArmRobot):
                          group_name: str,
                          ee_link_name: str,
                          target_position):
-        move_group = self.get_move_group_commander(group_name)
+        move_group = self.move_groups[group_name]
         move_group.set_end_effector_link(ee_link_name)
         move_group.set_position_target(list(target_position))
 
@@ -135,7 +138,7 @@ class MoveitEnabledRobot(DualArmRobot):
                                    target_position: Union[Point, List, np.array],
                                    step_size: float = 0.02,
                                    ):
-        move_group = self.get_move_group_commander(group_name)
+        move_group = self.move_groups[group_name]
         move_group.set_end_effector_link(ee_link_name)
 
         # by starting with the current pose, we will be preserving the orientation
@@ -158,7 +161,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root'):
         self.check_inputs(group_name, ee_link_name)
-        move_group = self.get_move_group_commander(group_name)
+        move_group = self.move_groups[group_name]
         move_group.set_end_effector_link(ee_link_name)
         target_pose_stamped = convert_to_pose_msg(target_pose)
         target_pose_stamped.header.frame_id = frame_id
@@ -193,7 +196,7 @@ class MoveitEnabledRobot(DualArmRobot):
         Returns:
             The result message of following the trajectory
         """
-        move_group = self.get_move_group_commander(group_name)
+        move_group = self.move_groups[group_name]
         if isinstance(joint_config, str):
             joint_config_name = joint_config
             joint_config = move_group.get_named_target_values(joint_config_name)
