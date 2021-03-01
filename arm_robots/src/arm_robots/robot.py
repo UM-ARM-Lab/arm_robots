@@ -63,8 +63,13 @@ class MoveitEnabledRobot(DualArmRobot):
 
         self.feedback_callbacks = []
 
+        self.move_groups = {}
+
     def connect(self):
         super().connect()
+
+        self.move_groups = {group_name: self._get_move_group_commander(group_name) for group_name in
+                            self.robot_commander.get_group_names()}
 
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
@@ -89,7 +94,7 @@ class MoveitEnabledRobot(DualArmRobot):
     def set_block(self, block: bool):
         self.block = block
 
-    def get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
+    def _get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
         move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
         move_group.set_planning_time(30.0)
         # TODO Make this a settable param or at least make the hardcoded param more obvious
@@ -103,7 +108,7 @@ class MoveitEnabledRobot(DualArmRobot):
                          group_name: str,
                          ee_link_name: str,
                          target_position):
-        move_group = self.get_move_group_commander(group_name)
+        move_group = self.move_groups[group_name]
         move_group.set_end_effector_link(ee_link_name)
         move_group.set_position_target(list(target_position))
 
@@ -120,7 +125,7 @@ class MoveitEnabledRobot(DualArmRobot):
                                    target_position: Union[Point, List, np.array],
                                    step_size: float = 0.02,
                                    ):
-        move_group = self.get_move_group_commander(group_name)
+        move_group = self.move_groups[group_name]
         move_group.set_end_effector_link(ee_link_name)
 
         # by starting with the current pose, we will be preserving the orientation
@@ -143,7 +148,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root'):
         self.check_inputs(group_name, ee_link_name)
-        move_group = self.get_move_group_commander(group_name)
+        move_group = self.move_groups[group_name]
         move_group.set_end_effector_link(ee_link_name)
         target_pose_stamped = convert_to_pose_msg(target_pose)
         target_pose_stamped.header.frame_id = frame_id
@@ -178,7 +183,7 @@ class MoveitEnabledRobot(DualArmRobot):
         Returns:
             The result message of following the trajectory
         """
-        move_group = self.get_move_group_commander(group_name)
+        move_group = self.move_groups[group_name]
         if isinstance(joint_config, str):
             joint_config_name = joint_config
             joint_config = move_group.get_named_target_values(joint_config_name)
@@ -315,7 +320,7 @@ class MoveitEnabledRobot(DualArmRobot):
         return self.get_left_arm_joints() + self.get_right_arm_joints()
 
     def get_joint_names(self, group_name: str = 'whole_body'):
-        return self.get_move_group_commander(group_name).get_active_joints()
+        return self.move_groups[group_name].get_active_joints()
 
     def get_num_joints(self, group_name: str = 'whole_body'):
         return len(self.get_joint_names(group_name))

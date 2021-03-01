@@ -142,14 +142,14 @@ class Val(BaseVal, MoveitEnabledRobot):
         return ['leftgripper', 'leftgripper2']
 
     def set_left_gripper(self, position):
-        move_group = self.get_move_group_commander('left_gripper')
+        move_group = self.move_groups['left_gripper']
         move_group.set_joint_value_target({'leftgripper':  position,
                                            'leftgripper2': position, })
         plan = move_group.plan()[1]
         self.follow_arms_joint_trajectory(plan.joint_trajectory)
 
     def set_right_gripper(self, position):
-        move_group = self.get_move_group_commander('right_gripper')
+        move_group = self.move_groups['right_gripper']
         move_group.set_joint_value_target({'rightgripper':  position,
                                            'rightgripper2': position, })
         plan = move_group.plan()[1]
@@ -180,9 +180,9 @@ class Val(BaseVal, MoveitEnabledRobot):
 
     def is_gripper_closed(self, gripper: str):
         if gripper == 'left':
-            move_group = self.get_move_group_commander('left_gripper')
+            move_group = self.move_groups['left_gripper']
         elif gripper == 'right':
-            move_group = self.get_move_group_commander('right_gripper')
+            move_group = self.move_groups['right_gripper']
         else:
             raise NotImplementedError(f"invalid gripper {gripper}")
         current_joint_values = move_group.get_current_joint_values()
