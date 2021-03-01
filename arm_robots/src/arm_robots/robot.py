@@ -73,9 +73,6 @@ class MoveitEnabledRobot(DualArmRobot):
         """
         super().connect()
 
-        self.move_groups = {group_name: self._get_move_group_commander(group_name) for group_name in
-                            self.robot_commander.get_group_names()}
-
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
 
