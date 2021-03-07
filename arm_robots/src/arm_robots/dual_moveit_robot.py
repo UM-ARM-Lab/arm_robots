@@ -9,7 +9,7 @@ import ros_numpy
 import rospy
 from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg
-from arm_robots.base_robot import BaseRobot
+from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot_utils import make_follow_joint_trajectory_goal
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
@@ -18,7 +18,6 @@ from rosgraph.names import ns_join
 from rospy import logfatal
 from rospy.logger_level_service_caller import LoggerLevelServiceCaller
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-import pdb
 
 STORED_ORIENTATION = None
 
@@ -42,7 +41,7 @@ def set_move_group_log_level(event):
                 pass
 
 
-class MoveitEnabledRobot(BaseRobot):
+class MoveitEnabledRobot(DualArmRobot):
     max_velocity_scale_factor = 0.1
 
     def __init__(self,
@@ -50,19 +49,18 @@ class MoveitEnabledRobot(BaseRobot):
                  arms_controller_name: str,
                  execute: bool = True,
                  block: bool = True,
-                 force_trigger: float = 9.0,
-                 manual_execute: bool = True):
+                 force_trigger: float = 9.0):
         super().__init__(robot_namespace)
         self.stored_tool_orientations = None
         self.execute = execute
         self.block = block
-        self.manual_execute = manual_execute
         self.force_trigger = force_trigger
 
         self.arms_controller_name = arms_controller_name
 
         # Override these in base classes!
-        self.tool_name = None
+        self.left_tool_name = None
+        self.right_tool_name = None
 
         self.arms_client = None
         self.jacobian_follower = None
@@ -76,10 +74,9 @@ class MoveitEnabledRobot(BaseRobot):
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
 
-        # Removing for now - add back in later.
-        # self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
-        #                                                               translation_step_size=0.005,
-        #                                                               minimize_rotation=True)
+        self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
+                                                                      translation_step_size=0.005,
+                                                                      minimize_rotation=True)
 
     def setup_joint_trajectory_controller_client(self, controller_name):
         action_name = ns_join(self.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
@@ -173,14 +170,6 @@ class MoveitEnabledRobot(BaseRobot):
                                 trajectory: JointTrajectory,
                                 client: SimpleActionClient,
                                 stop_condition: Optional[Callable] = None):
-        if self.manual_execute:
-            exec_path = input("Execute path? [y/n]")
-            if exec_path != "y":
-                rospy.logdebug(f"cancelling trajectory")
-                result = FollowJointTrajectoryResult()
-                result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
-                return trajectory, result, client.get_state()
-        
         if len(trajectory.points) == 0:
             rospy.logdebug(f"ignoring empty trajectory")
             result = FollowJointTrajectoryResult()
@@ -225,11 +214,73 @@ class MoveitEnabledRobot(BaseRobot):
         link = self.robot_commander.get_link(name)
         return ros_numpy.numpify(link.pose().pose.orientation)
 
-    def get_arm_joints(self):
-        raise NotImplementedError()
+    def store_tool_orientations(self, preferred_tool_orientations: Optional[Dict]):
+        """ dict values can be Pose, Quaternion, or just a numpy array/list """
+        self.stored_tool_orientations = {}
+        for k, v in preferred_tool_orientations.items():
+            if isinstance(v, Pose):
+                q = ros_numpy.numpify(v.orientation)
+                self.stored_tool_orientations[k] = q
+            elif isinstance(v, Quaternion):
+                q = ros_numpy.numpify(v)
+                self.stored_tool_orientations[k] = q
+            else:
+                self.stored_tool_orientations[k] = v
+
+    def store_current_tool_orientations(self, tool_names: Optional[List]):
+        self.stored_tool_orientations = {n: self.get_orientation(n) for n in tool_names}
+
+    def follow_jacobian_to_position(self,
+                                    group_name: str,
+                                    tool_names: List[str],
+                                    points: List[List],
+                                    preferred_tool_orientations: Optional[List] = STORED_ORIENTATION,
+                                    vel_scaling=0.1,
+                                    stop_condition: Optional[Callable] = None,
+                                    ):
+        """ If preferred_tool_orientations is None, we use the stored ones as a fallback """
+        if preferred_tool_orientations == STORED_ORIENTATION:
+            preferred_tool_orientations = []
+            if self.stored_tool_orientations is None:
+                logfatal(store_error_msg)
+            for k in tool_names:
+                if k not in self.stored_tool_orientations:
+                    rospy.logerr(f"tool {k} has no stored orientation. aborting.")
+                    return
+                preferred_tool_orientations.append(self.stored_tool_orientations[k])
+        robot_trajectory_msg: moveit_commander.RobotTrajectory = self.jacobian_follower.plan(
+            group_name=group_name,
+            tool_names=tool_names,
+            preferred_tool_orientations=preferred_tool_orientations,
+            grippers=points,
+            max_velocity_scaling_factor=vel_scaling,
+            max_acceleration_scaling_factor=0.1,
+        )
+        return self.follow_arms_joint_trajectory(robot_trajectory_msg.joint_trajectory, stop_condition=stop_condition)
+
+    def get_both_arm_joints(self):
+        return self.get_left_arm_joints() + self.get_right_arm_joints()
 
     def get_n_joints(self):
         return len(self.robot_commander.get_joint_names())
 
+    def get_right_arm_joints(self):
+        raise NotImplementedError()
+
+    def get_left_arm_joints(self):
+        raise NotImplementedError()
+
+    def get_right_gripper_joints(self):
+        raise NotImplementedError()
+
+    def get_left_gripper_joints(self):
+        raise NotImplementedError()
+
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         raise NotImplementedError()
+
+    def get_gripper_positions(self):
+        # NOTE: this function requires that gazebo be playing
+        left_gripper = self.robot_commander.get_link(self.left_tool_name)
+        right_gripper = self.robot_commander.get_link(self.right_tool_name)
+        return left_gripper.pose().pose.position, right_gripper.pose().pose.position

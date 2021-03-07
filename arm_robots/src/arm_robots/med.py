@@ -164,3 +164,16 @@ class BaseMed(BaseRobot):
         position_of_joint = self.get_joint_positions_map()
         print(position_of_joint)
         return [position_of_joint[name] for name in joint_names]
+
+
+class Med(MoveitEnabledRobot, BaseMed):
+
+    def __init__(self, robot_namespace: str = 'victor', force_trigger: float= -0.0):
+        MoveitEnabledRobot.__init__(self,
+                                    robot_namespace=robot_namespace,
+                                    arms_controller_name='arm_trajectory_controller')
+        BaseMed.__init__(self, robot_namespace=robot_namespace)
+        self.arm_group = 'med_arm'
+
+    def get_arm_joints(self):
+        return ARM_JOINT_NAMES

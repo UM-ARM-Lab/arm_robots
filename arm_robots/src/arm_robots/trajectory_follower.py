@@ -85,7 +85,7 @@ class TrajectoryFollower:
 
             error = waypoint_error(actual_point, desired_point)
             rospy.logdebug_throttle(1, f"{error} {desired_point.time_from_start.to_sec()} {dt.to_sec()}")
-            if desired_point.time_from_start.to_sec() > 0 and dt > desired_point.time_from_start * 5.0:
+            if False and desired_point.time_from_start.to_sec() > 0 and dt > desired_point.time_from_start * 5.0:
                 stop = True
                 if trajectory_point_idx == len(interpolated_points) - 1:
                     stop_msg = f"timeout. expected t={desired_point.time_from_start.to_sec()} but t={dt.to_sec()}." \
