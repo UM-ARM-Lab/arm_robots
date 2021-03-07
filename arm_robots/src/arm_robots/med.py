@@ -174,6 +174,7 @@ class Med(MoveitEnabledRobot, BaseMed):
                                     arms_controller_name='arm_trajectory_controller')
         BaseMed.__init__(self, robot_namespace=robot_namespace)
         self.arm_group = 'med_arm'
+        self.wrist = 'med_kuka_flange'
 
     def get_arm_joints(self):
         return ARM_JOINT_NAMES
