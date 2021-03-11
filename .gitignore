@@ -3,3 +3,5 @@ nohup.out
 .idea
 *.pyc
 __pycache__
+bag
+data*

@@ -70,8 +70,14 @@ bool DualGripperShim::executeDualGripperTrajectory(arm_robots_msgs::GrippersTraj
     {
       target_point_sequence.emplace_back(gripper[waypoint_idx]);
     }
-    auto const traj = planner_->moveInWorldFrame(req.group_name, req.tool_names, preferred_orientations,
-                                                 target_point_sequence);
+    planning_scene_monitor::LockedPlanningSceneRW planning_scene(planner_->scene_monitor_);
+    auto const &start_state = planning_scene->getCurrentState();
+    auto const[traj, target_reached] = planner_->moveInWorldFrame(planning_scene,
+                                                                  req.group_name,
+                                                                  req.tool_names,
+                                                                  preferred_orientations,
+                                                                  start_state,
+                                                                  target_point_sequence);
     followJointTrajectory(traj);
   }
 
