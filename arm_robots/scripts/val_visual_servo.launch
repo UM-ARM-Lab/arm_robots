@@ -1,0 +1,4 @@
+<launch>
+    <include file="$(find arm_robots)/launch/val.launch" />
+    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find arm_robots)/config/config_val_visual_servo.rviz"/>
+</launch>

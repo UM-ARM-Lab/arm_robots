@@ -22,8 +22,20 @@ from std_msgs.msg import Bool
 def quat2matrix(trans, rot_q):
     return np.block([[np.asarray(R.from_quat(rot_q).as_matrix()), np.asarray(trans).reshape(3,1)],[0, 0, 0, 1]])
 
+def write_data(path2file, As):
+    f = open(path2file, "w")
+    f.write(str(len(As))+"\n")
+    for A in As:
+        write_matrix2file(f, A)
+    f.close()
 
-def calc_pos(listener, hand):
+def write_matrix2file(f, a):
+    mat = np.matrix(a)
+    for line in mat:
+        np.savetxt(f, line, fmt='%.5f')
+    f.write("\n")
+
+def calc_pos(listener, hand, As, Bs):
     if hand == "right":
         mocap_hand_topic = '/mocap_RightHand0_RightHand0'
         robot_hand_topic = '/right_hand'
@@ -43,7 +55,8 @@ def calc_pos(listener, hand):
     #from fk: end-effector pose in vicon world frame 
     (trans,rot_q) = listener.lookupTransform('/val_cal', robot_hand_topic, rospy.Time(0))
     Tve_r = quat2matrix(trans, rot_q)
-    
+    As.append(Tve_r)
+    Bs.append(Tve_v)
     return [Tve_v[0:3, 3], Tve_r[0:3, 3]]
 
 def plot_traj(traj_right_hand_robot, traj_right_hand_vicon):
@@ -81,6 +94,10 @@ if __name__ == '__main__':
     joint_cmds= []
     joint_states = []
     time = []
+    As_r = []
+    Bs_r = []
+    As_l = []
+    Bs_l = []
 
     #initialize listener
     rospy.init_node("val_calib")
@@ -93,9 +110,9 @@ if __name__ == '__main__':
         try:
             time.append(rospy.get_rostime())
             #record right hand position from fk and vicon
-            result_r = calc_pos(listener, "right")
+            result_r = calc_pos(listener, "right", As_r, Bs_r)
             #record left hand position from fk and vicon
-            result_l = calc_pos(listener, "left")    
+            result_l = calc_pos(listener, "left", As_l, Bs_l)    
             #record com position
             com = rospy.wait_for_message("/com", PointStamped, timeout=5)
             #record joint state
@@ -132,11 +149,22 @@ if __name__ == '__main__':
         rate.sleep()
 
     print("data collection complete")
-    
+    print("As_l", len(As_l))
+    print("As_r", len(As_r))
+    print("Bs_l", len(Bs_l))
+    print("Bs_r", len(Bs_r))
+
+    #save A and B matrices to file 
+    fra = write_data("r/As.txt", As_r)
+    frb = write_data("r/Bs.txt", Bs_r)
+    fla = write_data("l/As.txt", As_l)
+    flb = write_data("l/Bs.txt", Bs_l)
+
     #save data
     np.savez('data_cal', traj_right_hand_vicon = traj_right_hand_vicon, traj_right_hand_robot = traj_right_hand_robot, 
                          traj_left_hand_vicon = traj_left_hand_vicon, traj_left_hand_robot = traj_left_hand_robot,
-                         joint_states = joint_states, joint_cmds = joint_cmds, coms = coms, time = time)
+                         joint_states = joint_states, joint_cmds = joint_cmds, coms = coms, time = time,
+                         As_l = As_l, As_r = As_r, Bs_l = Bs_l, Bs_r = Bs_r)
     npzfile = np.load('data_cal.npz')
     print(npzfile.files)
     print(npzfile['traj_right_hand_vicon'].shape)

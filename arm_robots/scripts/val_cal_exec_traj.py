@@ -239,7 +239,7 @@ def main():
                 val.plan_to_pose(val.left_arm_group, "left_hand", pt)
                 '''        
             #for pt in path_ls:
-            #    val.plan_to_position_cartesian(val.left_arm_group, 'left_hand', pt, step_size=0.01)
+            val.plan_to_position_cartesian(val.left_arm_group, 'left_hand', pt, step_size=0.01)
 
         elif whole_body_path[waypoint_index][0] == 'right_arm':
             result = val.plan_cartesian_path(val.right_arm_group, 'right_hand', path, ask_before_moving)
