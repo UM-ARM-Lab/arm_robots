@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import weakref
+from copy import deepcopy
 from threading import Thread
 from time import sleep
 from typing import List
@@ -54,11 +55,13 @@ class BaseVal(DualArmRobot):
                     break
                 # actually send commands periodically
                 now = rospy.Time.now()
-                if (now - self.latest_cmd.header.stamp) < rospy.Duration(secs=1):
-                    self.latest_cmd.header.stamp = now
-                    self.command_pub.publish(self.latest_cmd)
+                time_since_last_command = now - self.latest_cmd.header.stamp
+                if time_since_last_command < rospy.Duration(secs=1):
+                    command_to_send = deepcopy(self.latest_cmd)
+                    command_to_send.header.stamp = now
+                    self.command_pub.publish(command_to_send)
                 else:
-                    rospy.logdebug_throttle(1, "latest command is too old, ignoring")
+                    rospy.logdebug_throttle(1, "latest command is too old, ignoring", logger_name="hdt_michigan")
                 self.command_rate.sleep()
         except ReferenceError:
             pass
@@ -175,7 +178,6 @@ class Val(BaseVal, MoveitEnabledRobot):
 
     def connect(self):
         super().connect()
-        self.command_thread.start()
         rospy.loginfo(Fore.GREEN + "Val ready!")
 
     def is_gripper_closed(self, gripper: str):
