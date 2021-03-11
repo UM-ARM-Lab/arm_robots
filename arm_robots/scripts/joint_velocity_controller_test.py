@@ -116,9 +116,8 @@ def joint_vel_ctl2(publisher, joint_names, joint_vels, time=1.0, r=100):
         publisher.publish(joint_cmd)
         rate.sleep()
 
-
-if __name__ == '__main__':
-    rospy.init_node("send_joint_command")
+@ros_init.with_ros("send_joint_command")
+def main():
     pub = rospy.Publisher("hdt_adroit_coms/joint_cmd", JointState, queue_size=10)
     np.set_printoptions(suppress=True, precision=3, linewidth=200)
     colorama.init(autoreset=True)
@@ -142,7 +141,11 @@ if __name__ == '__main__':
     joint_vel_ctl2(pub, ['joint7', 'joint6'], [0.3, -0.2], 3.0)
     rospy.sleep(2)
     '''
-    val.plan_to_joint_config('both_arms', config)
+    # val.plan_to_joint_config('both_arms', config)
 
     val.disconnect()
     ros_init.shutdown()
+
+
+if __name__ == '__main__':
+    main()
