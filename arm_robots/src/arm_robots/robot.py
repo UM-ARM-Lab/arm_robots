@@ -1,47 +1,33 @@
 #! /usr/bin/env python
 from typing import List, Union, Tuple, Callable, Optional, Dict
 
+import moveit_commander
 import numpy as np
 import pyjacobian_follower
-from matplotlib import colors
-
-import moveit_commander
 import ros_numpy
 import rospy
 from actionlib import SimpleActionClient
-from arc_utilities.conversions import convert_to_pose_msg
-from arm_robots.base_robot import DualArmRobot
-from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningResult, PlanningAndExecutionResult, \
-    ExecutionResult, is_empty_trajectory
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
 from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PoseStamped
-from link_bot_pycommon.ros_pycommon import get_oneshot_publisher
-from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor
+from matplotlib import colors
+from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor, RobotState
 from rosgraph.names import ns_join
 from rospy import logfatal
-from sensor_msgs.msg import JointState
 from std_msgs.msg import ColorRGBA
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from visualization_msgs.msg import Marker
+
+from arc_utilities.conversions import convert_to_pose_msg
+from arc_utilities.ros_helpers import get_connected_publisher
+from arm_robots.base_robot import DualArmRobot
+from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningResult, PlanningAndExecutionResult, \
+    ExecutionResult, is_empty_trajectory
 
 STORED_ORIENTATION = None
 
 store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
-
-
-def to_color_msg(color):
-    """
-
-    Args:
-        color: anything matplotlib can handle
-
-    Returns:
-
-    """
-    r, g, b, a = colors.to_rgba(color)
-    return ColorRGBA(r=r, g=g, b=b, a=a)
 
 
 class MoveitEnabledRobot(DualArmRobot):
@@ -51,15 +37,24 @@ class MoveitEnabledRobot(DualArmRobot):
                  arms_controller_name: str,
                  execute: bool = True,
                  block: bool = True,
-                 raise_on_failure: bool = False,
-                 force_trigger: float = 9.0):
+                 raise_on_failure: bool = False):
+        """
+
+        Args:
+            robot_namespace: the namespace of the robot,
+                which should match the move_group and joint trajectory follower namespace
+            arms_controller_name: the name of the joint trajectory follower, which is defined in *_controllers.yaml or
+                trajectory follower roslaunch file
+            execute:
+            block:
+            raise_on_failure:
+        """
         super().__init__(robot_namespace)
         self.max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
         self.execute = execute
         self.block = block
-        self.force_trigger = force_trigger
         self.display_goals = True
 
         self.arms_controller_name = arms_controller_name
@@ -72,19 +67,46 @@ class MoveitEnabledRobot(DualArmRobot):
         self.right_tool_name = None
 
         self.arms_client = None
-        self.jacobian_follower = None
+        self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
+                                                                      translation_step_size=0.005,
+                                                                      minimize_rotation=True,
+                                                                      collision_check=True,
+                                                                      visualize=True)
 
         self.feedback_callbacks = []
+        self._move_groups = {}
 
-    def connect(self):
+    def connect(self, preload_move_groups=True):
+        """
+        Args:
+            preload_move_groups: Load the move_group_commander objects on connect (if False, loaded lazily)
+
+        Returns:
+        """
         super().connect()
 
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
 
-        self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
-                                                                      translation_step_size=0.005,
-                                                                      minimize_rotation=True)
+        self.jacobian_follower.connect_to_psm()
+
+        if preload_move_groups:
+            for group_name in self.robot_commander.get_group_names():
+                self.get_move_group_commander(group_name)
+
+    def disconnect(self):
+        try:
+            del self.jacobian_follower
+        except (NameError, AttributeError):
+            pass
+        try:
+            del self.arms_client
+        except (NameError, AttributeError):
+            pass
+        try:
+            del self._move_groups
+        except (NameError, AttributeError):
+            pass
 
     def setup_joint_trajectory_controller_client(self, controller_name):
         action_name = ns_join(self.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
@@ -102,8 +124,10 @@ class MoveitEnabledRobot(DualArmRobot):
     def set_block(self, block: bool):
         self.block = block
 
-    def get_move_group_commander(self, group_name) -> moveit_commander.MoveGroupCommander:
-        move_group = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+    def get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
+        if group_name not in self._move_groups:
+            self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+        move_group = self._move_groups[group_name]
         move_group.set_planning_time(30.0)
         # TODO Make this a settable param or at least make the hardcoded param more obvious
         # The purpose of this safety factor is to make sure we never send victor a velocity
@@ -238,7 +262,8 @@ class MoveitEnabledRobot(DualArmRobot):
             if self.block:
                 client.wait_for_result()
                 result = client.get_result()
-            if self.raise_on_failure and result.error_code != FollowJointTrajectoryResult.SUCCESSFUL:
+            failure = (result is None or result.error_code != FollowJointTrajectoryResult.SUCCESSFUL)
+            if self.raise_on_failure and failure:
                 raise RuntimeError(f"Follow Joint Trajectory Failed: ({result.error_code}) {result.error_string}")
 
         return ExecutionResult(trajectory=trajectory,
@@ -327,11 +352,13 @@ class MoveitEnabledRobot(DualArmRobot):
     def get_both_arm_joints(self):
         return self.get_left_arm_joints() + self.get_right_arm_joints()
 
-    def get_joint_names(self, group_name: str = 'whole_body'):
-        move_group = self.get_move_group_commander(group_name)
-        return move_group.get_active_joints()
+    def get_joint_names(self, group_name: Optional[str] = None):
+        if hasattr(self.robot_commander, 'get_active_joint_names'):
+            return self.robot_commander.get_active_joint_names(group_name)
+        else:
+            return self.get_move_group_commander('whole_body').get_active_joints()
 
-    def get_n_joints(self, group_name: str = 'whole_body'):
+    def get_num_joints(self, group_name: Optional[str] = None):
         return len(self.get_joint_names(group_name))
 
     def get_right_arm_joints(self):
@@ -362,20 +389,30 @@ class MoveitEnabledRobot(DualArmRobot):
     def is_right_gripper_closed(self):
         return self.is_gripper_closed('right')
 
-    def display_robot_state(self, joint_state: JointState, label: str, **kwargs):
+    def display_robot_state(self, robot_state: RobotState, label: str, color: Optional = None):
+        """
+
+        Args:
+            joint_state:
+            label:
+            color: any kind of matplotlib color, e.g "blue", [0,0.6,1], "#ff0044", etc...
+
+        Returns:
+
+        """
         topic_name = rospy.names.ns_join('display_robot_state', label)
         topic_name = topic_name.rstrip('/')
-        display_robot_state_pub = get_oneshot_publisher(topic_name, DisplayRobotState, queue_size=10)
+        display_robot_state_pub = get_connected_publisher(topic_name, DisplayRobotState, queue_size=10)
 
         display_robot_state_msg = DisplayRobotState()
-        display_robot_state_msg.state.joint_state = joint_state
+        display_robot_state_msg.state = robot_state
         display_robot_state_msg.state.joint_state.header.stamp = rospy.Time.now()
         display_robot_state_msg.state.is_diff = False
 
-        if 'color' in kwargs:
-            color = kwargs["color"]
+        if color is not None:
+            color = ColorRGBA(*colors.to_rgba(color))
             for link_name in self.robot_commander.get_link_names():
-                object_color = ObjectColor(id=link_name, color=to_color_msg(color))
+                object_color = ObjectColor(id=link_name, color=color)
                 display_robot_state_msg.highlight_links.append(object_color)
 
         display_robot_state_pub.publish(display_robot_state_msg)

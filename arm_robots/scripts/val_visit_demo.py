@@ -48,16 +48,19 @@ class Demo:
         self.target_position_robot_frame = ros_numpy.numpify(self.val.get_link_pose(self.tool_name).position)
 
         while not rospy.is_shutdown():
-            r = 0.35
-            for theta in np.linspace(-np.pi, np.pi, 10):
-                x = np.sin(theta) * r
-                z = np.cos(theta) * r + 0.4
-                lp_t = [x - 0.1, 0.8, z]
-                rp_t = [x + 0.1, 0.8, z]
+            try:
+                r = 0.35
+                for theta in np.linspace(-np.pi, np.pi, 10):
+                    x = np.sin(theta) * r
+                    z = np.cos(theta) * r + 0.4
+                    lp_t = [x - 0.1, 0.8, z]
+                    rp_t = [x + 0.1, 0.8, z]
 
-                self.val.follow_jacobian_to_position('both_arms', [self.val.left_tool_name, self.val.right_tool_name],
-                                                     [[lp_t], [rp_t]],
-                                                     vel_scaling=1.0)
+                    self.val.follow_jacobian_to_position('both_arms', [self.val.left_tool_name, self.val.right_tool_name],
+                                                         [[lp_t], [rp_t]],
+                                                         vel_scaling=1.0)
+            except Exception:
+                break
 
         self.val.disconnect()
 

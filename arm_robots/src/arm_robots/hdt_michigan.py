@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import weakref
+from copy import deepcopy
 from threading import Thread
 from time import sleep
 from typing import List
@@ -11,7 +12,6 @@ import rospy
 from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot import MoveitEnabledRobot
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64MultiArray
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 
@@ -29,20 +29,31 @@ class BaseVal(DualArmRobot):
         self.latest_cmd = JointState()
         self.command_rate = rospy.Rate(100)
         self.ready = 0
+        self.has_started_command_thread = False
 
     def __del__(self):
         self.disconnect()
 
     def connect(self):
         super().connect()
-        self.command_thread.start()
+        if not self.has_started_command_thread:
+            rospy.loginfo('Starting val command thread')
+            self.has_started_command_thread = True
+            self.command_thread.start()
 
     def disconnect(self):
+        super().disconnect()
+
         self.should_disconnect = True
         if self.command_thread.is_alive():
+            rospy.loginfo('joining val command thread')
             self.command_thread.join()
+            rospy.loginfo('joined val command thread')
 
     def command_thread_func(self):
+        if rospy.get_param("use_sim_time", False):
+            rospy.loginfo("Simulation detected, no command thread will be started.")
+            return
         try:
             while not self.first_valid_command:
                 if self.should_disconnect:
@@ -54,12 +65,13 @@ class BaseVal(DualArmRobot):
                     break
                 # actually send commands periodically
                 now = rospy.Time.now()
-                if (now - self.latest_cmd.header.stamp) < rospy.Duration(secs=1):
-                    self.latest_cmd.header.stamp = now
-                    rospy.logdebug_throttle(1, self.latest_cmd)
-                    self.command_pub.publish(self.latest_cmd)
+                time_since_last_command = now - self.latest_cmd.header.stamp
+                if time_since_last_command < rospy.Duration(secs=1):
+                    command_to_send = deepcopy(self.latest_cmd)
+                    command_to_send.header.stamp = now
+                    self.command_pub.publish(command_to_send)
                 else:
-                    rospy.logdebug_throttle(1, "latest command is too old, ignoring")
+                    rospy.logdebug_throttle(1, "latest command is too old, ignoring", logger_name="hdt_michigan")
                 self.command_rate.sleep()
         except ReferenceError:
             pass
@@ -180,7 +192,7 @@ class Val(BaseVal, MoveitEnabledRobot):
 
     def is_gripper_closed(self, gripper: str):
         if gripper == 'left':
-            move_group = self.get_move_group_commander('right_gripper')
+            move_group = self.get_move_group_commander('left_gripper')
         elif gripper == 'right':
             move_group = self.get_move_group_commander('right_gripper')
         else:
