@@ -225,7 +225,7 @@ class MoveitEnabledRobot(DualArmRobot):
         result: Optional[FollowJointTrajectoryResult] = None
         if self.execute:
             if client is None:
-                raise ValueError("You asked to execute an action without calling connect() first!")
+                raise ConnectionError("You asked to execute an action without calling connect() first!")
 
             goal = self.make_follow_joint_trajectory_goal(trajectory)
 
