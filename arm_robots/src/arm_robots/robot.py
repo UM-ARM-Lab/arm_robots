@@ -31,6 +31,10 @@ store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
 
 
+class RobotPlanningError(Exception):
+    pass
+
+
 class MoveitEnabledRobot(DualArmRobot):
 
     def __init__(self,
@@ -121,7 +125,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
         planning_result = PlanningResult(move_group.plan())
         if self.raise_on_failure and not planning_result.success:
-            raise RuntimeError(f"Plan to position failed {planning_result.planning_error_code}")
+            raise RobotPlanningError(f"Plan to position failed {planning_result.planning_error_code}")
 
         execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory)
         return PlanningAndExecutionResult(planning_result, execution_result)
@@ -320,7 +324,7 @@ class MoveitEnabledRobot(DualArmRobot):
         planning_success = True
         planning_result = PlanningResult(success=planning_success, plan=robot_trajectory_msg)
         if self.raise_on_failure and not planning_success:
-            raise RuntimeError(f"Jacobian planning failed")
+            raise RobotPlanningError(f"Jacobian planning failed")
 
         execution_result = self.follow_arms_joint_trajectory(robot_trajectory_msg.joint_trajectory,
                                                              stop_condition=stop_condition)
