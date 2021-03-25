@@ -2,6 +2,7 @@ from typing import Optional, Type
 
 import rospy
 from arm_robots.hdt_michigan import Val, BaseVal
+from arm_robots.robot import MoveitEnabledRobot
 from arm_robots.victor import BaseVictor, Victor
 
 
@@ -13,7 +14,7 @@ def get_base_robot(robot_name: Optional[str] = None, **kwargs):
     return get_robot(BaseVal, BaseVictor, robot_name, **kwargs)
 
 
-def get_robot(val_type: Type, victor_type: Type, robot_name: Optional[str] = None, **kwargs):
+def get_robot(val_type: Type, victor_type: Type, robot_name: Optional[str] = None, **kwargs) -> MoveitEnabledRobot:
     """
     Get the right robot. It considers first the robot_name argument,
     then checks the ros parameter server,
