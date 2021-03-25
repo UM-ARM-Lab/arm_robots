@@ -536,4 +536,4 @@ class Victor(BaseVictor, MoveitEnabledRobot):
 
     def connect(self):
         super().connect()
-        rospy.loginfo(Fore.GREEN + "Victor ready!")
+        rospy.loginfo(Fore.GREEN + "Victor ready!" + Fore.RESET)
