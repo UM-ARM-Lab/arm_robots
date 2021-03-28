@@ -21,6 +21,8 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf_conversions/tf_eigen.h>
+#include <eigen_conversions/eigen_msg.h>
 #include <trajectory_msgs/JointTrajectory.h>
 
 using PlanResult = std::pair<robot_trajectory::RobotTrajectory, bool>;
@@ -99,6 +101,10 @@ class JacobianFollower
                   std::vector<std::vector<Eigen::Vector3d>> const &grippers,
                   double max_velocity_scaling_factor,
                   double max_acceleration_scaling_factor);
+
+  std::vector<std::vector<double>> compute_IK_solutions(geometry_msgs::Pose target_pose, const std::string& group_name);
+
+  geometry_msgs::Pose computeFK(const std::vector<double>& joint_angles, const std::string& group_name);
 
   PlanResult moveInRobotFrame(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
                               std::string const &group_name,
