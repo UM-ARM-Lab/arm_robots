@@ -27,7 +27,8 @@ constexpr auto const LOGGER_NAME{"JacobianFollower"};
 PoseSequence getToolTransforms(Pose const &world_to_robot, std::vector<std::string> const &tool_names,
                                robot_state::RobotState const &state) {
   auto get_tool_pose = [&](std::string const &tool_name) {
-    // the results of getGlobalLinkTransform is in the same moveit "model frame", as given by RobotModel::getModelFrame
+    // the results of getGlobalLinkTransform is in the same moveit "model frame", as given by
+    // RobotModel::getModelFrame
     auto const tool_pose = world_to_robot * state.getGlobalLinkTransform(tool_name);
     return tool_pose;
   };
@@ -187,7 +188,7 @@ std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry
   tf::poseEigenToMsg(pt_solver, pose);
   target_poses.push_back(pose);
 
-  //    std::vector<double> seed{-.28, 0.9, 0, -0.5, 0, 1.0, 0};
+  //TODO: Add seed as optional input
   std::vector<double> seed(jmg->getActiveJointModelNames().size());
   std::vector<std::vector<double>> solutions;
   kinematics::KinematicsResult result{};
