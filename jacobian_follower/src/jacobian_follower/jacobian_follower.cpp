@@ -202,7 +202,7 @@ std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry
 geometry_msgs::Pose JacobianFollower::computeFK(const std::vector<double> &joint_angles,
                                                 const std::string &group_name) {
   auto jmg = model_->getJointModelGroup(group_name);
-  robot_state::RobotStatePtr kinematic_state(new robot_state::RobotState(model_));
+  auto kinematic_state = std::make_shared<robot_state::RobotState>(model_);
   kinematic_state->setJointGroupPositions(group_name, joint_angles);
 
   //    const auto& ee_name = jmg->getEndEffectorName();
