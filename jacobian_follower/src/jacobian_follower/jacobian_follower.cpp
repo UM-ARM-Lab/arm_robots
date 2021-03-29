@@ -174,7 +174,7 @@ std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry
 
   Eigen::Isometry3d solverTrobot = Eigen::Isometry3d::Identity();
 
-  robot_state::RobotStatePtr kinematic_state = std::make_shared<robot_state::RobotState>(model_);
+  auto kinematic_state = std::make_shared<robot_state::RobotState>(model_);
   kinematic_state->setToIKSolverFrame(solverTrobot, solver);
 
   // Convert to solver frame
