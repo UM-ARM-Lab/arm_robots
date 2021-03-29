@@ -31,11 +31,13 @@ class TestJacobianFollowerBindings(unittest.TestCase):
         fk = self.victor.jacobian_follower.fk(test_joint_angles, "right_arm")
         iks = self.victor.jacobian_follower.compute_IK_solutions(fk, "right_arm")
 
+        self.assertGreater(len(iks), 0, "No IK solutions returned")
+
         for ik in iks:
             this_fk = self.victor.jacobian_follower.fk(ik, "right_arm")
             self._assert_pose_equal(fk, this_fk)
 
 
 if __name__ == "__main__":
-    rospy.init_node("test_node")
+    rospy.init_node("jacobian_follower_bindings_test_node")
     rostest.rosrun("jacobian_follower", 'jacobian_follower_bindings_test_node', TestJacobianFollowerBindings)
