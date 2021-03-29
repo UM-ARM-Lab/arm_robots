@@ -1,0 +1,5 @@
+<launch>
+    <include file="$(find arm_robots)/launch/rviz_victor.launch"/>
+    <test test-name="jacobian_follower_bindings_test" pkg="jacobian_follower" type="jacobian_follower_bindings_test.py">
+    </test>
+</launch>
