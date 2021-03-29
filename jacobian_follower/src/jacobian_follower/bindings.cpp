@@ -42,5 +42,12 @@ PYBIND11_MODULE(pyjacobian_follower, m)
            py::arg("grippers"),
            py::arg("max_velocity_scaling_factor"),
            py::arg("max_acceleration_scaling_factor")
-      );
+      )
+      .def("compute_IK_solutions", &JacobianFollower::compute_IK_solutions,
+           py::arg("pose"),
+           py::arg("joint_group_name"))
+      .def("fk", &JacobianFollower::computeFK,
+           py::arg("joint_angles"),
+           py::arg("joint_group_name"))
+      ;
 }
