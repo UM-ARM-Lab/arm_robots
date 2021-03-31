@@ -534,6 +534,6 @@ class Victor(BaseVictor, MoveitEnabledRobot):
                 rospy.logwarn("CANCELING!")
                 client.cancel_all_goals()
 
-    def connect(self):
-        super().connect()
+    def connect(self, **kwargs):
+        super().connect(**kwargs)
         rospy.loginfo(Fore.GREEN + "Victor ready!" + Fore.RESET)

@@ -15,7 +15,7 @@ class TestJacobianFollowerBindings(unittest.TestCase):
         super().__init__(*args, **kwargs)
 
         self.victor = Victor()
-        self.victor.connect()
+        self.victor.connect(preload_move_groups=False)
 
     def _assert_pose_equal(self, p1: Pose, p2: Pose, places=4):
         self.assertAlmostEqual(p1.position.x, p2.position.x, places=places)
