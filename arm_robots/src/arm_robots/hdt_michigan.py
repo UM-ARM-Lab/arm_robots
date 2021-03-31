@@ -176,8 +176,8 @@ class Val(BaseVal, MoveitEnabledRobot):
     def get_left_arm_joints(self):
         return left_arm_joints
 
-    def connect(self):
-        super().connect()
+    def connect(self, **kwargs):
+        super().connect(**kwargs)
         rospy.loginfo(Fore.GREEN + "Val ready!")
 
     def is_gripper_closed(self, gripper: str):
