@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
         pyrosmsg
         moveit_visual_tools
         pybind11_catkin
+        eigen_conversions
         )
 
 catkin_python_setup()

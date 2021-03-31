@@ -17,4 +17,5 @@
   <depend>tf2_msgs</depend>
   <depend>moveit_visual_tools</depend>
   <depend>pybind11_catkin</depend>
+  <depend>eigen_conversions</depend>
 </package>
