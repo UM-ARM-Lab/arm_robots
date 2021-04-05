@@ -42,3 +42,7 @@ set_target_properties(jacobian_follower_main PROPERTIES OUTPUT_NAME "jacobian_fo
 
 pybind_add_module(pyjacobian_follower src/jacobian_follower/bindings.cpp)
 target_link_libraries(pyjacobian_follower PUBLIC jacobian_follower)
+
+catkin_add_gtest(jacobian_follower_test test/jacobian_follower_test.cpp)
+target_include_directories(jacobian_follower_test PUBLIC include)
+target_link_libraries(jacobian_follower_test jacobian_follower)
