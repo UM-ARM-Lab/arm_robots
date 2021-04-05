@@ -175,7 +175,7 @@ std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry
   Eigen::Isometry3d solverTrobot = Eigen::Isometry3d::Identity();
 
   auto kinematic_state = std::make_shared<robot_state::RobotState>(model_);
-  kinematic_state->setToIKSolverFrame(solverTrobot, solver);
+  kinematic_state->setToIKSolverFrame(solverTrobot, solver)
 
   // Convert to solver frame
   Eigen::Affine3d ee_target_pose;
@@ -699,4 +699,22 @@ Eigen::MatrixXd JacobianFollower::getJacobianServoFrame(moveit::core::JointModel
     jacobian.block(static_cast<long>(idx * 6), 0, 6, columns) = block;
   }
   return jacobian;
+}
+
+bool JacobianFollower::setToIKSolverFrame(Eigen::Isometry3d &pose, const kinematics::KinematicsBaseConstPtr &solver) {
+  return setToIKSolverFrame(pose, solver->getBaseFrame());
+}
+
+bool JacobianFollower::setToIKSolverFrame(Eigen::Isometry3d &pose, const std::string &ik_frame) {
+  // Bring the pose to the frame of the IK solver
+  if (!Transforms::sameFrame(ik_frame, robot_model_->getModelFrame())) {
+    const LinkModel *link_model =
+        getLinkModel((!ik_frame.empty() && ik_frame[0] == '/') ? ik_frame.substr(1) : ik_frame);
+    if (!link_model) {
+      ROS_ERROR_STREAM_NAMED(LOGNAME, "IK frame '" << ik_frame << "' does not exist.");
+      return false;
+    }
+    pose = getGlobalLinkTransform(link_model).inverse() * pose;
+  }
+  return true;
 }

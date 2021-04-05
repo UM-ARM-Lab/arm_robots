@@ -146,4 +146,9 @@ class JacobianFollower
                                         robot_state::RobotState const &state, PoseSequence const &robotTservo);
 
   void debugLogState(std::string prefix, robot_state::RobotState const &state);
+
+  bool setToIKSolverFrame(Eigen::Isometry3d &pose, const kinematics::KinematicsBaseConstPtr &solver);
+
+  bool setToIKSolverFrame(Eigen::Isometry3d &pose, const std::string &ik_frame);
+
 };
