@@ -188,7 +188,7 @@ std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry
   tf::poseEigenToMsg(pt_solver, pose);
   target_poses.push_back(pose);
 
-  //TODO: Add seed as optional input
+  // TODO: Add seed as optional input
   std::vector<double> seed(jmg->getActiveJointModelNames().size());
   std::vector<std::vector<double>> solutions;
   kinematics::KinematicsResult result{};

@@ -1,9 +1,6 @@
 #pragma once
 
-#include <memory>
-
 #include <actionlib/client/simple_action_client.h>
-#include <arc_utilities/listener.hpp>
 #include <arm_robots_msgs/GrippersTrajectory.h>
 #include <control_msgs/FollowJointTrajectoryAction.h>
 #include <moveit_msgs/RobotTrajectory.h>
@@ -13,10 +10,11 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 
+#include <arc_utilities/listener.hpp>
 #include <jacobian_follower/jacobian_follower.hpp>
+#include <memory>
 
-class DualGripperShim
-{
+class DualGripperShim {
  public:
   bool talk_{false};
   ros::NodeHandle nh_;
@@ -29,7 +27,6 @@ class DualGripperShim
   ros::Duration const traj_goal_time_tolerance_;
 
   DualGripperShim(std::string robot_namespace, const ros::NodeHandle &nh, const ros::NodeHandle &ph);
-
 
   bool executeDualGripperTrajectory(arm_robots_msgs::GrippersTrajectory::Request &req,
                                     arm_robots_msgs::GrippersTrajectory::Response &res);
