@@ -2,8 +2,7 @@
 
 #include <jacobian_follower/dual_gripper_shim.hpp>
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   ros::init(argc, argv, "jacobian_follower");
 
   ros::NodeHandle nh;

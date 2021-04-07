@@ -1,45 +1,39 @@
 #pragma once
 
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
-#include <moveit/trajectory_processing/iterative_time_parameterization.h>
-#include <arc_utilities/eigen_typedefs.hpp>
-#include <arc_utilities/moveit_pose_type.hpp>
 #include <arm_robots_msgs/Points.h>
+#include <eigen_conversions/eigen_msg.h>
 #include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <moveit/robot_state/robot_state.h>
 #include <moveit/robot_trajectory/robot_trajectory.h>
+#include <moveit/trajectory_processing/iterative_time_parameterization.h>
 #include <moveit_msgs/DisplayRobotState.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
 #include <tf2_ros/buffer.h>
-#include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
 #include <tf_conversions/tf_eigen.h>
-#include <eigen_conversions/eigen_msg.h>
 #include <trajectory_msgs/JointTrajectory.h>
+
+#include <arc_utilities/eigen_typedefs.hpp>
+#include <arc_utilities/moveit_pose_type.hpp>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 using PlanResult = std::pair<robot_trajectory::RobotTrajectory, bool>;
 using PlanResultMsg = std::pair<moveit_msgs::RobotTrajectory, bool>;
 
-[[nodiscard]] PoseSequence getToolTransforms(Pose const &world_to_robot,
-                                             std::vector<std::string> const &tool_names,
+[[nodiscard]] PoseSequence getToolTransforms(Pose const &world_to_robot, std::vector<std::string> const &tool_names,
                                              robot_state::RobotState const &state);
 
-
-class JacobianFollower
-{
+class JacobianFollower {
  public:
-  enum
-  {
-    NeedsToAlign = ((sizeof(Pose) % 16) == 0)
-  };
+  enum { NeedsToAlign = ((sizeof(Pose) % 16) == 0) };
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF(NeedsToAlign)
   std::shared_ptr<ros::NodeHandle> nh_;
@@ -66,80 +60,61 @@ class JacobianFollower
 
   explicit JacobianFollower(std::string robot_namespace, double translation_step_size, bool minimize_rotation = true);
 
-  [[nodiscard]] bool isRequestValid(std::string const &group_name,
-                                    std::vector<std::string> const &tool_names,
-                                    std::vector<std::vector<Eigen::Vector3d>>
-                                    const &grippers) const;
+  [[nodiscard]] bool isRequestValid(std::string const &group_name, std::vector<std::string> const &tool_names,
+                                    std::vector<std::vector<Eigen::Vector3d>> const &grippers) const;
 
-  PlanResultMsg plan_return_msg(std::string const &group_name,
-                                std::vector<std::string> const &tool_names,
+  PlanResultMsg plan_return_msg(std::string const &group_name, std::vector<std::string> const &tool_names,
                                 std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                                 moveit_msgs::RobotState const &start_state,
                                 std::vector<std::vector<Eigen::Vector3d>> const &grippers,
-                                double max_velocity_scaling_factor,
-                                double max_acceleration_scaling_factor);
+                                double max_velocity_scaling_factor, double max_acceleration_scaling_factor);
 
-  PlanResultMsg plan_return_msg(std::string const &group_name,
-                                std::vector<std::string> const &tool_names,
+  PlanResultMsg plan_return_msg(std::string const &group_name, std::vector<std::string> const &tool_names,
                                 std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                                 std::vector<std::vector<Eigen::Vector3d>> const &grippers,
-                                double max_velocity_scaling_factor,
-                                double max_acceleration_scaling_factor);
+                                double max_velocity_scaling_factor, double max_acceleration_scaling_factor);
 
-  PlanResult plan(std::string const &group_name,
-                  std::vector<std::string> const &tool_names,
+  PlanResult plan(std::string const &group_name, std::vector<std::string> const &tool_names,
                   std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
-                  std::vector<std::vector<Eigen::Vector3d>> const &grippers,
-                  double max_velocity_scaling_factor,
+                  std::vector<std::vector<Eigen::Vector3d>> const &grippers, double max_velocity_scaling_factor,
                   double max_acceleration_scaling_factor);
 
-  PlanResult plan(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
-                  std::string const &group_name,
+  PlanResult plan(planning_scene_monitor::LockedPlanningSceneRW &planning_scene, std::string const &group_name,
                   std::vector<std::string> const &tool_names,
                   std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
-                  robot_state::RobotState const &start_state,
-                  std::vector<std::vector<Eigen::Vector3d>> const &grippers,
-                  double max_velocity_scaling_factor,
-                  double max_acceleration_scaling_factor);
+                  robot_state::RobotState const &start_state, std::vector<std::vector<Eigen::Vector3d>> const &grippers,
+                  double max_velocity_scaling_factor, double max_acceleration_scaling_factor);
 
-  //TODO: Return std::vector<std_msgs/JointState.msg> to avoid ambiguity in the joint ordering?
-  std::vector<std::vector<double>> compute_IK_solutions(geometry_msgs::Pose target_pose, const std::string& group_name);
+  // TODO: Return std::vector<std_msgs/JointState.msg> to avoid ambiguity in the joint ordering?
+  std::vector<std::vector<double>> compute_IK_solutions(geometry_msgs::Pose target_pose, const std::string &group_name);
 
-  //TODO: Accept std_msgs/JointState.msg to avoid ambiguity in the joint ordering?
-  geometry_msgs::Pose computeFK(const std::vector<double>& joint_angles, const std::string& group_name);
+  // TODO: Accept std_msgs/JointState.msg to avoid ambiguity in the joint ordering?
+  geometry_msgs::Pose computeFK(const std::vector<double> &joint_angles, const std::string &group_name);
 
   PlanResult moveInRobotFrame(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
-                              std::string const &group_name,
-                              std::vector<std::string> const &tool_names,
+                              std::string const &group_name, std::vector<std::string> const &tool_names,
                               EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
-                              robot_state::RobotState const &start_state,
-                              PointSequence const &target_tool_positions);
+                              robot_state::RobotState const &start_state, PointSequence const &target_tool_positions);
 
   PlanResult moveInWorldFrame(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
-                              std::string const &group_name,
-                              std::vector<std::string> const &tool_names,
+                              std::string const &group_name, std::vector<std::string> const &tool_names,
                               EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
-                              robot_state::RobotState const &start_state,
-                              PointSequence const &target_tool_positions);
+                              robot_state::RobotState const &start_state, PointSequence const &target_tool_positions);
 
   robot_trajectory::RobotTrajectory jacobianPath3d(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
-                                                   Pose const &world_to_robot,
-                                                   moveit::core::JointModelGroup const *jmg,
+                                                   Pose const &world_to_robot, moveit::core::JointModelGroup const *jmg,
                                                    std::vector<std::string> const &tool_names,
                                                    EigenHelpers::VectorQuaterniond const &preferred_tool_orientations,
                                                    std::vector<PointSequence> const &tool_paths);
 
   // Note that robot_goal_points is the target points for the tools, measured in robot frame
-  bool jacobianIK(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
-                  Pose const &world_to_robot,
-                  moveit::core::JointModelGroup const *jmg,
-                  std::vector<std::string> const &tool_names,
+  bool jacobianIK(planning_scene_monitor::LockedPlanningSceneRW &planning_scene, Pose const &world_to_robot,
+                  moveit::core::JointModelGroup const *jmg, std::vector<std::string> const &tool_names,
                   PoseSequence const &robotTtargets);
 
   Eigen::VectorXd projectRotationIntoNullspace(Eigen::VectorXd positionCorrectionStep,
                                                Eigen::VectorXd rotationCorrectionStep,
-                                               Eigen::MatrixXd const &nullspaceConstraintMatrix,
-                                               int const ndof);
+                                               Eigen::MatrixXd const &nullspaceConstraintMatrix, int const ndof);
 
   Eigen::MatrixXd getJacobianServoFrame(moveit::core::JointModelGroup const *jmg,
                                         std::vector<std::string> const &tool_names,
