@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(jacobian_follower)
 
-find_package(catkin REQUIRED COMPONENTS
+set(CATKIN_PACKAGES
         arc_utilities
         moveit_ros_planning
         arm_robots_msgs
@@ -14,6 +14,10 @@ find_package(catkin REQUIRED COMPONENTS
         eigen_conversions
         )
 
+find_package(catkin REQUIRED COMPONENTS
+        ${CATKIN_PACKAGES}
+        )
+
 catkin_python_setup()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -21,7 +25,9 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 
 
 catkin_package(
-        CATKIN_DEPENDS arc_utilities pybind11_catkin pyrosmsg
+        INCLUDE_DIRS include
+        LIBRARIES jacobian_follower
+        CATKIN_DEPENDS ${CATKIN_PACKAGES}
 )
 
 set(FLAGS -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Werror=return-type -Werror=missing-field-initializers)
