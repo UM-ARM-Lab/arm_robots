@@ -168,7 +168,7 @@ PlanResult JacobianFollower::plan(planning_scene_monitor::LockedPlanningSceneRW 
 }
 
 std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry_msgs::Pose target_pose,
-                                                                        const std::string &group_name) {
+                                                                        const std::string &group_name) const{
   auto const jmg = model_->getJointModelGroup(group_name);
   const kinematics::KinematicsBaseConstPtr &solver = jmg->getSolverInstance();
 
@@ -200,7 +200,7 @@ std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry
 }
 
 geometry_msgs::Pose JacobianFollower::computeFK(const std::vector<double> &joint_angles,
-                                                const std::string &group_name) {
+                                                const std::string &group_name) const{
   auto jmg = model_->getJointModelGroup(group_name);
   auto kinematic_state = std::make_shared<robot_state::RobotState>(model_);
   kinematic_state->setJointGroupPositions(group_name, joint_angles);

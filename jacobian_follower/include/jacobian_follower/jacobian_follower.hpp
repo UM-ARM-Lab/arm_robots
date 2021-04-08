@@ -86,10 +86,10 @@ class JacobianFollower {
                   double max_velocity_scaling_factor, double max_acceleration_scaling_factor);
 
   // TODO: Return std::vector<std_msgs/JointState.msg> to avoid ambiguity in the joint ordering?
-  std::vector<std::vector<double>> compute_IK_solutions(geometry_msgs::Pose target_pose, const std::string &group_name);
+  std::vector<std::vector<double>> compute_IK_solutions(geometry_msgs::Pose target_pose, const std::string &group_name) const;
 
   // TODO: Accept std_msgs/JointState.msg to avoid ambiguity in the joint ordering?
-  geometry_msgs::Pose computeFK(const std::vector<double> &joint_angles, const std::string &group_name);
+  geometry_msgs::Pose computeFK(const std::vector<double> &joint_angles, const std::string &group_name) const;
 
   PlanResult moveInRobotFrame(planning_scene_monitor::LockedPlanningSceneRW &planning_scene,
                               std::string const &group_name, std::vector<std::string> const &tool_names,
