@@ -2,6 +2,7 @@
 from typing import List, Union, Tuple, Callable, Optional, Dict
 
 import numpy as np
+from urdf_parser_py.urdf import URDF as urdf
 import pyjacobian_follower
 from matplotlib import colors
 
@@ -10,7 +11,7 @@ import ros_numpy
 import rospy
 from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg
-from arc_utilities.ros_helpers import get_connected_publisher
+from arc_utilities.ros_helpers import try_to_connect
 from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningResult, PlanningAndExecutionResult, \
     ExecutionResult, is_empty_trajectory, merge_joint_state_and_scene_msg
@@ -66,6 +67,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
         self.display_robot_state_pub = rospy.Publisher('display_robot_state', DisplayRobotState, queue_size=10)
         self.display_goal_position_pub = rospy.Publisher('goal_position', Marker, queue_size=10)
+        self.display_robot_state_pubs = {}
 
         # Override these in base classes!
         self.left_tool_name = None
@@ -131,7 +133,11 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
         if group_name not in self._move_groups:
-            self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+            try:
+                self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+            except RuntimeError as e:
+                print(e)
+
         move_group = self._move_groups[group_name]
         move_group.set_planning_time(30.0)
         # TODO Make this a settable param or at least make the hardcoded param more obvious
@@ -421,10 +427,18 @@ class MoveitEnabledRobot(DualArmRobot):
         return self.get_left_arm_joints() + self.get_right_arm_joints()
 
     def get_joint_names(self, group_name: Optional[str] = None):
-        if hasattr(self.robot_commander, 'get_active_joint_names'):
-            return self.robot_commander.get_active_joint_names(group_name)
+        # NOTE: Getting a list of joint names should not require anything besides a lookup on the ros parameter server.
+        #   However, MoveIt does not have this implemented that way, it requires connecting to the move group node.
+        #   This causes problems sometimes, so to simplify things we do the lookup manually if no group name is given.
+        if group_name is None:
+            robot = urdf.from_parameter_server()
+            active_joint_names = [j.name for j in robot.joints if j.type != 'fixed']
+            return active_joint_names
         else:
-            return self.get_move_group_commander('whole_body').get_active_joints()
+            if hasattr(self.robot_commander, 'get_active_joint_names'):
+                return self.robot_commander.get_active_joint_names(group_name)
+            else:
+                return self.get_move_group_commander('whole_body').get_active_joints()
 
     def get_num_joints(self, group_name: Optional[str] = None):
         return len(self.get_joint_names(group_name))
@@ -470,7 +484,11 @@ class MoveitEnabledRobot(DualArmRobot):
         """
         topic_name = rospy.names.ns_join('display_robot_state', label)
         topic_name = topic_name.rstrip('/')
-        display_robot_state_pub = get_connected_publisher(topic_name, DisplayRobotState, queue_size=10)
+        display_robot_state_pub = self.display_robot_state_pubs.get(label, None)
+        if display_robot_state_pub is None:
+            display_robot_state_pub = rospy.Publisher(topic_name, DisplayRobotState, queue_size=10)
+            try_to_connect(display_robot_state_pub)
+        self.display_robot_state_pubs[label] = display_robot_state_pub  # save a handle to the publisher
 
         display_robot_state_msg = DisplayRobotState()
         display_robot_state_msg.state = robot_state
