@@ -3,6 +3,7 @@ from typing import List, Union, Tuple, Callable, Optional, Dict
 
 import numpy as np
 from urdf_parser_py.urdf import URDF as urdf
+import urdf_parser_py.xml_reflection.core
 import pyjacobian_follower
 from matplotlib import colors
 
@@ -32,8 +33,11 @@ store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
 
 
-class RobotPlanningError(Exception):
-    pass
+def on_error(message):
+    rospy.logdebug(message, logger_name='urdf_parser_py')
+
+urdf_parser_py.xml_reflection.core.on_error = on_error
+
 
 
 class MoveitEnabledRobot(DualArmRobot):
@@ -133,10 +137,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
     def get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
         if group_name not in self._move_groups:
-            try:
-                self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
-            except RuntimeError as e:
-                print(e)
+            self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
 
         move_group = self._move_groups[group_name]
         move_group.set_planning_time(30.0)
