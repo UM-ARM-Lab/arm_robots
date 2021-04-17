@@ -2,14 +2,13 @@
 from typing import List, Union, Tuple, Callable, Optional, Dict
 
 import numpy as np
-from urdf_parser_py.urdf import URDF as urdf
-import urdf_parser_py.xml_reflection.core
 import pyjacobian_follower
 from matplotlib import colors
 
 import moveit_commander
 import ros_numpy
 import rospy
+import urdf_parser_py.xml_reflection.core
 from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg
 from arc_utilities.ros_helpers import try_to_connect
@@ -25,6 +24,7 @@ from rospy import logfatal
 from sensor_msgs.msg import JointState
 from std_msgs.msg import ColorRGBA
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from urdf_parser_py.urdf import URDF as urdf
 from visualization_msgs.msg import Marker
 
 STORED_ORIENTATION = None
@@ -33,11 +33,15 @@ store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
 
 
+class RobotPlanningError(Exception):
+    pass
+
+
 def on_error(message):
     rospy.logdebug(message, logger_name='urdf_parser_py')
 
-urdf_parser_py.xml_reflection.core.on_error = on_error
 
+urdf_parser_py.xml_reflection.core.on_error = on_error
 
 
 class MoveitEnabledRobot(DualArmRobot):
