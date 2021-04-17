@@ -285,6 +285,7 @@ class MoveitEnabledRobot(DualArmRobot):
             # NOTE: this is where execution is actually requested in the form of a joint trajectory
             client.send_goal(goal, feedback_cb=_feedback_cb)
             if self.block:
+                print("waiting...")
                 client.wait_for_result(timeout=self.timeout)
                 result = client.get_result()
             failure = (result is None or result.error_code != FollowJointTrajectoryResult.SUCCESSFUL)
