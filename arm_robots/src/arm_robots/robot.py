@@ -64,6 +64,7 @@ class MoveitEnabledRobot(DualArmRobot):
             raise_on_failure:
         """
         super().__init__(robot_namespace)
+        self.timeout = rospy.Duration(30)
         self.max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
@@ -284,7 +285,7 @@ class MoveitEnabledRobot(DualArmRobot):
             # NOTE: this is where execution is actually requested in the form of a joint trajectory
             client.send_goal(goal, feedback_cb=_feedback_cb)
             if self.block:
-                client.wait_for_result()
+                client.wait_for_result(timeout=self.timeout)
                 result = client.get_result()
             failure = (result is None or result.error_code != FollowJointTrajectoryResult.SUCCESSFUL)
             if self.raise_on_failure and failure:
