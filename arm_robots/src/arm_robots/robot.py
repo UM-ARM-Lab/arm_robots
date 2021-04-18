@@ -18,6 +18,7 @@ from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningRe
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
 from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PoseStamped
+from link_bot_pycommon.pycommon import catch_timeout
 from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor, RobotState, PlanningScene
 from rosgraph.names import ns_join
 from rospy import logfatal
@@ -285,9 +286,10 @@ class MoveitEnabledRobot(DualArmRobot):
             # NOTE: this is where execution is actually requested in the form of a joint trajectory
             client.send_goal(goal, feedback_cb=_feedback_cb)
             if self.block:
-                print("waiting...")
-                client.wait_for_result(timeout=self.timeout)
+                print("waiting...", end='')
+                catch_timeout(10, func=lambda: client.wait_for_result(timeout=self.timeout))
                 result = client.get_result()
+                print("done")
             failure = (result is None or result.error_code != FollowJointTrajectoryResult.SUCCESSFUL)
             if self.raise_on_failure and failure:
                 raise RuntimeError(f"Follow Joint Trajectory Failed: ({result.error_code}) {result.error_string}")
