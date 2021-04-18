@@ -157,7 +157,7 @@ class Val(BaseVal, MoveitEnabledRobot):
         move_group = self.get_move_group_commander('left_gripper')
         move_group.set_joint_value_target({'leftgripper':  position,
                                            'leftgripper2': position, })
-        plan = catch_timeout(5, func=lambda: move_group.plan()[1])
+        plan, timeout = catch_timeout(5, func=lambda: move_group.plan()[1])
         self.follow_arms_joint_trajectory(plan.joint_trajectory)
 
     def set_right_gripper(self, position):
