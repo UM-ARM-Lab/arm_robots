@@ -286,10 +286,8 @@ class MoveitEnabledRobot(DualArmRobot):
             # NOTE: this is where execution is actually requested in the form of a joint trajectory
             client.send_goal(goal, feedback_cb=_feedback_cb)
             if self.block:
-                print("waiting...", end='')
                 catch_timeout(10, func=lambda: client.wait_for_result(timeout=self.timeout))
                 result = client.get_result()
-                print("done")
             failure = (result is None or result.error_code != FollowJointTrajectoryResult.SUCCESSFUL)
             if self.raise_on_failure and failure:
                 raise RuntimeError(f"Follow Joint Trajectory Failed: ({result.error_code}) {result.error_string}")
