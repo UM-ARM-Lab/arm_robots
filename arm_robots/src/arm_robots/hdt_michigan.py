@@ -11,7 +11,6 @@ from colorama import Fore
 import rospy
 from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot import MoveitEnabledRobot
-from link_bot_pycommon.pycommon import catch_timeout
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
@@ -157,7 +156,7 @@ class Val(BaseVal, MoveitEnabledRobot):
         move_group = self.get_move_group_commander('left_gripper')
         move_group.set_joint_value_target({'leftgripper':  position,
                                            'leftgripper2': position, })
-        plan, timeout = catch_timeout(5, func=lambda: move_group.plan()[1])
+        plan = move_group.plan()[1]
         self.follow_arms_joint_trajectory(plan.joint_trajectory)
 
     def set_right_gripper(self, position):
