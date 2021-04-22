@@ -153,6 +153,8 @@ class Val(BaseVal, MoveitEnabledRobot):
         return ['leftgripper', 'leftgripper2']
 
     def set_left_gripper(self, position):
+        return
+
         print("0", flush=True, end='')
         move_group = self.get_move_group_commander('left_gripper')
         move_group.set_joint_value_target({'leftgripper':  position,
