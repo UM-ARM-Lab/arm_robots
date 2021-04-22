@@ -30,6 +30,7 @@ from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, Motion
     Robotiq3FingerStatus
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
     GetControlModeResponse, SetControlModeResponse
+from wsg_50_common.srv import Move
 
 # TODO: Since we have only one set of arms, this really just makes sure everythings in the right order. Could probably simplify but I'll keep it for now.
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
@@ -168,13 +169,42 @@ class BaseMed(BaseRobot):
 
 class Med(MoveitEnabledRobot, BaseMed):
 
-    def __init__(self, robot_namespace: str = 'victor', force_trigger: float= -0.0):
+    def __init__(self, robot_namespace: str = 'victor', force_trigger: float= -0.0, manual_execute: bool = True):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
-                                    arms_controller_name='arm_trajectory_controller')
+                                    arms_controller_name='arm_trajectory_controller',
+                                    force_trigger=force_trigger,
+                                    manual_execute=manual_execute)
         BaseMed.__init__(self, robot_namespace=robot_namespace)
-        self.arm_group = 'med_arm'
-        self.wrist = 'med_kuka_flange'
+        self.arm_group = 'kuka_arm'
+        self.wrist = 'med_kuka_link_ee'
 
     def get_arm_joints(self):
         return ARM_JOINT_NAMES
+
+    def grasp(self):
+        rospy.wait_for_service('/wsg_50_driver/grasp')
+        try:
+            close_proxy = rospy.ServiceProxy('/wsg_50_driver/grasp', Move)
+            grasp_resp = close_proxy(0.0, 20.0)
+            return grasp_resp.error
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
+
+    def open_gripper(self):
+        rospy.wait_for_service('/wsg_50_driver/move')
+        try:
+            move_proxy = rospy.ServiceProxy('/wsg_50_driver/move', Move)
+            move_resp = move_proxy(100.0, 20.0)
+            return move_resp.error
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
+
+    def release(self):
+        rospy.wait_for_service('/wsg_50_driver/release')
+        try:
+            release_proxy = rospy.ServiceProxy('/wsg_50_driver/release', Move)
+            release_resp = release_proxy(40.0, 5.0)
+            return release_resp.error
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
