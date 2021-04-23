@@ -153,19 +153,17 @@ class Val(BaseVal, MoveitEnabledRobot):
         return ['leftgripper', 'leftgripper2']
 
     def set_left_gripper(self, position):
-        return
+        return  # FIXME:
 
-        print("0", flush=True, end='')
         move_group = self.get_move_group_commander('left_gripper')
         move_group.set_joint_value_target({'leftgripper':  position,
                                            'leftgripper2': position, })
         plan = move_group.plan()[1]
-        print("1", flush=True, end='')
         self.follow_arms_joint_trajectory(plan.joint_trajectory)
-        print("2", flush=True, end='')
-        print("", end='')
 
     def set_right_gripper(self, position):
+        return  # FIXME:
+
         move_group = self.get_move_group_commander('right_gripper')
         move_group.set_joint_value_target({'rightgripper':  position,
                                            'rightgripper2': position, })
