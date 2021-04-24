@@ -178,7 +178,7 @@ class MoveitEnabledRobot(BaseRobot):
             if exec_path != "y":
                 rospy.logdebug(f"cancelling trajectory")
                 result = FollowJointTrajectoryResult()
-                result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
+                result.error_code = FollowJointTrajectoryResult.INVALID_JOINTS
                 return trajectory, result, client.get_state()
         
         if len(trajectory.points) == 0:

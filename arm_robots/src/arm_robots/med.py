@@ -30,7 +30,7 @@ from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, Motion
     Robotiq3FingerStatus
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
     GetControlModeResponse, SetControlModeResponse
-from wsg_50_common.srv import Move
+from wsg_50_common.srv import Move, Conf
 
 # TODO: Since we have only one set of arms, this really just makes sure everythings in the right order. Could probably simplify but I'll keep it for now.
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
@@ -182,11 +182,24 @@ class Med(MoveitEnabledRobot, BaseMed):
     def get_arm_joints(self):
         return ARM_JOINT_NAMES
 
-    def grasp(self):
+    def set_grasping_force(self, force):
+        if type(force) != float or force > 80.0 or force <= 0.0:
+            print("Bad grasp force value provided! Not setting grasping force.")
+            return None
+        
+        rospy.wait_for_service('/wsg_50_driver/set_force')
+        try:
+            force_proxy = rospy.ServiceProxy('/wsg_50_driver/set_force', Conf)
+            force_resp = force_proxy(force)
+            return force_resp.error
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
+            
+    def grasp(self, width, speed=50.0):
         rospy.wait_for_service('/wsg_50_driver/grasp')
         try:
             close_proxy = rospy.ServiceProxy('/wsg_50_driver/grasp', Move)
-            grasp_resp = close_proxy(0.0, 20.0)
+            grasp_resp = close_proxy(width, speed)
             return grasp_resp.error
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
@@ -195,16 +208,16 @@ class Med(MoveitEnabledRobot, BaseMed):
         rospy.wait_for_service('/wsg_50_driver/move')
         try:
             move_proxy = rospy.ServiceProxy('/wsg_50_driver/move', Move)
-            move_resp = move_proxy(100.0, 20.0)
+            move_resp = move_proxy(100.0, 50.0)
             return move_resp.error
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
 
-    def release(self):
+    def release(self, width=110.0, speed=50.0):
         rospy.wait_for_service('/wsg_50_driver/release')
         try:
             release_proxy = rospy.ServiceProxy('/wsg_50_driver/release', Move)
-            release_resp = release_proxy(40.0, 5.0)
+            release_resp = release_proxy(width, speed)
             return release_resp.error
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
