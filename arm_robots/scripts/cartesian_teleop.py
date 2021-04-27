@@ -29,7 +29,11 @@ class CartesianTeleop:
         self.robot = get_moveit_robot(robot_name)
         self.robot.connect()
 
-        self.robot.store_current_tool_orientations(self.tool_names)
+        # self.robot.store_current_tool_orientations(self.tool_names)
+        self.robot.store_tool_orientations({
+            'left_tool':  quaternion_from_euler(3.054, -0.851, 0.98),
+            'right_tool': quaternion_from_euler(2.254, -0.747, 3.000),
+        })
 
         self.current_tool_idx = 0
         self.delta_scale_factor = 0.01
