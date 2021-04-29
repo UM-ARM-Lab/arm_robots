@@ -1,0 +1,6 @@
+<launch>
+    <node pkg="joy" type="joy_node" name="joy_name"/>
+
+    <node pkg="arm_robots" type="cartesian_teleop.py" name="cartesian_teleop"
+          args="val both_arms left_tool right_tool"/>
+</launch>
