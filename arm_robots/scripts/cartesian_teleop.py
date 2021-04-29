@@ -16,6 +16,11 @@ from tf.transformations import quaternion_from_euler
 
 
 class CartesianTeleop:
+    """
+    use the roslaunch file to start this and the joy node. Then use the D-pad and left joystick to move in XYZ
+    The "x" button (on logitech controller) will switch which tool name is being controller
+
+    """
     def __init__(self, robot_name: str, group_name: str, tool_names: List[str]):
         self.gamepad = Logitech()
         self.group_name = group_name
@@ -24,11 +29,7 @@ class CartesianTeleop:
         self.robot = get_moveit_robot(robot_name)
         self.robot.connect()
 
-        # self.robot.store_current_tool_orientations(self.tool_names)
-        self.robot.store_tool_orientations({
-            'left_tool':  quaternion_from_euler(3.054, -0.851, 0.98),
-            'right_tool': quaternion_from_euler(2.254, -0.747, 3.000),
-        })
+        self.robot.store_current_tool_orientations(self.tool_names)
 
         self.current_tool_idx = 0
         self.delta_scale_factor = 0.01
