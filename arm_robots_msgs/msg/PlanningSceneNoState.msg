@@ -1,3 +1,5 @@
+# This is the same as the moveit_msgs/PlanningScene.msg except without a robot state
+
 # name of planning scene
 string name
 
