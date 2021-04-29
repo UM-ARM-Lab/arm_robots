@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import sys
-from threading import Thread
+from threading import Thread, Lock
 from typing import List
 
 import numpy as np
@@ -38,6 +38,8 @@ class CartesianTeleop:
         self.buttons_thread = Thread(target=self.buttons_thread_func)
         self.buttons_thread.start()
 
+        self.current_tool_idx_mutex = Lock()
+
         r = rospy.Rate(10)
         while not rospy.is_shutdown():
             self.send_commands()
@@ -45,7 +47,7 @@ class CartesianTeleop:
 
         self.should_disconnect = True
 
-    def get_current_positions(self):
+    def get_current_tool_positions(self):
         target_positions = []
         for tool_name in self.tool_names:
             current_tool_pose = self.robot.get_link_pose(tool_name)
@@ -54,25 +56,26 @@ class CartesianTeleop:
         return target_positions
 
     def buttons_thread_func(self):
-        while True:
+        while not self.should_disconnect:
             events = get_gamepad()
             for event in events:
                 if self.gamepad.x_clicked(event):
-                    if self.current_tool_idx == len(self.tool_names) - 1:
-                        self.current_tool_idx = 0
-                    else:
+                    with self.current_tool_idx_mutex:
                         self.current_tool_idx += 1
-            if self.should_disconnect:
-                break
+                        if self.current_tool_idx == len(self.tool_names):
+                            self.current_tool_idx = 0
 
     def send_commands(self):
         delta_position = self.gamepad.get_3d_delta()
-        target_positions = self.get_current_positions()
-        target_positions[self.current_tool_idx] += delta_position * self.delta_scale_factor
+        target_positions = self.get_current_tool_positions()
 
-        tool_name = self.tool_names[self.current_tool_idx]
+        with self.current_tool_idx_mutex:
+            target_positions[self.current_tool_idx] += delta_position * self.delta_scale_factor
 
-        target_position = target_positions[self.current_tool_idx]
+            tool_name = self.tool_names[self.current_tool_idx]
+
+            target_position = target_positions[self.current_tool_idx]
+
         rospy.logdebug(f"Controlling tool {tool_name}, target position: {target_position}")
         target_positions = np.expand_dims(target_positions, axis=1)
         self.robot.follow_jacobian_to_position(self.group_name, self.tool_names, target_positions, vel_scaling=1.0)
