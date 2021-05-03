@@ -38,7 +38,7 @@
 
         <!-- Spawn the robot in gazebo -->
         <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
-              args="-urdf -model hdt_michigan -param robot_description -z 0.42"/>
+              args="-urdf -model hdt_michigan -param robot_description"/>
 
         <!-- start the ROS controllers, only used in gazebo. This merges gripper and arm joint states -->
         <include file="$(find hdt_michigan_control)/launch/hdt_michigan_control_gazebo.launch">
