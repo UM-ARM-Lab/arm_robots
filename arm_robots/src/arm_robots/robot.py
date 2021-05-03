@@ -63,7 +63,11 @@ class MoveitEnabledRobot(DualArmRobot):
         self.right_tool_name = None
 
         self.arms_client = None
-        self.jacobian_follower = None
+        self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
+                                                                      translation_step_size=0.005,
+                                                                      minimize_rotation=True,
+                                                                      collision_check=True,
+                                                                      visualize=True)
 
         self.feedback_callbacks = []
         self._move_groups = {}
@@ -77,12 +81,10 @@ class MoveitEnabledRobot(DualArmRobot):
         """
         super().connect()
 
+        self.jacobian_follower.connect_to_psm()
+
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
-
-        self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
-                                                                      translation_step_size=0.005,
-                                                                      minimize_rotation=True)
         if preload_move_groups:
             for group_name in self.robot_commander.get_group_names():
                 self.get_move_group_commander(group_name)
