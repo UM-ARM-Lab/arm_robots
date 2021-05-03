@@ -6,8 +6,6 @@
     <arg name="gui" default="true"/>
     <arg name="update_description" default="true"/>
     <arg name="verbose" default="false"/>
-    <arg name="world_name" default="$(find arm_robots)/world/val_walls.world"/>
-
     <group ns="static_transform_publishers">
         <node pkg="tf2_ros" type="static_transform_publisher" name="rename_origin" required="true"
               args="0 0 0 0 0 0 robot_root world">
@@ -23,6 +21,8 @@
 
 
     <group if="$(arg sim)">
+        <arg name="world_name" default="$(find arm_robots)/world/val_walls_sim.world"/>
+
         <!-- Start gazebo -->
         <group> <!-- this empty group tag creates a scope for the "remap" command -->
             <!-- because we use ros_control only for the joints of the arms, not the grippers,
@@ -52,6 +52,8 @@
         </include>
     </group>
     <group unless="$(arg sim)">
+        <arg name="world_name" default="$(find arm_robots)/world/val_walls.world"/>
+
         <!-- Start gazebo -->
         <include file="$(find gazebo_ros)/launch/empty_world.launch">
             <arg name="world_name" value="$(arg world_name)"/>
