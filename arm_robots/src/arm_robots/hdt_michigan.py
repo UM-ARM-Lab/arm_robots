@@ -12,7 +12,6 @@ import rospy
 from arm_robots.base_robot import DualArmRobot
 from arm_robots.robot import MoveitEnabledRobot
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64MultiArray
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 
@@ -30,20 +29,29 @@ class BaseVal(DualArmRobot):
         self.latest_cmd = JointState()
         self.command_rate = rospy.Rate(100)
         self.ready = 0
+        self.has_started_command_thread = False
 
     def __del__(self):
         self.disconnect()
 
     def connect(self):
         super().connect()
-        self.command_thread.start()
+        if not self.has_started_command_thread:
+            rospy.loginfo('Starting val command thread')
+            self.has_started_command_thread = True
+            self.command_thread.start()
 
     def disconnect(self):
+        super().disconnect()
+
         self.should_disconnect = True
         if self.command_thread.is_alive():
             self.command_thread.join()
 
     def command_thread_func(self):
+        if rospy.get_param("use_sim_time", False):
+            rospy.loginfo("Simulation detected, no command thread will be started.")
+            return
         try:
             while not self.first_valid_command:
                 if self.should_disconnect:
