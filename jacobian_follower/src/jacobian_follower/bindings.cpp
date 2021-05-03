@@ -4,7 +4,7 @@
 #include <pybind11/stl.h>
 #include <pyrosmsg/pyrosmsg.h>
 
-#include <jacobian_follower/dual_gripper_shim.hpp>
+#include <jacobian_follower/jacobian_follower.hpp>
 
 namespace py = pybind11;
 
