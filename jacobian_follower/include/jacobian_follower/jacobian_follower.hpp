@@ -112,7 +112,6 @@ class JacobianFollower {
   trajectory_processing::IterativeParabolicTimeParameterization time_param_;
 
   bool minimize_rotation_;
-  bool collision_check_;
   ConstraintFn constraint_fun_;
 
   bool visualize_;
@@ -125,18 +124,18 @@ class JacobianFollower {
 
   [[nodiscard]] bool isRequestValid(JacobianWaypointsCommand waypoints_command) const;
 
-  PlanResultMsg plan_return_msg(std::string const &group_name, std::vector<std::string> const &tool_names,
+  PlanResultMsg plan(std::string const &group_name, std::vector<std::string> const &tool_names,
                                 std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                                 std::vector<PointSequence> const &grippers, double max_velocity_scaling_factor,
                                 double max_acceleration_scaling_factor);
 
-  PlanResultMsg plan_from_state(std::string const &group_name, std::vector<std::string> const &tool_names,
+  PlanResultMsg plan(std::string const &group_name, std::vector<std::string> const &tool_names,
                                 std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                                 moveit_msgs::RobotState const &start_state_msg,
                                 std::vector<PointSequence> const &grippers, double max_velocity_scaling_factor,
                                 double max_acceleration_scaling_factor);
 
-  PlanResultMsg plan_from_scene_and_state(std::string const &group_name, std::vector<std::string> const &tool_names,
+  PlanResultMsg plan(std::string const &group_name, std::vector<std::string> const &tool_names,
                                           std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                                           moveit_msgs::RobotState const &start_state_msg,
                                           moveit_msgs::PlanningScene const &scene_msg,
@@ -172,7 +171,7 @@ class JacobianFollower {
                                         std::vector<std::string> const &tool_names,
                                         robot_state::RobotState const &state, PoseSequence const &robotTservo);
 
-  bool checkCollision(planning_scene::PlanningScenePtr planning_scene, robot_state::RobotState const &state);
+  collision_detection::CollisionResult checkCollision(planning_scene::PlanningScenePtr planning_scene, robot_state::RobotState const &state);
 
   bool check_collision(moveit_msgs::PlanningScene const &scene_msg, moveit_msgs::RobotState const &start_state);
 
