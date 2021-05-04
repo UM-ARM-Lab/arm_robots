@@ -62,8 +62,8 @@ std::vector<PointSequence> interpolate_tools_waypoint(JacobianWaypointCommand wa
 JacobianTrajectoryCommand make_traj_command_from_python_inputs(
     planning_scene::PlanningScenePtr planning_scene, std::string group_name, std::vector<std::string> tool_names,
     std::vector<PointSequence> grippers, robot_state::RobotState start_state,
-    std::vector<Eigen::Vector4d> preferred_tool_orientations, double max_velocity_scaling_factor,
-    double max_acceleration_scaling_factor) {
+    std::vector<Eigen::Vector4d> preferred_tool_orientations, double const max_velocity_scaling_factor,
+    double const max_acceleration_scaling_factor) {
   std::vector<const robot_model::AttachedBody *> bodies;
   start_state.getAttachedBodies(bodies);
   ROS_WARN_STREAM_COND_NAMED(bodies.empty(), LOGGER_NAME, "No attached collision objects!");
@@ -145,8 +145,8 @@ PlanResultMsg JacobianFollower::plan(std::string const &group_name,
                                                 std::vector<std::string> const &tool_names,
                                                 std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                                                 std::vector<PointSequence> const &grippers,
-                                                double max_velocity_scaling_factor,
-                                                double max_acceleration_scaling_factor) {
+                                                double const max_velocity_scaling_factor,
+                                                double const max_acceleration_scaling_factor) {
   scene_monitor_->lockSceneRead();
   auto planning_scene = planning_scene::PlanningScene::clone(scene_monitor_->getPlanningScene());
   scene_monitor_->unlockSceneRead();
@@ -169,8 +169,8 @@ PlanResultMsg JacobianFollower::plan(std::string const &group_name,
                                                 std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                                                 moveit_msgs::RobotState const &start_state_msg,
                                                 std::vector<PointSequence> const &grippers,
-                                                double max_velocity_scaling_factor,
-                                                double max_acceleration_scaling_factor) {
+                                                double const max_velocity_scaling_factor,
+                                                double const max_acceleration_scaling_factor) {
   scene_monitor_->lockSceneRead();
   auto planning_scene = planning_scene::PlanningScene::clone(scene_monitor_->getPlanningScene());
   scene_monitor_->unlockSceneRead();
@@ -192,7 +192,7 @@ PlanResultMsg JacobianFollower::plan(
     std::string const &group_name, std::vector<std::string> const &tool_names,
     std::vector<Eigen::Vector4d> const &preferred_tool_orientations, moveit_msgs::RobotState const &start_state_msg,
     moveit_msgs::PlanningScene const &scene_msg, std::vector<PointSequence> const &grippers,
-    double max_velocity_scaling_factor, double max_acceleration_scaling_factor) {
+    double const max_velocity_scaling_factor, double const max_acceleration_scaling_factor) {
   robot_state::RobotState robot_start_state(model_);
   robotStateMsgToRobotState(start_state_msg, robot_start_state);
   auto planning_scene = std::make_shared<planning_scene::PlanningScene>(model_);
