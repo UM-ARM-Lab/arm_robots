@@ -12,7 +12,6 @@
 #include <arc_utilities/moveit_pose_type.hpp>
 #include <arc_utilities/ostream_operators.hpp>
 #include <arc_utilities/ros_helpers.hpp>
-#include <boost/range/combine.hpp>
 #include <jacobian_follower/jacobian_follower.hpp>
 #include <jacobian_follower/jacobian_utils.hpp>
 #include <sstream>
@@ -41,8 +40,8 @@ double compute_max_dist(JacobianWaypointCommand waypoint_command, PoseSequence s
   std::vector<PointSequence> tool_paths;
   double max_dist = 0u;
   for (auto gripper_idx = 0u; gripper_idx < waypoint_command.tools_waypoint.tools.size(); ++gripper_idx) {
-    auto const start_transform = start_tool_transforms[gripper_idx];
-    auto const target_position = waypoint_command.tools_waypoint.tools[gripper_idx].point;
+    auto const &start_transform = start_tool_transforms[gripper_idx];
+    auto const &target_position = waypoint_command.tools_waypoint.tools[gripper_idx].point;
     auto const dist = (target_position - start_transform.translation()).norm();
     max_dist = std::max(max_dist, dist);
   }
@@ -103,7 +102,6 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, double con
       robot_frame_(model_->getRootLinkName()),
       translation_step_size_(translation_step_size),
       minimize_rotation_(minimize_rotation),
-      collision_check_(collision_check),
       visualize_(visualize),
       robot_namespace_(robot_namespace) {
   if (!ros::isInitialized()) {
@@ -121,9 +119,9 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, double con
   auto const display_robot_state_topic = ros::names::append(robot_namespace, "jacobian_follower_robot_state");
   visual_tools_.loadRobotStatePub(display_robot_state_topic, false);
 
-  if (collision_check_) {
+  if (collision_check) {
     constraint_fun_ = [&](planning_scene::PlanningScenePtr planning_scene, robot_state::RobotState const &state) {
-      return checkCollision(planning_scene, state);
+      return checkCollision(planning_scene, state).collision;
     };
   }
 }
@@ -143,12 +141,12 @@ void JacobianFollower::debugLogState(const std::string prefix, robot_state::Robo
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".joint_state", prefix << ss.str());
 }
 
-PlanResultMsg JacobianFollower::plan_return_msg(std::string const &group_name,
+PlanResultMsg JacobianFollower::plan(std::string const &group_name,
                                                 std::vector<std::string> const &tool_names,
                                                 std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                                                 std::vector<PointSequence> const &grippers,
-                                                double const max_velocity_scaling_factor,
-                                                double const max_acceleration_scaling_factor) {
+                                                double max_velocity_scaling_factor,
+                                                double max_acceleration_scaling_factor) {
   scene_monitor_->lockSceneRead();
   auto planning_scene = planning_scene::PlanningScene::clone(scene_monitor_->getPlanningScene());
   scene_monitor_->unlockSceneRead();
@@ -166,7 +164,7 @@ PlanResultMsg JacobianFollower::plan_return_msg(std::string const &group_name,
   return std::make_pair(plan_msg, plan_result.second);
 }
 
-PlanResultMsg JacobianFollower::plan_from_state(std::string const &group_name,
+PlanResultMsg JacobianFollower::plan(std::string const &group_name,
                                                 std::vector<std::string> const &tool_names,
                                                 std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                                                 moveit_msgs::RobotState const &start_state_msg,
@@ -190,7 +188,7 @@ PlanResultMsg JacobianFollower::plan_from_state(std::string const &group_name,
   return std::make_pair(plan_msg, plan_result.second);
 }
 
-PlanResultMsg JacobianFollower::plan_from_scene_and_state(
+PlanResultMsg JacobianFollower::plan(
     std::string const &group_name, std::vector<std::string> const &tool_names,
     std::vector<Eigen::Vector4d> const &preferred_tool_orientations, moveit_msgs::RobotState const &start_state_msg,
     moveit_msgs::PlanningScene const &scene_msg, std::vector<PointSequence> const &grippers,
@@ -243,7 +241,7 @@ PlanResult JacobianFollower::plan(JacobianTrajectoryCommand traj_command) {
 }
 
 std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry_msgs::Pose target_pose,
-                                                                        const std::string &group_name) const{
+                                                                        const std::string &group_name) const {
   auto const jmg = model_->getJointModelGroup(group_name);
   const kinematics::KinematicsBaseConstPtr &solver = jmg->getSolverInstance();
 
@@ -275,7 +273,7 @@ std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry
 }
 
 geometry_msgs::Pose JacobianFollower::computeFK(const std::vector<double> &joint_angles,
-                                                const std::string &group_name) const{
+                                                const std::string &group_name) const {
   auto jmg = model_->getJointModelGroup(group_name);
   auto kinematic_state = std::make_shared<robot_state::RobotState>(model_);
   kinematic_state->setJointGroupPositions(group_name, joint_angles);
@@ -365,7 +363,10 @@ PlanResult JacobianFollower::moveInWorldFrame(JacobianWaypointCommand waypoint_c
   auto const traj = jacobianPath3d(waypoint_command.context.planning_scene, waypoint_command.context.world_to_robot,
                                    jmg, waypoint_command.context.tool_names,
                                    waypoint_command.preferred_tool_orientations, tools_waypoint_interpolated);
-  auto const reached_target = traj.getWayPointCount() == (tools_waypoint_interpolated[0].size() - 1);
+  auto const n_waypoints = tools_waypoint_interpolated[0].size(); // just pick gripper 0, they are all the same
+  // NOTE: if the result of jacobianPath3d has the same number of waypoints as the input (tools_waypoint_interpolated)
+  // that means it reached the final position
+  auto const reached_target = traj.getWayPointCount() == (n_waypoints - 1);
 
   // Debugging - visualize JacobianIK result tip
   if (visualize_ and !traj.empty()) {
@@ -455,8 +456,8 @@ robot_trajectory::RobotTrajectory JacobianFollower::jacobianPath3d(
   return trajectory;
 }
 
-bool JacobianFollower::checkCollision(planning_scene::PlanningScenePtr planning_scene,
-                                      robot_state::RobotState const &state) {
+collision_detection::CollisionResult JacobianFollower::checkCollision(planning_scene::PlanningScenePtr planning_scene,
+                                                                      robot_state::RobotState const &state) {
   collision_detection::CollisionRequest collisionRequest;
   collisionRequest.contacts = true;
   collisionRequest.max_contacts = 1;
@@ -464,26 +465,24 @@ bool JacobianFollower::checkCollision(planning_scene::PlanningScenePtr planning_
   collision_detection::CollisionResult collisionResult;
   planning_scene->checkCollision(collisionRequest, collisionResult, state);
   if (collisionResult.collision) {
-    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Collision Result: " << collisionResult);
-    //    std::stringstream ss;
-    //    planning_scene->getAllowedCollisionMatrix().print(ss);
-    //    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "\n" << ss.str());
+    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".check_collision", "Collision Result: " << collisionResult);
+    std::stringstream ss;
+    planning_scene->getAllowedCollisionMatrix().print(ss);
+    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".check_collision", "\n" << ss.str());
 
-    //    std::vector<moveit_msgs::AttachedCollisionObject> msgs;
-    //    planning_scene->getAttachedCollisionObjectMsgs(msgs);
-    //    for (auto const &m : msgs)
-    //    {
-    //      ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Touch Links: " << m.link_name << " " << m.touch_links);
-    //    }
+    std::vector<moveit_msgs::AttachedCollisionObject> msgs;
+    planning_scene->getAttachedCollisionObjectMsgs(msgs);
+    for (auto const &m : msgs) {
+      ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".check_collision", "Touch Links: " << m.link_name << " " << m.touch_links);
+    }
 
     if (visualize_) {
       //      visual_tools_.publishContactPoints(collisionResult.contacts, planning_scene.get());
       visual_tools_.publishRobotState(planning_scene->getCurrentState());
     }
-    return true;
   }
 
-  return false;
+  return collisionResult;
 }
 
 // Note that robotTtargets is the target points for the tools, measured in robot frame
@@ -794,12 +793,12 @@ bool JacobianFollower::check_collision(moveit_msgs::PlanningScene const &scene_m
   std::vector<moveit_msgs::AttachedCollisionObject> msgs;
   planning_scene->getAttachedCollisionObjectMsgs(msgs);
   ROS_WARN_STREAM_COND_NAMED(msgs.empty(), LOGGER_NAME, "No attached collision objects!");
-  //  for (auto const &m : msgs)
-  //  {
-  //    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Touch Links: " << m.link_name << " " << m.touch_links);
-  //  }
+  for (auto const &m : msgs) {
+    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".check_collision", "Touch Links: " << m.link_name << " " << m.touch_links);
+  }
 
-  return checkCollision(planning_scene, state);
+  auto const &collision_result = checkCollision(planning_scene, state);
+  return collision_result.collision;
 }
 
 PointSequence JacobianFollower::get_tool_positions(std::vector<std::string> tool_names,
