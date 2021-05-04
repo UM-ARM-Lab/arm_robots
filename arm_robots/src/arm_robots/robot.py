@@ -1,29 +1,29 @@
 #! /usr/bin/env python
 from typing import List, Union, Tuple, Callable, Optional, Dict
 
+import moveit_commander
 import numpy as np
 import pyjacobian_follower
-from matplotlib import colors
-
-import moveit_commander
 import ros_numpy
 import rospy
 from actionlib import SimpleActionClient
-from arc_utilities.conversions import convert_to_pose_msg
-from arc_utilities.ros_helpers import get_connected_publisher
-from arm_robots.base_robot import DualArmRobot
-from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningResult, PlanningAndExecutionResult, \
-    ExecutionResult, is_empty_trajectory
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
 from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PoseStamped
-from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor
+from matplotlib import colors
+from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor, RobotState
 from rosgraph.names import ns_join
 from rospy import logfatal
 from sensor_msgs.msg import JointState
 from std_msgs.msg import ColorRGBA
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from visualization_msgs.msg import Marker
+
+from arc_utilities.conversions import convert_to_pose_msg
+from arc_utilities.ros_helpers import try_to_connect
+from arm_robots.base_robot import DualArmRobot
+from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningResult, PlanningAndExecutionResult, \
+    ExecutionResult, is_empty_trajectory
 
 STORED_ORIENTATION = None
 
@@ -57,6 +57,7 @@ class MoveitEnabledRobot(DualArmRobot):
 
         self.display_robot_state_pub = rospy.Publisher('display_robot_state', DisplayRobotState, queue_size=10)
         self.display_goal_position_pub = rospy.Publisher('goal_position', Marker, queue_size=10)
+        self.display_robot_state_pubs = {}
 
         # Override these in base classes!
         self.left_tool_name = None
@@ -205,6 +206,11 @@ class MoveitEnabledRobot(DualArmRobot):
             move_group.set_joint_value_target(joint_config)
         else:
             move_group.set_joint_value_target(joint_config)
+
+        if self.display_goals:
+            robot_state = RobotState(joint_state=JointState(name=joint_config.keys(), position=joint_config.values()))
+            self.display_robot_state(robot_state, label='joint_config_goal')
+
         planning_result = PlanningResult(move_group.plan())
         if self.raise_on_failure and not planning_result.success:
             raise RuntimeError(f"Plan to position failed {planning_result.planning_error_code}")
@@ -369,11 +375,11 @@ class MoveitEnabledRobot(DualArmRobot):
     def is_right_gripper_closed(self):
         return self.is_gripper_closed('right')
 
-    def display_robot_state(self, joint_state: JointState, label: str, color: Optional = None):
+    def display_robot_state(self, robot_state: RobotState, label: str, color: Optional = None):
         """
 
         Args:
-            joint_state:
+            robot_state:
             label:
             color: any kind of matplotlib color, e.g "blue", [0,0.6,1], "#ff0044", etc...
 
@@ -382,10 +388,15 @@ class MoveitEnabledRobot(DualArmRobot):
         """
         topic_name = rospy.names.ns_join('display_robot_state', label)
         topic_name = topic_name.rstrip('/')
-        display_robot_state_pub = get_connected_publisher(topic_name, DisplayRobotState, queue_size=10)
+
+        display_robot_state_pub = self.display_robot_state_pubs.get(label, None)
+        if display_robot_state_pub is None:
+            display_robot_state_pub = rospy.Publisher(topic_name, DisplayRobotState, queue_size=10)
+            try_to_connect(display_robot_state_pub)
+        self.display_robot_state_pubs[label] = display_robot_state_pub  # save a handle to the publisher
 
         display_robot_state_msg = DisplayRobotState()
-        display_robot_state_msg.state.joint_state = joint_state
+        display_robot_state_msg.state = robot_state
         display_robot_state_msg.state.joint_state.header.stamp = rospy.Time.now()
         display_robot_state_msg.state.is_diff = False
 
@@ -395,7 +406,8 @@ class MoveitEnabledRobot(DualArmRobot):
                 object_color = ObjectColor(id=link_name, color=color)
                 display_robot_state_msg.highlight_links.append(object_color)
 
-        display_robot_state_pub.publish(display_robot_state_msg)
+        if display_robot_state_pub is not None:
+            display_robot_state_pub.publish(display_robot_state_msg)
 
     def display_goal_position(self, point: Point):
         m = Marker()
