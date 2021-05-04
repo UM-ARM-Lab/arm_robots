@@ -184,20 +184,6 @@ def is_empty_trajectory(trajectory: JointTrajectory):
     return False
 
 
-def make_joint_state(position: List, name: List[str]):
-    joint_state = JointState()
-    joint_state.position = position
-    joint_state.name = name
-    joint_state.velocity = [0.0] * len(joint_state.name)
-    return joint_state
-
-
-def make_robot_state(scene_msg: PlanningScene, position: List, name: List[str]):
-    joint_state = make_joint_state(position, name)
-    robot_state = make_robot_state_from_joint_state(scene_msg, joint_state)
-    return robot_state
-
-
 def make_robot_state_from_joint_state(scene_msg: PlanningScene, joint_state: JointState):
     return RobotState(attached_collision_objects=scene_msg.robot_state.attached_collision_objects,
                       joint_state=joint_state)
