@@ -3,6 +3,8 @@ import rospy
 from arm_robots.med import Med
 import numpy as np
 import pdb
+import moveit_commander
+from arc_utilities.conversions import convert_to_pose_msg
 
 def main():
     rospy.init_node('med_motion')
@@ -11,6 +13,10 @@ def main():
     med.connect()
     med.set_grasping_force(30.0)
     med.open_gripper()
+
+    # Add table plane.
+    scene = moveit_commander.PlanningSceneInterface()
+    scene.add_plane('table_plane', convert_to_pose_msg([0,0,0,0,0,0]))
     
     # Pick and place "demo"
     med.plan_to_joint_config(med.arm_group, [0,0,0,0,0,0,0])    
