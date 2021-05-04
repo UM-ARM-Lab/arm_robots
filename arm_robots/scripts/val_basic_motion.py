@@ -1,11 +1,11 @@
 #! /usr/bin/env python
 import colorama
 import numpy as np
-from geometry_msgs.msg import Pose
-from tf.transformations import quaternion_from_euler
 
 from arc_utilities import ros_init
 from arm_robots.hdt_michigan import Val
+from geometry_msgs.msg import Pose
+from tf.transformations import quaternion_from_euler
 
 ask_before_moving = True
 
@@ -16,11 +16,10 @@ def myinput(msg):
         input(msg)
 
 
+@ros_init.with_ros("basic_motion")
 def main():
     np.set_printoptions(suppress=True, precision=0, linewidth=200)
     colorama.init(autoreset=True)
-
-    ros_init.rospy_and_cpp_init("basic_motion")
 
     val = Val(raise_on_failure=True)
     val.connect()
@@ -62,7 +61,6 @@ def main():
     val.follow_jacobian_to_position('both_arms', [val.right_tool_name], [[[0.3, 0.5, 0.3]]], vel_scaling=1.0)
 
     val.disconnect()
-    ros_init.shutdown()
 
 
 if __name__ == "__main__":
