@@ -38,7 +38,7 @@ PoseSequence getToolTransforms(Pose const &world_to_robot, std::vector<std::stri
 
 double compute_max_dist(JacobianWaypointCommand waypoint_command, PoseSequence start_tool_transforms) {
   std::vector<PointSequence> tool_paths;
-  double max_dist = 0u;
+  double max_dist = 0.0;
   for (auto gripper_idx = 0u; gripper_idx < waypoint_command.tools_waypoint.tools.size(); ++gripper_idx) {
     auto const &start_transform = start_tool_transforms[gripper_idx];
     auto const &target_position = waypoint_command.tools_waypoint.tools[gripper_idx].point;
