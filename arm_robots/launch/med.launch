@@ -12,6 +12,12 @@
         </node>
     </group>
 
+    <group ns="static_transform_publishers">
+        <node pkg="tf2_ros" type="static_transform_publisher" name="camera_calibration_frame" required="true"
+              args="-0.0375 -0.025 0.045 3.1415 0 -1.57979 wsg50_base_link base_frame">
+        </node>
+    </group>
+
     <group if="$(arg update_description)">
         <!-- uploads robot description and setups up other parameters -->
         <include file="$(find iiwa_med_moveit_config)/launch/planning_context.launch">

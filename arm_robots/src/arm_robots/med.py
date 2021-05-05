@@ -95,7 +95,7 @@ class BaseMed(BaseRobot):
         # This is a bit silly.
         positions = positions['arm']
         velocities = velocities['arm']
-        
+
         control_mode = self.get_control_mode()
 
         def trunc(values, decs=0):
@@ -186,7 +186,7 @@ class Med(MoveitEnabledRobot, BaseMed):
         if type(force) != float or force > 80.0 or force <= 0.0:
             print("Bad grasp force value provided! Not setting grasping force.")
             return None
-        
+
         rospy.wait_for_service('/wsg_50_driver/set_force')
         try:
             force_proxy = rospy.ServiceProxy('/wsg_50_driver/set_force', Conf)
@@ -194,7 +194,7 @@ class Med(MoveitEnabledRobot, BaseMed):
             return force_resp.error
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
-            
+
     def grasp(self, width, speed=50.0):
         rospy.wait_for_service('/wsg_50_driver/grasp')
         try:
