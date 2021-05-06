@@ -43,6 +43,7 @@ class MoveitEnabledRobot(DualArmRobot):
                  execute: bool = True,
                  block: bool = True,
                  raise_on_failure: bool = False,
+                 display_goals: bool = True,
                  force_trigger: float = 9.0):
         super().__init__(robot_namespace)
         self.max_velocity_scale_factor = 0.1
@@ -51,7 +52,7 @@ class MoveitEnabledRobot(DualArmRobot):
         self.execute = execute
         self.block = block
         self.force_trigger = force_trigger
-        self.display_goals = True
+        self.display_goals = display_goals
 
         self.arms_controller_name = arms_controller_name
 
