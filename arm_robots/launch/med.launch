@@ -18,6 +18,12 @@
         </node>
     </group>
 
+    <group ns="static_transform_publishers">
+        <node pkg="tf2_ros" type="static_transform_publisher" name="griper_finger_frame" required="true"
+              args="0 0 0.157 1.57979 0 0 wsg50_base_link grasp_frame">
+        </node>
+    </group>
+
     <group if="$(arg update_description)">
         <!-- uploads robot description and setups up other parameters -->
         <include file="$(find iiwa_med_moveit_config)/launch/planning_context.launch">
