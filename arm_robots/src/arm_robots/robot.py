@@ -394,7 +394,7 @@ class MoveitEnabledRobot(DualArmRobot):
         if display_robot_state_pub is None:
             display_robot_state_pub = rospy.Publisher(topic_name, DisplayRobotState, queue_size=10)
             try_to_connect(display_robot_state_pub)
-        self.display_robot_state_pubs[label] = display_robot_state_pub  # save a handle to the publisher
+            self.display_robot_state_pubs[label] = display_robot_state_pub  # save a handle to the publisher
 
         display_robot_state_msg = DisplayRobotState()
         display_robot_state_msg.state = robot_state
@@ -407,8 +407,7 @@ class MoveitEnabledRobot(DualArmRobot):
                 object_color = ObjectColor(id=link_name, color=color)
                 display_robot_state_msg.highlight_links.append(object_color)
 
-        if display_robot_state_pub is not None:
-            display_robot_state_pub.publish(display_robot_state_msg)
+        display_robot_state_pub.publish(display_robot_state_msg)
 
     def display_goal_position(self, point: Point):
         m = Marker()
