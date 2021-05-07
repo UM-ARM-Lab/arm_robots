@@ -54,17 +54,6 @@ class MoveitEnabledRobot(DualArmRobot):
                  raise_on_failure: bool = False,
                  display_goals: bool = True,
                  force_trigger: float = 9.0):
-        """
-
-        Args:
-            robot_namespace: the namespace of the robot,
-                which should match the move_group and joint trajectory follower namespace
-            arms_controller_name: the name of the joint trajectory follower, which is defined in *_controllers.yaml or
-                trajectory follower roslaunch file
-            execute:
-            block:
-            raise_on_failure:
-        """
         super().__init__(robot_namespace)
         self.max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
