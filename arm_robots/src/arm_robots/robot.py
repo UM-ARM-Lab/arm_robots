@@ -345,7 +345,7 @@ class MoveitEnabledRobot(DualArmRobot):
         robot_trajectory_msg: RobotTrajectory
         reached: bool
         scene_msg, robot_state = merge_joint_state_and_scene_msg(scene_msg, joint_state)
-        robot_trajectory_msg, reached = self.jacobian_follower.plan_from_scene_and_state(
+        robot_trajectory_msg, reached = self.jacobian_follower.plan(
             group_name=group_name,
             tool_names=tool_names,
             preferred_tool_orientations=preferred_tool_orientations,
