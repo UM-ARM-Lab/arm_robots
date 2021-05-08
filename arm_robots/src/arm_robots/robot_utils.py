@@ -1,15 +1,18 @@
 #! /usr/bin/env python
 import itertools
 from collections import defaultdict
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import List, Sequence, Optional, Tuple
 
 import numpy as np
+from more_itertools import pairwise
+
 import rospy
 from control_msgs.msg import JointTolerance, FollowJointTrajectoryGoal, FollowJointTrajectoryResult
-from more_itertools import pairwise
-from moveit_msgs.msg import RobotTrajectory, MoveItErrorCodes
+from moveit_msgs.msg import RobotTrajectory, MoveItErrorCodes, PlanningScene, RobotState
 from rospy.logger_level_service_caller import LoggerLevelServiceCaller
+from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint, JointTrajectory
 
 # These may be different because by making path tolerance larger,
@@ -173,3 +176,15 @@ def is_empty_trajectory(trajectory: JointTrajectory):
     elif len(trajectory.points) == 1 and trajectory.points[0].time_from_start == rospy.Duration(0):
         return True
     return False
+
+
+def make_robot_state_from_joint_state(scene_msg: PlanningScene, joint_state: JointState):
+    return RobotState(attached_collision_objects=scene_msg.robot_state.attached_collision_objects,
+                      joint_state=joint_state)
+
+
+def merge_joint_state_and_scene_msg(scene_msg, joint_state):
+    robot_state = make_robot_state_from_joint_state(scene_msg=scene_msg, joint_state=joint_state)
+    scene_msg_with_state = deepcopy(scene_msg)
+    scene_msg_with_state.robot_state.joint_state = joint_state
+    return scene_msg_with_state, robot_state
