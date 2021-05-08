@@ -1,17 +1,23 @@
 #! /usr/bin/env python
 from typing import List, Union, Tuple, Callable, Optional, Dict
 
-import moveit_commander
 import numpy as np
 import pyjacobian_follower
+from matplotlib import colors
+
+import moveit_commander
 import ros_numpy
 import rospy
 import urdf_parser_py.xml_reflection.core
 from actionlib import SimpleActionClient
+from arc_utilities.conversions import convert_to_pose_msg
+from arc_utilities.ros_helpers import try_to_connect
+from arm_robots.base_robot import DualArmRobot
+from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningResult, PlanningAndExecutionResult, \
+    ExecutionResult, is_empty_trajectory, merge_joint_state_and_scene_msg
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
 from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PoseStamped
-from matplotlib import colors
 from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor, RobotState, PlanningScene
 from rosgraph.names import ns_join
 from rospy import logfatal
@@ -20,12 +26,6 @@ from std_msgs.msg import ColorRGBA
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from urdf_parser_py.urdf import URDF as urdf
 from visualization_msgs.msg import Marker
-
-from arc_utilities.conversions import convert_to_pose_msg
-from arc_utilities.ros_helpers import try_to_connect
-from arm_robots.base_robot import DualArmRobot
-from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningResult, PlanningAndExecutionResult, \
-    ExecutionResult, is_empty_trajectory, merge_joint_state_and_scene_msg
 
 STORED_ORIENTATION = None
 
