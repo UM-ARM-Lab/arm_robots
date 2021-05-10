@@ -5,6 +5,8 @@ import roscpp_initializer
 
 import rospy
 from arc_utilities.ros_init import rospy_and_cpp_init
+
+from arc_utilities import ros_init
 from arm_robots.victor import Victor
 from geometry_msgs.msg import Pose
 from tf.transformations import quaternion_from_euler
@@ -18,13 +20,12 @@ def myinput(msg):
         input(msg)
 
 
+@ros_init.with_ros("victor_basic_motion")
 def main():
     np.set_printoptions(suppress=True, precision=0, linewidth=200)
     colorama.init(autoreset=True)
 
-    rospy_and_cpp_init("basic_motion")
-
-    victor = Victor()
+    victor = Victor(display_goals=False)
     victor.connect()
     
     rospy.sleep(1)
@@ -45,7 +46,7 @@ def main():
 
     # Plan to joint config by a named group_state
     myinput("Plan to joint config?")
-    victor.plan_to_joint_config('both_arms', 'home')
+    victor.plan_to_joint_config('both_arms', 'zero')
 
     # Plan to pose
     myinput("Plan to pose 1?")
