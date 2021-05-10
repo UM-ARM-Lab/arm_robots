@@ -306,8 +306,8 @@ class MoveitEnabledRobot(DualArmRobot):
     def store_current_tool_orientations(self, tool_names: Optional[List]):
         self.stored_tool_orientations = {n: self.get_orientation(n) for n in tool_names}
 
-    def get_preferred_tool_orientations(self, tool_names: List[str],
-                                        preferred_tool_orientations: Optional[List] = STORED_ORIENTATION):
+    def merge_tool_orientations_with_defaults(self, tool_names: List[str],
+                                              preferred_tool_orientations: Optional[List] = STORED_ORIENTATION):
         # If preferred_tool_orientations is None, we use the stored ones as a fallback
         if preferred_tool_orientations == STORED_ORIENTATION:
             preferred_tool_orientations = []
@@ -335,7 +335,7 @@ class MoveitEnabledRobot(DualArmRobot):
             rospy.logerr(err_msg)
             raise ValueError(err_msg)
 
-        preferred_tool_orientations = self.get_preferred_tool_orientations(tool_names, preferred_tool_orientations)
+        preferred_tool_orientations = self.merge_tool_orientations_with_defaults(tool_names, preferred_tool_orientations)
         if len(preferred_tool_orientations) == 0:
             return ExecutionResult(trajectory=None,
                                    execution_result=None,
@@ -378,7 +378,7 @@ class MoveitEnabledRobot(DualArmRobot):
             rospy.logerr(err_msg)
             raise ValueError(err_msg)
 
-        preferred_tool_orientations = self.get_preferred_tool_orientations(tool_names, preferred_tool_orientations)
+        preferred_tool_orientations = self.merge_tool_orientations_with_defaults(tool_names, preferred_tool_orientations)
         if len(preferred_tool_orientations) == 0:
             return ExecutionResult(trajectory=None,
                                    execution_result=None,
@@ -415,11 +415,10 @@ class MoveitEnabledRobot(DualArmRobot):
             robot = urdf.from_parameter_server()
             active_joint_names = [j.name for j in robot.joints if j.type != 'fixed']
             return active_joint_names
-        else:
-            if hasattr(self.robot_commander, 'get_active_joint_names'):
-                return self.robot_commander.get_active_joint_names(group_name)
-            else:
-                return self.get_move_group_commander('whole_body').get_active_joints()
+        if hasattr(self.robot_commander, 'get_active_joint_names'):
+            return self.robot_commander.get_active_joint_names(group_name)
+
+        return self.get_move_group_commander(group_name).get_active_joints()
 
     def get_num_joints(self, group_name: Optional[str] = None):
         return len(self.get_joint_names(group_name))
