@@ -370,7 +370,7 @@ class Victor(BaseVictor, MoveitEnabledRobot):
 
     def set_control_mode(self, control_mode: ControlMode, vel=0.1, **kwargs):
         super().set_control_mode(control_mode, vel, **kwargs)
-        self.max_velocity_scale_factor = vel
+        self._max_velocity_scale_factor = vel
 
     def move_to_impedance_switch(self, actually_switch: bool = True, new_relative_velocity=0.1):
         self.move_to("impedance switch")
@@ -445,7 +445,7 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         full_speed_impedance_path_tol_of = kuka_limits_list_to_map(KUKA_FULL_SPEED_PATH_JOINT_IMPEDANCE_TOLERANCE)
         impedance_goal_tol_of = kuka_limits_list_to_map(KUKA_GOAL_JOINT_IMPEDANCE_TOLERANCE)
 
-        vel_fraction = self.max_velocity_scale_factor
+        vel_fraction = self._max_velocity_scale_factor
         assert 0 <= vel_fraction <= 1, "Invalid velocity command"
 
         control_modes = self.get_control_modes()
