@@ -55,7 +55,7 @@ class MoveitEnabledRobot(DualArmRobot):
                  display_goals: bool = True,
                  force_trigger: float = 9.0):
         super().__init__(robot_namespace)
-        self.max_velocity_scale_factor = 0.1
+        self._max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
         self.execute = execute
@@ -125,7 +125,7 @@ class MoveitEnabledRobot(DualArmRobot):
         # The purpose of this safety factor is to make sure we never send victor a velocity
         # faster than the kuka controller's max velocity, otherwise the kuka controllers will error out.
         safety_factor = 0.9
-        move_group.set_max_velocity_scaling_factor(self.max_velocity_scale_factor * safety_factor)
+        move_group.set_max_velocity_scaling_factor(self._max_velocity_scale_factor * safety_factor)
         return move_group
 
     def plan_to_position(self,
