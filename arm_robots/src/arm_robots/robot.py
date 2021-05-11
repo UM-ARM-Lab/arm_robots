@@ -135,6 +135,7 @@ class MoveitEnabledRobot(BaseRobot):
             waypoint_pose.position.z = target_position[2]
         waypoints = [waypoint_pose]
         plan, fraction = move_group.compute_cartesian_path(waypoints=waypoints, eef_step=step_size, jump_threshold=0.0)
+        print(plan)
         if fraction != 1.0:
             raise RuntimeError(f"Cartesian path is only {fraction * 100}% complete")
         return self.follow_arms_joint_trajectory(plan.joint_trajectory)
@@ -191,6 +192,7 @@ class MoveitEnabledRobot(BaseRobot):
         result: Optional[FollowJointTrajectoryResult] = None
         if self.execute:
             goal = self.make_follow_joint_trajectory_goal(trajectory)
+            # pdb.set_trace()
 
             def _feedback_cb(feedback: FollowJointTrajectoryFeedback):
                 for feedback_callback in self.feedback_callbacks:
@@ -198,10 +200,14 @@ class MoveitEnabledRobot(BaseRobot):
                 if stop_condition is not None and stop_condition(feedback):
                     client.cancel_all_goals()
 
+            time_start = rospy.get_time()
             client.send_goal(goal, feedback_cb=_feedback_cb)
             if self.block:
                 client.wait_for_result()
                 result = client.get_result()
+            time_end = rospy.get_time()
+            print("Time expected: " + str(goal.trajectory.points[-1].time_from_start / 1e9))
+            print("Time real: " + str(time_end - time_start))
         return trajectory, result, client.get_state()
 
     def follow_joint_config(self, joint_names: List[str], joint_positions, client: SimpleActionClient):
@@ -230,6 +236,3 @@ class MoveitEnabledRobot(BaseRobot):
 
     def get_n_joints(self):
         return len(self.robot_commander.get_joint_names())
-
-    def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
-        raise NotImplementedError()
