@@ -127,12 +127,12 @@ class BaseMed(BaseRobot):
         control_mode_res: GetControlModeResponse = self.get_control_mode_srv(GetControlModeRequest())
         return control_mode_res.active_control_mode.control_mode
 
-    def set_control_mode(self, control_mode: ControlMode, **kwargs):
-        new_control_mode = get_control_mode_params(control_mode, **kwargs)
+    def set_control_mode(self, control_mode: ControlMode, vel, **kwargs):
+        new_control_mode = get_control_mode_params(control_mode, vel=vel, **kwargs)
         res: SetControlModeResponse = self.set_control_mode_srv(new_control_mode)
 
         if not res.success:
-            rospy.logerr("Failed to switch right arm to control mode: " + str(control_mode))
+            rospy.logerr("Failed to switch arm to control mode: " + str(control_mode))
             rospy.logerr(res.message)
         return res
 
@@ -181,6 +181,10 @@ class Med(MoveitEnabledRobot, BaseMed):
 
     def get_arm_joints(self):
         return ARM_JOINT_NAMES
+
+    def set_control_mode(self, control_mode: ControlMode, vel=0.1, **kwargs):
+        super().set_control_mode(control_mode, vel, **kwargs)
+        self.max_velocity_scale_factor = vel
 
     def set_grasping_force(self, force):
         if type(force) != float or force > 80.0 or force <= 0.0:

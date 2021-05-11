@@ -12,7 +12,7 @@ def main():
 
     med = Med(manual_execute=True)
     med.connect()
-    med.set_control_mode(ControlMode.JOINT_POSITION, vel=0.1)
+    med.set_control_mode(ControlMode.JOINT_POSITION, vel=0.15)
     # med.set_grasping_force(40.0)
     med.open_gripper()
 
