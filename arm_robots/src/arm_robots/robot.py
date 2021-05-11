@@ -19,6 +19,7 @@ from rospy import logfatal
 from rospy.logger_level_service_caller import LoggerLevelServiceCaller
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 import pdb
+from arm_robots.config.med_config import KUKA_MED_MAX_JOINT_VELOCITIES, KUKA_MED_MAX_JOINT_ACCEL
 
 STORED_ORIENTATION = None
 
@@ -135,7 +136,7 @@ class MoveitEnabledRobot(BaseRobot):
             waypoint_pose.position.z = target_position[2]
         waypoints = [waypoint_pose]
         plan, fraction = move_group.compute_cartesian_path(waypoints=waypoints, eef_step=step_size, jump_threshold=0.0)
-        print(plan)
+
         if fraction != 1.0:
             raise RuntimeError(f"Cartesian path is only {fraction * 100}% complete")
         return self.follow_arms_joint_trajectory(plan.joint_trajectory)
@@ -170,6 +171,19 @@ class MoveitEnabledRobot(BaseRobot):
     def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
         return make_follow_joint_trajectory_goal(trajectory)
 
+    def check_trajectory_limits(self, trajectory: FollowJointTrajectoryGoal):
+        for pt in trajectory.trajectory.points:
+            for j_idx in range(len(pt.velocities)):
+                if not abs(pt.velocities[j_idx]) < KUKA_MED_MAX_JOINT_VELOCITIES[j_idx] * self.max_velocity_scale_factor:
+                    print("Joint %d velocity %f is above limit %f" % (j_idx, pt.velocities[j_idx],
+                                                                      KUKA_MED_MAX_JOINT_VELOCITIES[j_idx]))
+                    assert(False)
+            for j_idx in range(len(pt.velocities)):
+                if not abs(pt.accelerations[j_idx]) < KUKA_MED_MAX_JOINT_ACCEL[j_idx]:
+                    print("Joint %d acceleration %f is above limit %f" % (j_idx, pt.accelerations[j_idx],
+                                                                          KUKA_MED_MAX_JOINT_ACCEL[j_idx]))
+                    assert(False)
+
     def follow_joint_trajectory(self,
                                 trajectory: JointTrajectory,
                                 client: SimpleActionClient,
@@ -181,7 +195,7 @@ class MoveitEnabledRobot(BaseRobot):
                 result = FollowJointTrajectoryResult()
                 result.error_code = FollowJointTrajectoryResult.INVALID_JOINTS
                 return trajectory, result, client.get_state()
-        
+
         if len(trajectory.points) == 0:
             rospy.logdebug(f"ignoring empty trajectory")
             result = FollowJointTrajectoryResult()
@@ -192,7 +206,7 @@ class MoveitEnabledRobot(BaseRobot):
         result: Optional[FollowJointTrajectoryResult] = None
         if self.execute:
             goal = self.make_follow_joint_trajectory_goal(trajectory)
-            # pdb.set_trace()
+            self.check_trajectory_limits(goal)
 
             def _feedback_cb(feedback: FollowJointTrajectoryFeedback):
                 for feedback_callback in self.feedback_callbacks:
