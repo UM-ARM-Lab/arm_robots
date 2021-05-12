@@ -25,8 +25,10 @@ class CartesianTeleop:
     def __init__(self, robot_name: str, group_name: str, tool_names: List[str], gamepad_name: str):
         if gamepad_name == 'logitech':
             self.gamepad = Logitech()
-        else:
+        elif gamepad_name == 'xbox':
             self.gamepad = Xbox()
+        else:
+            raise NotImplementedError(f"Unsupported gamepad {gamepad_name}")
 
         self.group_name = group_name
         self.tool_names = tool_names
