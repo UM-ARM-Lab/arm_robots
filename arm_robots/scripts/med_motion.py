@@ -11,7 +11,7 @@ from victor_hardware_interface.victor_utils import Stiffness
 def main():
     rospy.init_node('med_motion')
 
-    med = Med(manual_execute=True)
+    med = Med(robot_namespace="med", manual_execute=True)
     med.connect()
     med.set_control_mode(ControlMode.JOINT_POSITION, vel=0.1)
     # med.set_grasping_force(40.0)

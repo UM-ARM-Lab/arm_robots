@@ -116,7 +116,7 @@ def main():
     #use_right_arm = rospy.get_param("~use_right_arm", True)
 
     #victor = Victor()
-    med = Med()
+    med = Med(robot_namespace="med")
 
     # if use_left_arm:
     #     rospy.loginfo("initializing left arm ...")
