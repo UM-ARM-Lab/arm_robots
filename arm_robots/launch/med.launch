@@ -51,7 +51,7 @@
         <!-- </include> -->
 
         <!-- Move it-->
-        <include ns="victor" file="$(find iiwa_med_moveit_config)/launch/move_group.launch">
+        <include ns="med" file="$(find iiwa_med_moveit_config)/launch/move_group.launch">
             <arg name="allow_trajectory_execution" value="true"/>
             <arg name="moveit_controller_manager" value="real"/>
         </include>
