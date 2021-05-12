@@ -8,12 +8,13 @@ from arc_utilities.conversions import convert_to_pose_msg
 from victor_hardware_interface_msgs.msg import ControlMode
 from victor_hardware_interface.victor_utils import Stiffness
 
+
 def main():
-    rospy.init_node('med_motion')
+    rospy.init_node("med_motion")
 
     med = Med(manual_execute=True)
     med.connect()
-    med.set_control_mode(ControlMode.JOINT_POSITION, vel=0.1)
+    # med.set_control_mode(ControlMode.JOINT_POSITION, vel=0.1)
     # med.set_grasping_force(40.0)
     # med.open_gripper()
 
@@ -22,7 +23,7 @@ def main():
     # scene.add_plane('table_plane', convert_to_pose_msg([0,0,0,0,0,0]))
 
     # Pick and place "demo"
-    med.plan_to_joint_config(med.arm_group, [0,0,0,0,0,0,0])
+    med.plan_to_joint_config(med.arm_group, [0, 0, 0, 0, 0, 0, 0])
     exit()
     #
     # while True:
@@ -45,11 +46,11 @@ def main():
 
     # med.grasp(width=10.0)
     # Plan to joint config.
-    med.plan_to_joint_config(med.arm_group, [0.0,1.0,0.0,1.0,0,1.0,0])
+    med.plan_to_joint_config(med.arm_group, [0.0, 1.0, 0.0, 1.0, 0, 1.0, 0])
     input('Start impedance.')
     med.set_control_mode(ControlMode.JOINT_IMPEDANCE, vel=0.1, stiffness=Stiffness.SOFT)
     input('Go home.')
-    med.plan_to_joint_config(med.arm_group, [0,0,0,0,0,0,0])
+    med.plan_to_joint_config(med.arm_group, [0, 0, 0, 0, 0, 0, 0])
 
     # Plan to position (x,y,z) relative to robot base.
     # med.plan_to_position(med.arm_group, med.wrist, [0.6, 0.0, 0.6])

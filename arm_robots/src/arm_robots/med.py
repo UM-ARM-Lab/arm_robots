@@ -163,6 +163,7 @@ class BaseMed(BaseRobot):
         :args joint_names an optional list of names if you want to have a specific order or a subset
         """
         position_of_joint = self.get_joint_positions_map()
+
         print(position_of_joint)
         return [position_of_joint[name] for name in joint_names]
 
