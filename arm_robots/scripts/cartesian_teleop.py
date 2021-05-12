@@ -10,6 +10,7 @@ from inputs import get_gamepad
 import ros_numpy
 import rospy
 from arc_utilities import ros_init
+from arc_utilities.xbox import Xbox
 from arm_robots.get_robot import get_moveit_robot
 from arm_robots.logitech import Logitech
 from tf.transformations import quaternion_from_euler
@@ -22,7 +23,8 @@ class CartesianTeleop:
 
     """
     def __init__(self, robot_name: str, group_name: str, tool_names: List[str]):
-        self.gamepad = Logitech()
+        # self.gamepad = Logitech()
+        self.gamepad = Xbox()
         self.group_name = group_name
         self.tool_names = tool_names
 
