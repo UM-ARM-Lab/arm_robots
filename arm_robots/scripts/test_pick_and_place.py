@@ -43,6 +43,45 @@ def get_block_pose():
 
     return poses
 
+def get_goal_pose(tag_id=3):
+    tf_buffer = tf.BufferCore()
+    transformer = tf.TransformListener(tf_buffer)
+    rospy.sleep(1.0)
+    tf_frames = tf_buffer._getFrameStrings()
+    tag_frames = [tf_i for tf_i in tf_frames if 'tag_{}'.format(tag_id) in tf_i]
+
+    tfs = []
+    for tag_i in tag_frames:
+        tf_i = tf_buffer.lookup_transform_core('med_base', tag_i, rospy.Time(0))
+        tfs.append(tf_i)
+
+    poses = []
+    for tf_i in tfs:
+        frame_position_i = np.array([tf_i.transform.translation.x,
+                                     tf_i.transform.translation.y,
+                                     tf_i.transform.translation.z
+                               ])
+
+        frame_quat_i = np.array([tf_i.transform.rotation.x,
+                                 tf_i.transform.rotation.y,
+                                 tf_i.transform.rotation.z,
+                                 tf_i.transform.rotation.w
+                               ])
+        block_center_position = frame_position_i
+        pose_i = np.concatenate([block_center_position, frame_quat_i])
+        poses.append(pose_i)
+
+    return poses
+
+
+
+# TODO: Transform the pose of the desired grasp_frame to get the med.wrist instead
+def tr_pose(pose, frame_origin_name, new_frame_name):
+    tf_buffer = tf.BufferCore()
+    transformer = tf.TransformListener(tf_buffer)
+    rospy.sleep(1.0)
+
+
 
 
 def pickup_block():
@@ -68,52 +107,16 @@ def pickup_block():
 
     block_theta = block_euler[-1]
     print(block_euler)
-        # k = input('')
-        # if k == 'c':
-        #     break
-
-    # View the block detected pose:
-    # publisher = rospy.Publisher('realsense_box_plan', Marker, queue_size=100)
-    # rate = rospy.Rate(10)
-    #
-    # block_size = np.array([0.145, 0.09, 0.051]) # (L x W x H) in meters
-    # tag_size = 0.09
-    # block_color = np.array([255, 0, 0, 255])/255 # (R, G, B, A)
-    #
-    # marker = Marker()
-    # marker.id = 10
-    # marker.header.frame_id = 'med_base'
-    # marker.type = Marker.CUBE
-    # # size
-    # marker.scale.x = block_size[0]
-    # marker.scale.y = block_size[1]
-    # marker.scale.z = block_size[2]
-    # # pose (with respect to the frame 'med_table')
-    # marker.pose.position.x = block_pose[0]
-    # marker.pose.position.y = block_pose[1]
-    # marker.pose.position.z =  block_pose[2]
-    # marker.pose.orientation.x = block_pose[3]
-    # marker.pose.orientation.y = block_pose[4]
-    # marker.pose.orientation.z = block_pose[5]
-    # marker.pose.orientation.w = block_pose[6]
-    # # color
-    # marker.color.r = block_color[0]
-    # marker.color.g = block_color[1]
-    # marker.color.b = block_color[2]
-    # marker.color.a = block_color[3]
-    #
-    # while not rospy.is_shutdown():
-    #     publisher.publish(marker)
-    #     rate.sleep()
-
-    # -------------------------
 
     pregrasp_h = 0.30
     med.plan_to_joint_config(med.arm_group, [0,0,0,0,0,0,0])
     pregrasp_xyz = block_xyz + np.array([0,0, pregrasp_h])
 
+    plan_frame = med.wrist
+    grasp_frame = 'grasp_frame'
+
     while True:
-        _, result, _ = med.plan_to_pose(med.arm_group, med.wrist,  list(pregrasp_xyz)+ [0.0, np.pi, block_theta], frame_id='med_base')
+        _, result, _ = med.plan_to_pose(med.arm_group, plan_frame,  list(pregrasp_xyz)+ [0.0, np.pi, block_theta], frame_id='med_base')
         if result.error_code < 0:
             replan = input('Replan? [y/n]')
             if replan != 'y':
@@ -124,7 +127,7 @@ def pickup_block():
     # Go down and Grasp
     grasp_xyz = block_xyz + np.array([0,0, 0.15])
     while True:
-        _, result, _ = med.plan_to_pose(med.arm_group, med.wrist,  list(grasp_xyz)+ [0.0, np.pi, block_theta], frame_id='med_base')
+        _, result, _ = med.plan_to_pose(med.arm_group, plan_frame,  list(grasp_xyz)+ [0.0, np.pi, block_theta], frame_id='med_base')
         if result.error_code < 0:
             replan = input('Replan? [y/n]')
             if replan != 'y':
