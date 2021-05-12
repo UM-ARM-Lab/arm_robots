@@ -6,6 +6,7 @@ import pyjacobian_follower
 from matplotlib import colors
 
 import moveit_commander
+from tf_conversions import transformations
 import ros_numpy
 import rospy
 import urdf_parser_py.xml_reflection.core
@@ -191,9 +192,14 @@ class MoveitEnabledRobot(DualArmRobot):
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def get_link_pose(self, link_name: str):
-        link: moveit_commander.RobotCommander.Link = self.robot_commander.get_link(link_name)
-        pose_stamped: PoseStamped = link.pose()
-        return pose_stamped.pose
+        # FIXME: there's a bug where link.pose() returns the wrong joint state and prints a warning.
+        #  and I don't know how to wait for the right state
+        # link: moveit_commander.RobotCommander.Link = self.robot_commander.get_link(link_name)
+        # pose_stamped: PoseStamped = link.pose()
+        # return pose_stamped.pose
+        transform = self.tf_wrapper.get_transform(self.robot_commander.get_planning_frame(), link_name)
+        pose = ros_numpy.msgify(Pose, transform)
+        return pose
 
     def plan_to_joint_config(self, group_name: str, joint_config: Union[List, Dict, str]):
         """
