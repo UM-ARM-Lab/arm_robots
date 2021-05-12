@@ -48,8 +48,9 @@ def main():
     med.plan_to_joint_config(med.arm_group, [0.0,1.0,0.0,1.0,0,1.0,0])
     input('Start impedance.')
     med.set_control_mode(ControlMode.JOINT_IMPEDANCE, vel=0.1, stiffness=Stiffness.SOFT)
-    input('Go home.')
-    med.plan_to_joint_config(med.arm_group, [0,0,0,0,0,0,0])
+    input('Stop impedance.')
+    med.set_control_mode(ControlMode.JOINT_POSITION, vel=0.1)
+    # med.plan_to_joint_config(med.arm_group, [0,0,0,0,0,0,0])
 
     # Plan to position (x,y,z) relative to robot base.
     # med.plan_to_position(med.arm_group, med.wrist, [0.6, 0.0, 0.6])

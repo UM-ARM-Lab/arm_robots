@@ -14,8 +14,10 @@ from threading import Lock
 import numpy as np
 
 import rospy
-from arm_robots.victor import Victor
+# from arm_robots.victor import Victor
+from arm_robots.med import Med
 from victor_hardware_interface_msgs.msg import MotionCommand, MotionStatus, ControlMode
+from victor_hardware_interface.victor_utils import Stiffness
 
 joint_names = ['joint_' + str(i) for i in range(1, 8)]
 
@@ -35,7 +37,7 @@ class ManualMotion:
         self.threshold = 0.05
         self.arrive_threshold = 0.02
 
-        self.low_pass_tau = 0.01  # seconds
+        self.low_pass_tau = 1e-5  # seconds
         self.prev_time = None
         self.lock = Lock()
         self.follow = False
@@ -52,6 +54,7 @@ class ManualMotion:
 
         now = time.time()
         dt = now - self.prev_time
+        # print("dt: " + str(dt))
         self.prev_time = now
 
         if dt > 1:
@@ -82,6 +85,7 @@ class ManualMotion:
 
         # Low pass filter to avoid jerky motions
         alpha = dt / (self.low_pass_tau + dt)
+        # print("alpha: " + str(alpha))
         new_cmd = (1.0 - alpha) * cmd + alpha * meas
 
         # Send the actual command
@@ -108,33 +112,37 @@ def print_joints(left, right):
 def main():
     rospy.init_node("manual_motion")
 
-    use_left_arm = rospy.get_param("~use_left_arm", True)
-    use_right_arm = rospy.get_param("~use_right_arm", True)
+    #use_left_arm = rospy.get_param("~use_left_arm", True)
+    #use_right_arm = rospy.get_param("~use_right_arm", True)
 
-    victor = Victor()
+    #victor = Victor()
+    med = Med()
 
-    if use_left_arm:
-        rospy.loginfo("initializing left arm ...")
-        victor.set_left_arm_control_mode(ControlMode.JOINT_IMPEDANCE)
-        rospy.loginfo("done")
-    else:
-        rospy.loginfo("not using left arm")
+    # if use_left_arm:
+    #     rospy.loginfo("initializing left arm ...")
+    #     victor.set_left_arm_control_mode(ControlMode.JOINT_IMPEDANCE)
+    #     rospy.loginfo("done")
+    # else:
+    #     rospy.loginfo("not using left arm")
 
-    if use_right_arm:
-        rospy.loginfo("initializing right arm ...", )
-        victor.set_right_arm_control_mode(ControlMode.JOINT_IMPEDANCE)
-        rospy.loginfo("done")
-    else:
-        rospy.loginfo("not using right arm")
+    # if use_right_arm:
+    #     rospy.loginfo("initializing right arm ...", )
+    #     victor.set_right_arm_control_mode(ControlMode.JOINT_IMPEDANCE)
+    #     rospy.loginfo("done")
+    # else:
+    #     rospy.loginfo("not using right arm")
+    rospy.loginfo("intializing arm")
+    med.set_control_mode(ControlMode.JOINT_IMPEDANCE)
 
-    left = None
-    right = None
-    if use_left_arm:
-        left = ManualMotion("left_arm")
-    if use_right_arm:
-        right = ManualMotion("right_arm")
+    # left = None
+    # right = None
+    # if use_left_arm:
+    #     left = ManualMotion("left_arm")
+    # if use_right_arm:
+    #     right = ManualMotion("right_arm")
+    left = ManualMotion("left_arm")
 
-    rospy.on_shutdown(lambda: print_joints(left, right))
+    rospy.on_shutdown(lambda: print_joints(left, right=None))
 
     rospy.loginfo("Running")
     rospy.spin()
