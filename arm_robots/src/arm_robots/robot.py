@@ -6,7 +6,6 @@ import pyjacobian_follower
 from matplotlib import colors
 
 import moveit_commander
-from tf_conversions import transformations
 import ros_numpy
 import rospy
 import urdf_parser_py.xml_reflection.core
