@@ -26,7 +26,7 @@ def main():
     elif args.robot_name == "val":
         base_robot = BaseVal(args.robot_name)
     elif args.robot_name == "med":
-        base_robot = BaseMed("victor")
+        base_robot = BaseMed("med")
     else:
         raise NotImplementedError(f"Invalid robot name {args.robot_name}")
     fwd = TrajectoryFollower(base_robot, args.controller_name)

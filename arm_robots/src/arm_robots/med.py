@@ -73,10 +73,10 @@ class BaseMed(BaseRobot):
     def __init__(self, robot_namespace: str):
         BaseRobot.__init__(self, robot_namespace=robot_namespace)
 
-        self.arm_command_pub = rospy.Publisher(self.ns("left_arm/motion_command"), MotionCommand, queue_size=10)
-        self.set_control_mode_srv = rospy.ServiceProxy(self.ns("left_arm/set_control_mode_service"), SetControlMode)
-        self.get_control_mode_srv = rospy.ServiceProxy(self.ns("left_arm/get_control_mode_service"), GetControlMode)
-        self.arm_status_listener = Listener(self.ns("left_arm/motion_status"), MotionStatus)
+        self.arm_command_pub = rospy.Publisher(self.ns("motion_command"), MotionCommand, queue_size=10)
+        self.set_control_mode_srv = rospy.ServiceProxy(self.ns("set_control_mode_service"), SetControlMode)
+        self.get_control_mode_srv = rospy.ServiceProxy(self.ns("get_control_mode_service"), GetControlMode)
+        self.arm_status_listener = Listener(self.ns("motion_status"), MotionStatus)
         self.waypoint_state_pub = rospy.Publisher(self.ns("waypoint_robot_state"), DisplayRobotState, queue_size=10)
 
     def send_joint_command(self, joint_names: Sequence[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:

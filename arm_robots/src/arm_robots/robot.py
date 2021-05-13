@@ -43,7 +43,7 @@ def set_move_group_log_level(event):
                 pass
 
 
-class FMoveitEnabledRobot(BaseRobot):
+class MoveitEnabledRobot(BaseRobot):
     max_velocity_scale_factor = 0.1
 
     def __init__(self,
