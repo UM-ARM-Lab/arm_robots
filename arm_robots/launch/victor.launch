@@ -6,6 +6,7 @@
     <arg name="gui" default="true"/>
     <arg name="update_description" default="true"/>
     <arg name="verbose" default="false"/>
+    <arg name="gazebo_world" default="victor_table_and_walls"/>
 
     <group if="$(arg update_description)">
         <!-- uploads robot description and setups up other parameters -->
@@ -22,7 +23,7 @@
                  this is used to rename the joint_states topic it published -->
             <remap from="victor/joint_states" to="victor/arms_joint_states"/>
             <include file="$(find gazebo_ros)/launch/empty_world.launch">
-                <arg name="world_name" value="$(find arm_robots)/world/victor_table_and_walls_sim.world"/>
+                <arg name="world_name" value="$(find arm_robots)/world/$(arg gazebo_world)_sim.world"/>
                 <arg name="gui" value="$(arg gui)"/>
                 <arg name="paused" value="true"/>
                 <arg name="verbose" value="$(arg verbose)"/>
@@ -47,7 +48,7 @@
     <group unless="$(arg sim)">
         <!-- Start gazebo -->
         <include file="$(find gazebo_ros)/launch/empty_world.launch">
-            <arg name="world_name" value="$(find arm_robots)/world/victor_table_and_walls.world"/>
+            <arg name="world_name" value="$(find arm_robots)/world/$(arg gazebo_world).world"/>
             <arg name="gui" value="$(arg gui)"/>
             <arg name="paused" value="false"/>
             <arg name="verbose" value="$(arg verbose)"/>
