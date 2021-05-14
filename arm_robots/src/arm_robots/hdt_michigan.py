@@ -9,8 +9,8 @@ import numpy as np
 from colorama import Fore
 
 import rospy
-from arm_robots.base_robot import DualArmRobot
-from arm_robots.robot import MoveitEnabledRobot
+from arm_robots.base_robot_old import DualArmRobot
+from arm_robots.robot_old import MoveitEnabledRobot
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 

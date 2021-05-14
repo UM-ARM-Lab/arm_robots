@@ -2,7 +2,7 @@ from typing import Optional, Type
 
 import rospy
 from arm_robots.hdt_michigan import Val, BaseVal
-from arm_robots.robot import MoveitEnabledRobot
+from arm_robots.robot_old import MoveitEnabledRobot
 from arm_robots.victor import BaseVictor, Victor
 
 

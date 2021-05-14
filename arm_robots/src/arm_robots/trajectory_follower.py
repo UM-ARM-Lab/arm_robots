@@ -8,7 +8,7 @@ from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryG
 from rosgraph.names import ns_join
 from trajectory_msgs.msg import JointTrajectoryPoint
 
-from arm_robots.base_robot import DualArmRobot
+from arm_robots.base_robot_old import DualArmRobot
 from arm_robots.robot_utils import get_ordered_tolerance_list, interpolate_joint_trajectory_points, is_waypoint_reached, \
     waypoint_error
 
