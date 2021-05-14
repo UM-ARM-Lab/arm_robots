@@ -9,16 +9,16 @@ import numpy as np
 from colorama import Fore
 
 import rospy
-from arm_robots.base_robot_old import DualArmRobot
-from arm_robots.robot_old import MoveitEnabledRobot
+from arm_robots.base_robot import BaseRobot
+from arm_robots.robot import MoveitEnabledRobot
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 
-class BaseVal(DualArmRobot):
+class BaseVal(BaseRobot):
 
     def __init__(self, robot_namespace: str):
-        DualArmRobot.__init__(self, robot_namespace=robot_namespace)
+        BaseRobot.__init__(self, robot_namespace=robot_namespace)
         self.first_valid_command = False
         self.should_disconnect = False
         self.min_velocity = 0.05
@@ -107,6 +107,11 @@ class BaseVal(DualArmRobot):
         error_msg = ""
         return failed, error_msg
 
+    def get_right_gripper_links(self):
+        return self.robot_commander.get_link_names("right_gripper")
+
+    def get_left_gripper_links(self):
+        return self.robot_commander.get_link_names("left_gripper")
 
 left_arm_joints = [
     'joint_1',
@@ -177,11 +182,18 @@ class Val(BaseVal, MoveitEnabledRobot):
     def close_right_gripper(self):
         return self.set_right_gripper(self.gripper_closed_position)
 
+    def get_both_arm_joints(self):
+        return self.get_left_arm_joints() + self.get_right_arm_joints()
+
     def get_right_arm_joints(self):
         return right_arm_joints
 
     def get_left_arm_joints(self):
         return left_arm_joints
+
+    def get_gripper_positions(self):
+        # NOTE: this function requires that gazebo be playing
+        return self.get_link_pose(self.left_tool_name).position, self.get_link_pose(self.right_tool_name).position
 
     def connect(self, **kwargs):
         super().connect(**kwargs)
@@ -196,3 +208,9 @@ class Val(BaseVal, MoveitEnabledRobot):
             raise NotImplementedError(f"invalid gripper {gripper}")
         current_joint_values = move_group.get_current_joint_values()
         return np.allclose(current_joint_values, self.gripper_closed_position, atol=0.01)
+
+    def is_left_gripper_closed(self):
+        return self.is_gripper_closed('left')
+
+    def is_right_gripper_closed(self):
+        return self.is_gripper_closed('right')
