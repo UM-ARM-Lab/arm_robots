@@ -44,7 +44,7 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
         blank_positions = {n: None for n in ['arm']}
         return blank_positions, True, f"Invalid joint_names {joint_names}"
 
-    joint_position_of = {name: pos for name, pos in zip(joint_names, positions)}
+    joint_position_of = dict(zip(joint_names, positions))
 
     def fill_using(joint_ordering: Sequence[str]):
         if not all(j in joint_position_of for j in joint_ordering):
@@ -72,7 +72,7 @@ class BaseMed(BaseRobot):
 
     def send_joint_command(self, joint_names: Sequence[str], trajectory_point: JointTrajectoryPoint) -> Tuple[
         bool, str]:
-        # TODO: in victor's impedance mode, we want to modify the setpoint so that there is a limit
+        # TODO: in med's impedance mode, we want to modify the setpoint so that there is a limit
         #  on the force we will apply
         positions, abort, msg = delegate_to_arms(trajectory_point.positions, joint_names)
         if abort:
@@ -166,7 +166,8 @@ class Med(MoveitEnabledRobot, BaseMed):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
                                     arms_controller_name='arm_trajectory_controller',
-                                    force_trigger=force_trigger, **kwargs)
+                                    force_trigger=force_trigger,
+                                    **kwargs)
         BaseMed.__init__(self, robot_namespace=robot_namespace)
         self.arm_group = 'kuka_arm'
         self.wrist = 'med_kuka_link_ee'
@@ -183,36 +184,36 @@ class Med(MoveitEnabledRobot, BaseMed):
             print("Bad grasp force value provided! Not setting grasping force.")
             return None
 
-        rospy.wait_for_service('/wsg_50_driver/set_force')
+        rospy.wait_for_service('wsg_50_driver/set_force')
         try:
-            force_proxy = rospy.ServiceProxy('/wsg_50_driver/set_force', Conf)
+            force_proxy = rospy.ServiceProxy('wsg_50_driver/set_force', Conf)
             force_resp = force_proxy(force)
             return force_resp.error
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
 
     def grasp(self, width, speed=50.0):
-        rospy.wait_for_service('/wsg_50_driver/grasp')
+        rospy.wait_for_service('wsg_50_driver/grasp')
         try:
-            close_proxy = rospy.ServiceProxy('/wsg_50_driver/grasp', Move)
+            close_proxy = rospy.ServiceProxy('wsg_50_driver/grasp', Move)
             grasp_resp = close_proxy(width, speed)
             return grasp_resp.error
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
 
     def open_gripper(self):
-        rospy.wait_for_service('/wsg_50_driver/move')
+        rospy.wait_for_service('wsg_50_driver/move')
         try:
-            move_proxy = rospy.ServiceProxy('/wsg_50_driver/move', Move)
+            move_proxy = rospy.ServiceProxy('wsg_50_driver/move', Move)
             move_resp = move_proxy(100.0, 50.0)
             return move_resp.error
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
 
     def release(self, width=110.0, speed=50.0):
-        rospy.wait_for_service('/wsg_50_driver/release')
+        rospy.wait_for_service('wsg_50_driver/release')
         try:
-            release_proxy = rospy.ServiceProxy('/wsg_50_driver/release', Move)
+            release_proxy = rospy.ServiceProxy('wsg_50_driver/release', Move)
             release_resp = release_proxy(width, speed)
             return release_resp.error
         except rospy.ServiceException as e:

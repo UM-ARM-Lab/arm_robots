@@ -1,7 +1,4 @@
 <launch>
-<!--    <env name="ROSCONSOLE_CONFIG_FILE"-->
-<!--         value="$(find arm_robots)/config/victor_rosconsole.conf"/>-->
-
     <arg name="sim" default="false"/>
     <arg name="gui" default="true"/>
     <arg name="update_description" default="true"/>
@@ -17,16 +14,11 @@
 
     <group if="$(arg sim)">
         <!-- Start gazebo -->
-        <group> <!-- this empty group tag creates a scope for the "remap" command -->
-            <!-- because we use ros_control only for the joints of the arms, not the grippers,
-                 this is used to rename the joint_states topic it published -->
-<!--            <remap from="med/joint_states" to="med/arms_joint_states"/>-->
-            <include file="$(find gazebo_ros)/launch/empty_world.launch">
-                <arg name="gui" value="$(arg gui)"/>
-                <arg name="paused" value="true"/>
-                <arg name="verbose" value="$(arg verbose)"/>
-            </include>
-        </group>
+        <include file="$(find gazebo_ros)/launch/empty_world.launch">
+            <arg name="gui" value="$(arg gui)"/>
+            <arg name="paused" value="true"/>
+            <arg name="verbose" value="$(arg verbose)"/>
+        </include>
 
         <!-- Spawn the robot in gazebo -->
         <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
@@ -57,7 +49,7 @@
             <arg name="use_med" value="true"/>
         </include>
 
-        <!-- Move it-->
+        <!-- MoveIt-->
         <include ns="med" file="$(find iiwa_med_moveit_config)/launch/move_group.launch">
             <arg name="allow_trajectory_execution" value="true"/>
             <arg name="moveit_controller_manager" value="real"/>
