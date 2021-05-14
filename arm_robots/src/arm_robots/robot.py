@@ -56,6 +56,7 @@ class MoveitEnabledRobot(BaseRobot):
                  force_trigger: float = 9.0):
         super().__init__(robot_namespace)
         self._max_velocity_scale_factor = 0.1
+        self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
         self.execute = execute
         self.block = block
