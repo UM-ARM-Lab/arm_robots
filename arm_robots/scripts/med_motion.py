@@ -5,12 +5,15 @@ import numpy as np
 from victor_hardware_interface_msgs.msg import ControlMode
 
 
-def main(sim=True):
+def main():
     rospy.init_node('med_motion')
+
+    # Are we in sim? Currently WSG50 gripper not supported in Gazebo.
+    sim = rospy.get_param('~sim', default=True)
 
     med = Med(display_goals=False)
     med.connect()
-    med.set_control_mode(ControlMode.JOINT_POSITION, vel=0.3)
+    med.set_control_mode(ControlMode.JOINT_POSITION, vel=0.1)
 
     if not sim:
         med.set_grasping_force(40.0)
