@@ -6,16 +6,23 @@ import pdb
 import moveit_commander
 from arc_utilities.conversions import convert_to_pose_msg
 
+
 def main():
     rospy.init_node('med_motion')
 
-    med = Med(manual_execute=True)
+    med = Med(display_goals=False)
     med.connect()
     # med.set_grasping_force(40.0)
     # med.open_gripper()
 
-    med.plan_to_joint_config(med.arm_group, [0,1.0,0,1.0,0,1.0,0])
-    med.plan_to_joint_config(med.arm_group, [0,0,0,0,0,0,0])
+    med.plan_to_joint_config(med.arm_group, [0, 1.0, 0, -1.0, 0, 1.0, 0])
+    med.plan_to_pose(med.arm_group, med.wrist, [0.6, 0.12, 0.45, 0.0, np.pi, 0.0], frame_id='med_base')
+    med.plan_to_position_cartesian(med.arm_group, med.wrist, target_position=[0.6, -0.12, 0.35])
+    med.plan_to_position_cartesian(med.arm_group, med.wrist, target_position=[0.6, -0.12, 0.45])
+    med.plan_to_position_cartesian(med.arm_group, med.wrist, target_position=[0.6, 0.12, 0.45])
+    med.plan_to_position_cartesian(med.arm_group, med.wrist, target_position=[0.6, 0.12, 0.365])
+    med.plan_to_position_cartesian(med.arm_group, med.wrist, target_position=[0.6, 0.12, 0.45])
+    med.plan_to_joint_config(med.arm_group, [0, 0, 0, 0, 0, 0, 0])
 
     exit()
 
@@ -24,18 +31,19 @@ def main():
     # scene.add_plane('table_plane', convert_to_pose_msg([0,0,0,0,0,0]))
 
     # Pick and place "demo"
-    med.plan_to_joint_config(med.arm_group, [0,0,0,0,0,0,0])
+    med.plan_to_joint_config(med.arm_group, [0, 0, 0, 0, 0, 0, 0])
 
-    while True:
-        _, result, _ = med.plan_to_pose(med.arm_group, med.wrist, [0.6, 0.12, 0.45, 0.0, np.pi, 0.0], frame_id='med_base')
-        if result.error_code < 0:
-            replan = input('Replan? [y/n]')
-            if replan != 'y':
-                exit()
-        else:
-            break
+    # while True:
+    #     _, result, _ = med.plan_to_pose(med.arm_group, med.wrist, [0.6, 0.12, 0.45, 0.0, np.pi, 0.0],
+    #                                     frame_id='med_base')
+    #     if result.error_code < 0:
+    #         replan = input('Replan? [y/n]')
+    #         if replan != 'y':
+    #             exit()
+    #     else:
+    #         break
 
-    med.plan_to_joint_config(med.arm_group, [0,0,0,0,0,0,0])
+    med.plan_to_joint_config(med.arm_group, [0, 0, 0, 0, 0, 0, 0])
     exit()
 
     med.plan_to_position_cartesian(med.arm_group, med.wrist, target_position=[0.6, -0.12, 0.35])
@@ -45,7 +53,7 @@ def main():
     med.plan_to_position_cartesian(med.arm_group, med.wrist, target_position=[0.6, 0.12, 0.365])
     med.release()
     med.plan_to_position_cartesian(med.arm_group, med.wrist, target_position=[0.6, 0.12, 0.45])
-    med.plan_to_joint_config(med.arm_group, [0,0,0,0,0,0,0])
+    med.plan_to_joint_config(med.arm_group, [0, 0, 0, 0, 0, 0, 0])
 
     # med.grasp(width=10.0)
     # Plan to joint config.
@@ -66,6 +74,7 @@ def main():
     # med.plan_to_position_cartesian(med.arm_group, med.wrist, target_position=[0.6, 0.1, 0.35])
     # med.plan_to_position_cartesian(med.arm_group, med.wrist, target_position=[0.6, -0.1, 0.35])
     # med.plan_to_joint_config(med.arm_group, [0,0,0,0,0,0,0])
+
 
 if __name__ == "__main__":
     main()

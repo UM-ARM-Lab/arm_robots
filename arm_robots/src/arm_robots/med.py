@@ -162,11 +162,11 @@ class BaseMed(BaseRobot):
 
 class Med(MoveitEnabledRobot, BaseMed):
 
-    def __init__(self, robot_namespace: str = 'victor', force_trigger: float = -0.0):
+    def __init__(self, robot_namespace: str = 'med', force_trigger: float = -0.0, **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
                                     arms_controller_name='arm_trajectory_controller',
-                                    force_trigger=force_trigger)
+                                    force_trigger=force_trigger, **kwargs)
         BaseMed.__init__(self, robot_namespace=robot_namespace)
         self.arm_group = 'kuka_arm'
         self.wrist = 'med_kuka_link_ee'
