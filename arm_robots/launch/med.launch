@@ -45,26 +45,26 @@
     </group>
     <group unless="$(arg sim)">
         <!-- Start gazebo -->
-        <include file="$(find gazebo_ros)/launch/empty_world.launch">
-            <arg name="world_name" value="$(find arm_robots)/world/victor_table_and_walls.world"/>
-            <arg name="gui" value="$(arg gui)"/>
-            <arg name="paused" value="false"/>
-            <arg name="verbose" value="$(arg verbose)"/>
-            <arg name="use_sim_time" value="false"/>
-        </include>
+        <!-- <include file="$(find gazebo_ros)/launch/empty_world.launch"> -->
+        <!--     <arg name="world_name" value="$(find arm_robots)/world/victor_table_and_walls.world"/> -->
+        <!--     <arg name="gui" value="$(arg gui)"/> -->
+        <!--     <arg name="paused" value="false"/> -->
+        <!--     <arg name="verbose" value="$(arg verbose)"/> -->
+        <!--     <arg name="use_sim_time" value="false"/> -->
+        <!-- </include> -->
 
         <!-- to let moveit send trajectories with the real robot -->
         <include file="$(find arm_robots)/launch/trajectory_follower.launch">
-            <arg name="use_victor" value="true"/>
+            <arg name="use_med" value="true"/>
         </include>
 
         <!-- ROS control for real victor, does nothing at the moment -->
-        <include file="$(find victor_control)/launch/victor_control.launch">
-            <arg name="robot_namespace" value="victor"/>
-        </include>
+        <!-- <include file="$(find victor_control)/launch/victor_control.launch"> -->
+        <!--     <arg name="robot_namespace" value="victor"/> -->
+        <!-- </include> -->
 
         <!-- Move it-->
-        <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
+        <include ns="med" file="$(find iiwa_med_moveit_config)/launch/move_group.launch">
             <arg name="allow_trajectory_execution" value="true"/>
             <arg name="moveit_controller_manager" value="real"/>
         </include>
