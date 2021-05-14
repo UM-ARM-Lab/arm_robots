@@ -8,13 +8,13 @@ from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryG
 from rosgraph.names import ns_join
 from trajectory_msgs.msg import JointTrajectoryPoint
 
-from arm_robots.base_robot_old import DualArmRobot
+from arm_robots.base_robot import BaseRobot
 from arm_robots.robot_utils import get_ordered_tolerance_list, interpolate_joint_trajectory_points, is_waypoint_reached, \
     waypoint_error
 
 
 class TrajectoryFollower:
-    def __init__(self, robot: DualArmRobot, controller_name: str):
+    def __init__(self, robot: BaseRobot, controller_name: str):
         self.robot = robot
         self.action_name = ns_join(robot.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
         self.server = actionlib.SimpleActionServer(self.action_name, FollowJointTrajectoryAction,
