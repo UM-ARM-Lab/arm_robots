@@ -1,0 +1,11 @@
+<launch>
+    <!-- oint_control_filter-->
+    <include file="$(find hdt_michigan_control)/launch/joint_control_filter.launch"/>
+    <!-- Realsense ROS wrapper-->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="align_depth" value="true"/>
+        <arg name="filters" value="pointcloud"/>
+    <include/>
+    <!-- Apriltag_ros-->
+    <include file="$(find apriltag_ros)/launch/continuous_detection.launch"/>
+</launch>
