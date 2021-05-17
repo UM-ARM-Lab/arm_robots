@@ -1,0 +1,58 @@
+<launch>
+    <arg name="sim" default="false"/>
+    <arg name="gui" default="true"/>
+    <arg name="update_description" default="true"/>
+    <arg name="verbose" default="false"/>
+
+    <group if="$(arg update_description)">
+        <!-- uploads robot description and setups up other parameters -->
+        <include file="$(find med_moveit_config)/launch/planning_context.launch">
+            <arg name="load_robot_description" value="true"/>
+        </include>
+    </group>
+
+
+    <group if="$(arg sim)">
+        <!-- Start gazebo -->
+        <include file="$(find gazebo_ros)/launch/empty_world.launch">
+            <arg name="gui" value="$(arg gui)"/>
+            <arg name="paused" value="true"/>
+            <arg name="verbose" value="$(arg verbose)"/>
+        </include>
+
+        <!-- Spawn the robot in gazebo -->
+        <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+              args="-urdf -model med -param robot_description"/>
+
+        <!-- start the ROS controllers, only used in gazebo. This merges gripper and arm joint states -->
+        <include file="$(find med_control)/launch/med_control_gazebo.launch">
+            <arg name="robot_namespace" value="med"/>
+        </include>
+
+        <!-- Move it-->
+        <include ns="med" file="$(find med_moveit_config)/launch/move_group.launch">
+            <arg name="allow_trajectory_execution" value="true"/>
+            <arg name="moveit_controller_manager" value="gazebo"/>
+        </include>
+    </group>
+    <group unless="$(arg sim)">
+        <!-- Start gazebo -->
+        <!-- <include file="$(find gazebo_ros)/launch/empty_world.launch"> -->
+        <!--     <arg name="gui" value="$(arg gui)"/> -->
+        <!--     <arg name="paused" value="false"/> -->
+        <!--     <arg name="verbose" value="$(arg verbose)"/> -->
+        <!--     <arg name="use_sim_time" value="false"/> -->
+        <!-- </include> -->
+
+        <!-- to let moveit send trajectories with the real robot -->
+        <include file="$(find arm_robots)/launch/trajectory_follower.launch">
+            <arg name="use_med" value="true"/>
+        </include>
+
+        <!-- MoveIt-->
+        <include ns="med" file="$(find med_moveit_config)/launch/move_group.launch">
+            <arg name="allow_trajectory_execution" value="true"/>
+            <arg name="moveit_controller_manager" value="real"/>
+        </include>
+    </group>
+</launch>

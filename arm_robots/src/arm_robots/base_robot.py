@@ -10,7 +10,8 @@ from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 
-class DualArmRobot:
+class BaseRobot:
+
     def __init__(self, robot_namespace: str = ''):
         """
         This class is designed around the needs of the trajectory_follower.TrajectoryFollower
@@ -23,10 +24,6 @@ class DualArmRobot:
         # the robot namespace will be prepended by setting ROS_NAMESPACE environment variable or the ns="" in roslaunch
         joint_states_topic = ns_join(self.robot_namespace, 'joint_states')
         self._joint_state_listener = Listener(joint_states_topic, JointState)
-
-        # NOTE: derived classes must set these values
-        self.right_gripper_command_pub = None
-        self.left_gripper_command_pub = None
 
         self.tf_wrapper = TF2Wrapper()
 
@@ -78,29 +75,3 @@ class DualArmRobot:
         if group_name not in groups:
             rospy.logwarn_throttle(1, f"Group [{group_name}] does not exist. Existing groups are:")
             rospy.logwarn_throttle(1, groups)
-
-    def get_right_gripper_links(self):
-        return self.robot_commander.get_link_names("right_gripper")
-
-    def get_left_gripper_links(self):
-        return self.robot_commander.get_link_names("left_gripper")
-
-    def open_left_gripper(self):
-        self.left_gripper_command_pub.publish(self.get_open_gripper_msg())
-
-    def open_right_gripper(self):
-        self.right_gripper_command_pub.publish(self.get_open_gripper_msg())
-
-    def close_left_gripper(self):
-        # TODO: implementing blocking grasping
-        self.left_gripper_command_pub.publish(self.get_close_gripper_msg())
-
-    def close_right_gripper(self):
-        self.right_gripper_command_pub.publish(self.get_close_gripper_msg())
-
-    def get_close_gripper_msg(self):
-        # FIXME: this is a bad abstraction, not all grippers work like this
-        raise NotImplementedError()
-
-    def get_open_gripper_msg(self):
-        raise NotImplementedError()

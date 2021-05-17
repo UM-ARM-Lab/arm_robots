@@ -19,7 +19,7 @@ from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, G
 
 from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
 from arc_utilities.listener import Listener
-from arm_robots.base_robot import DualArmRobot
+from arm_robots.base_robot import BaseRobot
 from arm_robots.config.victor_config import NAMED_POSITIONS, default_robotiq_command, \
     KUKA_MIN_PATH_JOINT_POSITION_TOLERANCE, KUKA_FULL_SPEED_PATH_JOINT_POSITION_TOLERANCE, LEFT_GRIPPER_JOINT_NAMES, \
     RIGHT_GRIPPER_JOINT_NAMES, LEFT_ARM_JOINT_NAMES, RIGHT_ARM_JOINT_NAMES, BOTH_ARM_JOINT_NAMES, ALL_JOINT_NAMES, \
@@ -75,10 +75,10 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
     return positions_by_interface, False, ""
 
 
-class BaseVictor(DualArmRobot):
+class BaseVictor(BaseRobot):
 
     def __init__(self, robot_namespace: str):
-        DualArmRobot.__init__(self, robot_namespace=robot_namespace)
+        BaseRobot.__init__(self, robot_namespace=robot_namespace)
 
         self.left_arm_command_pub = rospy.Publisher(self.ns("left_arm/motion_command"), MotionCommand, queue_size=10)
         self.right_arm_command_pub = rospy.Publisher(self.ns("right_arm/motion_command"), MotionCommand, queue_size=10)
@@ -161,6 +161,25 @@ class BaseVictor(DualArmRobot):
                             control_mode=control_mode)
         cmd.header.stamp = rospy.Time.now()
         command_pub.publish(cmd)
+
+    def get_right_gripper_links(self):
+        return self.robot_commander.get_link_names("right_gripper")
+
+    def get_left_gripper_links(self):
+        return self.robot_commander.get_link_names("left_gripper")
+
+    def open_left_gripper(self):
+        self.left_gripper_command_pub.publish(self.get_open_gripper_msg())
+
+    def open_right_gripper(self):
+        self.right_gripper_command_pub.publish(self.get_open_gripper_msg())
+
+    def close_left_gripper(self):
+        # TODO: implementing blocking grasping
+        self.left_gripper_command_pub.publish(self.get_close_gripper_msg())
+
+    def close_right_gripper(self):
+        self.right_gripper_command_pub.publish(self.get_close_gripper_msg())
 
     def get_gripper_statuses(self):
         return {'left':  self.get_left_gripper_status(),
@@ -416,11 +435,18 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         rospy.loginfo(f"Victor says: {message}")
         self.polly_pub.publish(String(data=message))
 
+    def get_both_arm_joints(self):
+        return self.get_left_arm_joints() + self.get_right_arm_joints()
+
     def get_right_arm_joints(self):
         return RIGHT_ARM_JOINT_NAMES
 
     def get_left_arm_joints(self):
         return LEFT_ARM_JOINT_NAMES
+
+    def get_gripper_positions(self):
+        # NOTE: this function requires that gazebo be playing
+        return self.get_link_pose(self.left_tool_name).position, self.get_link_pose(self.right_tool_name).position
 
     def follow_joint_trajectory_feedback_cb(self,
                                             client: SimpleActionClient,
