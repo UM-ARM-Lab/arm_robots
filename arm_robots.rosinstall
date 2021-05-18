@@ -14,3 +14,6 @@
 - git:
     local-name: robotiq
     uri: git@github.com:UM-ARM-Lab/robotiq.git
+- git:
+    local-name: wsg50-ros-pkg
+    uri: git@github.com:MMintLab/wsg50-ros-pkg.git
