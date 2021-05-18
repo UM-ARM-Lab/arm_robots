@@ -1,11 +1,6 @@
 <launch>
     <arg name="update_description" default="true"/>
 
-    <group ns="static_transform_publishers">
-        <node pkg="tf2_ros" type="static_transform_publisher" name="rename_origin" required="true"
-              args="0 0 0 0 0 0 robot_root world">
-        </node>
-    </group>
 
     <group if="$(arg update_description)">
         <!-- uploads robot description and setups up other parameters -->
