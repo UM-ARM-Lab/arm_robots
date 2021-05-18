@@ -4,17 +4,18 @@ import rospy
 from arm_robots.hdt_michigan import Val, BaseVal
 from arm_robots.robot import MoveitEnabledRobot
 from arm_robots.victor import BaseVictor, Victor
+from arm_robots.med import BaseMed, Med
 
 
 def get_moveit_robot(robot_name: Optional[str] = None, **kwargs):
-    return get_robot(Val, Victor, robot_name, **kwargs)
+    return get_robot(Val, Victor, Med, robot_name, **kwargs)
 
 
 def get_base_robot(robot_name: Optional[str] = None, **kwargs):
-    return get_robot(BaseVal, BaseVictor, robot_name, **kwargs)
+    return get_robot(BaseVal, BaseVictor, BaseMed, robot_name, **kwargs)
 
 
-def get_robot(val_type: Type, victor_type: Type, robot_name: Optional[str] = None, **kwargs) -> MoveitEnabledRobot:
+def get_robot(val_type: Type, victor_type: Type, med_type: Type, robot_name: Optional[str] = None, **kwargs) -> MoveitEnabledRobot:
     """
     Get the right robot. It considers first the robot_name argument,
     then checks the ros parameter server,
@@ -41,5 +42,7 @@ def get_robot(val_type: Type, victor_type: Type, robot_name: Optional[str] = Non
         return victor_type(robot_name, **kwargs)
     elif robot_name in ['val', 'hdt_michigan']:
         return val_type('hdt_michigan', **kwargs)
+    elif robot_name == 'med':
+        return med_type(robot_name, **kwargs)
     else:
         raise NotImplementedError(f"robot with name {robot_name} not implemented")

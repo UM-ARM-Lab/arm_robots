@@ -12,7 +12,7 @@ import urdf_parser_py.xml_reflection.core
 from actionlib import SimpleActionClient
 from arc_utilities.conversions import convert_to_pose_msg
 from arc_utilities.ros_helpers import try_to_connect
-from arm_robots.base_robot import DualArmRobot
+from arm_robots.base_robot import BaseRobot
 from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningResult, PlanningAndExecutionResult, \
     ExecutionResult, is_empty_trajectory, merge_joint_state_and_scene_msg
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
@@ -44,7 +44,7 @@ def on_error(message):
 urdf_parser_py.xml_reflection.core.on_error = on_error
 
 
-class MoveitEnabledRobot(DualArmRobot):
+class MoveitEnabledRobot(BaseRobot):
 
     def __init__(self,
                  robot_namespace: str,
@@ -55,7 +55,7 @@ class MoveitEnabledRobot(DualArmRobot):
                  display_goals: bool = True,
                  force_trigger: float = 9.0):
         super().__init__(robot_namespace)
-        self.max_velocity_scale_factor = 0.1
+        self._max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
         self.execute = execute
@@ -68,10 +68,6 @@ class MoveitEnabledRobot(DualArmRobot):
         self.display_robot_state_pub = rospy.Publisher('display_robot_state', DisplayRobotState, queue_size=10)
         self.display_goal_position_pub = rospy.Publisher('goal_position', Marker, queue_size=10)
         self.display_robot_state_pubs = {}
-
-        # Override these in base classes!
-        self.left_tool_name = None
-        self.right_tool_name = None
 
         self.arms_client = None
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
@@ -125,7 +121,7 @@ class MoveitEnabledRobot(DualArmRobot):
         # The purpose of this safety factor is to make sure we never send victor a velocity
         # faster than the kuka controller's max velocity, otherwise the kuka controllers will error out.
         safety_factor = 0.9
-        move_group.set_max_velocity_scaling_factor(self.max_velocity_scale_factor * safety_factor)
+        move_group.set_max_velocity_scaling_factor(self._max_velocity_scale_factor * safety_factor)
         return move_group
 
     def plan_to_position(self,
@@ -191,9 +187,14 @@ class MoveitEnabledRobot(DualArmRobot):
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def get_link_pose(self, link_name: str):
-        link: moveit_commander.RobotCommander.Link = self.robot_commander.get_link(link_name)
-        pose_stamped: PoseStamped = link.pose()
-        return pose_stamped.pose
+        # FIXME: there's a bug where link.pose() returns the wrong joint state and prints a warning.
+        #  and I don't know how to wait for the right state
+        # link: moveit_commander.RobotCommander.Link = self.robot_commander.get_link(link_name)
+        # pose_stamped: PoseStamped = link.pose()
+        # return pose_stamped.pose
+        transform = self.tf_wrapper.get_transform(self.robot_commander.get_planning_frame(), link_name)
+        pose = ros_numpy.msgify(Pose, transform)
+        return pose
 
     def plan_to_joint_config(self, group_name: str, joint_config: Union[List, Dict, str]):
         """
@@ -335,7 +336,8 @@ class MoveitEnabledRobot(DualArmRobot):
             rospy.logerr(err_msg)
             raise ValueError(err_msg)
 
-        preferred_tool_orientations = self.merge_tool_orientations_with_defaults(tool_names, preferred_tool_orientations)
+        preferred_tool_orientations = self.merge_tool_orientations_with_defaults(tool_names,
+                                                                                 preferred_tool_orientations)
         if len(preferred_tool_orientations) == 0:
             return ExecutionResult(trajectory=None,
                                    execution_result=None,
@@ -378,7 +380,8 @@ class MoveitEnabledRobot(DualArmRobot):
             rospy.logerr(err_msg)
             raise ValueError(err_msg)
 
-        preferred_tool_orientations = self.merge_tool_orientations_with_defaults(tool_names, preferred_tool_orientations)
+        preferred_tool_orientations = self.merge_tool_orientations_with_defaults(tool_names,
+                                                                                 preferred_tool_orientations)
         if len(preferred_tool_orientations) == 0:
             return ExecutionResult(trajectory=None,
                                    execution_result=None,
@@ -404,9 +407,6 @@ class MoveitEnabledRobot(DualArmRobot):
                                                              stop_condition=stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
-    def get_both_arm_joints(self):
-        return self.get_left_arm_joints() + self.get_right_arm_joints()
-
     def get_joint_names(self, group_name: Optional[str] = None):
         # NOTE: Getting a list of joint names should not require anything besides a lookup on the ros parameter server.
         #   However, MoveIt does not have this implemented that way, it requires connecting to the move group node.
@@ -423,33 +423,8 @@ class MoveitEnabledRobot(DualArmRobot):
     def get_num_joints(self, group_name: Optional[str] = None):
         return len(self.get_joint_names(group_name))
 
-    def get_right_arm_joints(self):
-        raise NotImplementedError()
-
-    def get_left_arm_joints(self):
-        raise NotImplementedError()
-
-    def get_right_gripper_joints(self):
-        raise NotImplementedError()
-
-    def get_left_gripper_joints(self):
-        raise NotImplementedError()
-
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         raise NotImplementedError()
-
-    def get_gripper_positions(self):
-        # NOTE: this function requires that gazebo be playing
-        return self.get_link_pose(self.left_tool_name).position, self.get_link_pose(self.right_tool_name).position
-
-    def is_gripper_closed(self, gripper: str):
-        raise NotImplementedError()
-
-    def is_left_gripper_closed(self):
-        return self.is_gripper_closed('left')
-
-    def is_right_gripper_closed(self):
-        return self.is_gripper_closed('right')
 
     def display_robot_state(self, robot_state: RobotState, label: str, color: Optional = None):
         """

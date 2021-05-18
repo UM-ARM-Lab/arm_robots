@@ -10,6 +10,7 @@ from inputs import get_gamepad
 import ros_numpy
 import rospy
 from arc_utilities import ros_init
+from arc_utilities.xbox import Xbox
 from arm_robots.get_robot import get_moveit_robot
 from arm_robots.logitech import Logitech
 from tf.transformations import quaternion_from_euler
@@ -21,8 +22,14 @@ class CartesianTeleop:
     The "x" button (on logitech controller) will switch which tool name is being controller
 
     """
-    def __init__(self, robot_name: str, group_name: str, tool_names: List[str]):
-        self.gamepad = Logitech()
+    def __init__(self, robot_name: str, group_name: str, tool_names: List[str], gamepad_name: str):
+        if gamepad_name == 'logitech':
+            self.gamepad = Logitech()
+        elif gamepad_name == 'xbox':
+            self.gamepad = Xbox()
+        else:
+            raise NotImplementedError(f"Unsupported gamepad {gamepad_name}")
+
         self.group_name = group_name
         self.tool_names = tool_names
 
@@ -89,10 +96,11 @@ def main():
     parser.add_argument("robot_name", type=str, help="robot name, e.g. 'victor' or 'val'")
     parser.add_argument("group_name", type=str, help="moveit group name, e.g. 'both_arms'")
     parser.add_argument("tool_names", type=str, help="the links you want to move, e.g. 'left_tool'", nargs='+')
+    parser.add_argument("--gamepad", type=str, help="name of the gamepad you want", choices=['logitech', 'xbox'], default='xbox')
 
     args = parser.parse_args(rospy.myargv(argv=sys.argv)[1:])
 
-    ct = CartesianTeleop(args.robot_name, args.group_name, args.tool_names)
+    ct = CartesianTeleop(args.robot_name, args.group_name, args.tool_names, args.gamepad)
     rospy.spin()
 
 

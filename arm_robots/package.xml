@@ -9,11 +9,12 @@
   <license>TODO</license>
 
   <depend>arc_utilities</depend>
-  <depend>kuka_hardware_interface</depend>
-  <depend>victor_description</depend>
-  <depend>moveit-commander</depend>
   <depend>jacobian_follower</depend>
-  
+  <depend>joy</depend>
+  <depend>kuka_hardware_interface</depend>
+  <depend>moveit-commander</depend>
+  <depend>victor_description</depend>
+
   <exec_depend>gazebo_ros</exec_depend>
   <exec_depend>arm_gazebo_models</exec_depend>
   

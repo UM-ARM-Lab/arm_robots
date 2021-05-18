@@ -10,6 +10,7 @@ from arc_utilities import ros_init
 from arm_robots.victor import Victor
 from geometry_msgs.msg import Pose
 from tf.transformations import quaternion_from_euler
+from victor_hardware_interface_msgs.msg import ControlMode
 
 ask_before_moving = True
 
@@ -26,17 +27,18 @@ def main():
     colorama.init(autoreset=True)
 
     victor = Victor(display_goals=False)
+    victor.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=0.1)
     victor.connect()
     
     rospy.sleep(1)
     victor.open_left_gripper()
-    rospy.sleep(2)
+    rospy.sleep(1)
     victor.close_left_gripper()
-    rospy.sleep(2)
+    rospy.sleep(1)
     victor.open_right_gripper()
-    rospy.sleep(2)
+    rospy.sleep(1)
     victor.close_right_gripper()
-    rospy.sleep(2)
+    rospy.sleep(1)
 
     print("press enter if prompted")
 

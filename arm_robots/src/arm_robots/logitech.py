@@ -30,9 +30,6 @@ class Logitech:
         """
         We use the dpad for x,y and the left joystick to do z
 
-        Args:
-            joy_msg:
-
         Returns:
             the [x, y, z], in the interval [-1.0, 1.0]
 
