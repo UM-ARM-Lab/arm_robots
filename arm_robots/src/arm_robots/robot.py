@@ -18,7 +18,8 @@ from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningRe
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
 from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PoseStamped
-from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor, RobotState, PlanningScene
+from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor, RobotState, PlanningScene, \
+    DisplayTrajectory
 from rosgraph.names import ns_join
 from rospy import logfatal
 from sensor_msgs.msg import JointState
@@ -68,6 +69,7 @@ class MoveitEnabledRobot(BaseRobot):
         self.display_robot_state_pub = rospy.Publisher('display_robot_state', DisplayRobotState, queue_size=10)
         self.display_goal_position_pub = rospy.Publisher('goal_position', Marker, queue_size=10)
         self.display_robot_state_pubs = {}
+        self.display_robot_traj_pubs = {}
 
         self.arms_client = None
         self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
@@ -425,6 +427,32 @@ class MoveitEnabledRobot(BaseRobot):
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         raise NotImplementedError()
+
+    def display_robot_traj(self, trajectory: RobotTrajectory, label: str, color: Optional = None):
+        """
+
+        Args:
+            trajectory:
+            label:
+            color: any kind of matplotlib color, e.g "blue", [0,0.6,1], "#ff0044", etc...
+
+        Returns:
+
+        """
+        topic_name = rospy.names.ns_join('display_robot_trajectory', label)
+        topic_name = topic_name.rstrip('/')
+
+        display_robot_traj_pub = self.display_robot_traj_pubs.get(label, None)
+        if display_robot_traj_pub is None:
+            display_robot_traj_pub = rospy.Publisher(topic_name, DisplayTrajectory, queue_size=10)
+            try_to_connect(display_robot_traj_pub)
+            self.display_robot_traj_pubs[label] = display_robot_traj_pub  # save a handle to the publisher
+
+        display_robot_traj_msg = DisplayTrajectory()
+        display_robot_traj_msg.model_id = self.robot_namespace
+        display_robot_traj_msg.trajectory = [trajectory]
+
+        display_robot_traj_pub.publish(display_robot_traj_msg)
 
     def display_robot_state(self, robot_state: RobotState, label: str, color: Optional = None):
         """
