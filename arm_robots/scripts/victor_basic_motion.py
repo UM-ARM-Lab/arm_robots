@@ -29,7 +29,7 @@ def main():
     victor = Victor(display_goals=False)
     victor.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=0.1)
     victor.connect()
-    
+
     rospy.sleep(1)
     victor.open_left_gripper()
     rospy.sleep(1)
@@ -78,10 +78,12 @@ def main():
     victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[0.7, -0.4, 0.6]]])
     victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[0.8, -0.4, 1.0]]])
     victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[1.1, -0.4, 0.9]]])
-    victor.follow_jacobian_to_position(group_name=victor.right_arm_group,
-                                       tool_names=[victor.right_tool_name],
-                                       preferred_tool_orientations=[quaternion_from_euler(np.pi, 0, 0)],
-                                       points=[[[1.1, -0.2, 0.8]]])
+    result = victor.follow_jacobian_to_position(group_name=victor.right_arm_group,
+                                                tool_names=[victor.right_tool_name],
+                                                preferred_tool_orientations=[quaternion_from_euler(np.pi, 0, 0)],
+                                                points=[[[1.1, -0.2, 0.8]]])
+
+    victor.display_robot_traj(result.planning_result.plan, 'jacobian')
 
     roscpp_initializer.shutdown()
 

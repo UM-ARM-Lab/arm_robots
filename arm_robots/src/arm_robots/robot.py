@@ -448,9 +448,8 @@ class MoveitEnabledRobot(BaseRobot):
             try_to_connect(display_robot_traj_pub)
             self.display_robot_traj_pubs[label] = display_robot_traj_pub  # save a handle to the publisher
 
-        display_robot_traj_msg = DisplayTrajectory()
-        display_robot_traj_msg.model_id = self.robot_namespace
-        display_robot_traj_msg.trajectory = [trajectory]
+        display_robot_traj_msg = DisplayTrajectory(model_id=self.robot_namespace,
+                                                   trajectory=[trajectory])
 
         display_robot_traj_pub.publish(display_robot_traj_msg)
 
