@@ -39,6 +39,13 @@
             <arg name="robot_namespace" value="victor"/>
         </include>
 
+        <!-- start the fake control mode servics -->
+        <group ns="victor">
+            <node pkg="victor_fake_hardware_interface"
+                  name="minimal_fake_control_mode_interface_node"
+                  type="minimal_fake_control_mode_interface_node.py"/>
+        </group>
+
         <!-- Move it-->
         <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
             <arg name="allow_trajectory_execution" value="true"/>
