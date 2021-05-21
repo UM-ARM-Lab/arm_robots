@@ -14,9 +14,11 @@
   <depend>kuka_hardware_interface</depend>
   <depend>moveit-commander</depend>
   <depend>victor_description</depend>
+  <depend>wsg_50_common</depend>
 
   <exec_depend>gazebo_ros</exec_depend>
   <exec_depend>arm_gazebo_models</exec_depend>
+  
   
   <buildtool_depend>catkin</buildtool_depend>
 
