@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 import itertools
 from collections import defaultdict
-from copy import deepcopy
 from dataclasses import dataclass
 from typing import List, Sequence, Optional, Tuple
 
@@ -185,6 +184,6 @@ def make_robot_state_from_joint_state(scene_msg: PlanningScene, joint_state: Joi
 
 def merge_joint_state_and_scene_msg(scene_msg, joint_state):
     robot_state = make_robot_state_from_joint_state(scene_msg=scene_msg, joint_state=joint_state)
-    scene_msg_with_state = deepcopy(scene_msg)
+    scene_msg_with_state = scene_msg  # NOTE: I used to have a deepcopy here, but it was slow so I removed it
     scene_msg_with_state.robot_state.joint_state = joint_state
     return scene_msg_with_state, robot_state
