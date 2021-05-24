@@ -54,15 +54,17 @@ class MoveitEnabledRobot(BaseRobot):
                  block: bool = True,
                  raise_on_failure: bool = False,
                  display_goals: bool = True,
-                 force_trigger: float = 9.0):
+                 force_trigger: float = 9.0,
+                 jacobian_follower: Optional[pyjacobian_follower.JacobianFollower] = None):
         super().__init__(robot_namespace)
         self._max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
         self.execute = execute
         self.block = block
-        self.force_trigger = force_trigger
         self.display_goals = display_goals
+        self.force_trigger = force_trigger
+        self.jacobian_follower = jacobian_follower
 
         self.arms_controller_name = arms_controller_name
 
@@ -72,11 +74,13 @@ class MoveitEnabledRobot(BaseRobot):
         self.display_robot_traj_pubs = {}
 
         self.arms_client = None
-        self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
-                                                                      translation_step_size=0.005,
-                                                                      minimize_rotation=True,
-                                                                      collision_check=True,
-                                                                      visualize=True)
+
+        if jacobian_follower is None:
+            self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
+                                                                          translation_step_size=0.005,
+                                                                          minimize_rotation=True,
+                                                                          collision_check=True,
+                                                                          visualize=True)
 
         self.feedback_callbacks = []
         self._move_groups = {}
