@@ -820,3 +820,18 @@ Eigen::Matrix4Xd JacobianFollower::getLinkToRobotTransform(std::vector<std::stri
   auto const &transform = state.getGlobalLinkTransform(link_name);
   return transform.matrix();
 }
+
+std::vector<Eigen::Matrix4Xd> JacobianFollower::getLinkToRobotTransforms(std::vector<std::string> joint_names,
+                                                                         std::vector<double> joint_positions) {
+  robot_state::RobotState state(model_);
+  state.setVariablePositions(joint_names, joint_positions);
+  std::vector<Eigen::Matrix4Xd> transforms;
+  auto const &link_names = model_->getLinkModelNames();
+  auto get_transform = [&](std::string const &link_name) {
+    auto const &transform = state.getGlobalLinkTransform(link_name);
+    return transform.matrix();
+  };
+  std::transform(link_names.cbegin(), link_names.cend(), std::back_inserter(transforms), get_transform);
+  return transforms;
+}
+std::vector<std::string> JacobianFollower::getLinkNames() { return model_->getLinkModelNames(); }

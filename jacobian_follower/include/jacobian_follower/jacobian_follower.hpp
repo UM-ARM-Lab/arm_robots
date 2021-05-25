@@ -181,4 +181,9 @@ class JacobianFollower {
 
   Eigen::Matrix4Xd getLinkToRobotTransform(std::vector<std::string> joint_names, std::vector<double> joint_positions,
                                            std::string link_name);
+
+  std::vector<Eigen::Matrix4Xd> getLinkToRobotTransforms(std::vector<std::string> joint_names,
+                                                         std::vector<double> joint_positions);
+
+  std::vector<std::string> getLinkNames();
 };
