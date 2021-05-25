@@ -13,14 +13,15 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
       .def(py::init<std::string, double, bool, bool, bool>(), py::arg("robot_namespace"),
            py::arg("translation_step_size"), py::arg("minimize_rotation"), py::arg("collision_check"),
            py::arg("visualize"))
-      .def("plan",
-           py::overload_cast<std::string const &, std::vector<std::string> const &,
-                             std::vector<Eigen::Vector4d> const &, moveit_msgs::RobotState const &,
-                             moveit_msgs::PlanningScene const &, std::vector<PointSequence> const &, double, double>(&JacobianFollower::plan),
-           py::arg("group_name"), py::arg("tool_names"), py::arg("preferred_tool_orientations"), py::arg("start_state"),
-           py::arg("scene"),
-           py::arg("grippers"),  // TODO: rename 'grippers' to 'tool_names'
-           py::arg("max_velocity_scaling_factor"), py::arg("max_acceleration_scaling_factor"))
+      .def(
+          "plan",
+          py::overload_cast<std::string const &, std::vector<std::string> const &, std::vector<Eigen::Vector4d> const &,
+                            moveit_msgs::RobotState const &, moveit_msgs::PlanningScene const &,
+                            std::vector<PointSequence> const &, double, double>(&JacobianFollower::plan),
+          py::arg("group_name"), py::arg("tool_names"), py::arg("preferred_tool_orientations"), py::arg("start_state"),
+          py::arg("scene"),
+          py::arg("grippers"),  // TODO: rename 'grippers' to 'tool_names'
+          py::arg("max_velocity_scaling_factor"), py::arg("max_acceleration_scaling_factor"))
       .def(
           "plan",
           py::overload_cast<std::string const &, std::vector<std::string> const &, std::vector<Eigen::Vector4d> const &,
@@ -41,6 +42,8 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
       .def("get_tool_positions", &JacobianFollower::get_tool_positions, py::arg("tool_names"), py::arg("state"))
       .def("connect_to_psm", &JacobianFollower::connect_to_psm)
       .def("get_link_to_robot_transform", &JacobianFollower::getLinkToRobotTransform)
+      .def("get_link_to_robot_transforms", &JacobianFollower::getLinkToRobotTransforms)
+      .def("get_link_names", &JacobianFollower::getLinkNames)
       //
       ;
 }
