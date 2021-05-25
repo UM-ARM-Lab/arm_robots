@@ -125,25 +125,24 @@ class JacobianFollower {
   [[nodiscard]] bool isRequestValid(JacobianWaypointsCommand waypoints_command) const;
 
   PlanResultMsg plan(std::string const &group_name, std::vector<std::string> const &tool_names,
-                                std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
-                                std::vector<PointSequence> const &grippers, double max_velocity_scaling_factor,
-                                double max_acceleration_scaling_factor);
+                     std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
+                     std::vector<PointSequence> const &grippers, double max_velocity_scaling_factor,
+                     double max_acceleration_scaling_factor);
 
   PlanResultMsg plan(std::string const &group_name, std::vector<std::string> const &tool_names,
-                                std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
-                                moveit_msgs::RobotState const &start_state_msg,
-                                std::vector<PointSequence> const &grippers, double max_velocity_scaling_factor,
-                                double max_acceleration_scaling_factor);
+                     std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
+                     moveit_msgs::RobotState const &start_state_msg, std::vector<PointSequence> const &grippers,
+                     double max_velocity_scaling_factor, double max_acceleration_scaling_factor);
 
   PlanResultMsg plan(std::string const &group_name, std::vector<std::string> const &tool_names,
-                                          std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
-                                          moveit_msgs::RobotState const &start_state_msg,
-                                          moveit_msgs::PlanningScene const &scene_msg,
-                                          std::vector<PointSequence> const &grippers,
-                                          double max_velocity_scaling_factor, double max_acceleration_scaling_factor);
+                     std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
+                     moveit_msgs::RobotState const &start_state_msg, moveit_msgs::PlanningScene const &scene_msg,
+                     std::vector<PointSequence> const &grippers, double max_velocity_scaling_factor,
+                     double max_acceleration_scaling_factor);
 
   // TODO: Return std::vector<std_msgs/JointState.msg> to avoid ambiguity in the joint ordering?
-  std::vector<std::vector<double>> compute_IK_solutions(geometry_msgs::Pose target_pose, const std::string &group_name) const;
+  std::vector<std::vector<double>> compute_IK_solutions(geometry_msgs::Pose target_pose,
+                                                        const std::string &group_name) const;
 
   // TODO: Accept std_msgs/JointState.msg to avoid ambiguity in the joint ordering?
   geometry_msgs::Pose computeFK(const std::vector<double> &joint_angles, const std::string &group_name) const;
@@ -171,11 +170,15 @@ class JacobianFollower {
                                         std::vector<std::string> const &tool_names,
                                         robot_state::RobotState const &state, PoseSequence const &robotTservo);
 
-  collision_detection::CollisionResult checkCollision(planning_scene::PlanningScenePtr planning_scene, robot_state::RobotState const &state);
+  collision_detection::CollisionResult checkCollision(planning_scene::PlanningScenePtr planning_scene,
+                                                      robot_state::RobotState const &state);
 
   bool check_collision(moveit_msgs::PlanningScene const &scene_msg, moveit_msgs::RobotState const &start_state);
 
   PointSequence get_tool_positions(std::vector<std::string> tool_names, moveit_msgs::RobotState const &state_msg);
 
   void debugLogState(std::string prefix, robot_state::RobotState const &state);
+
+  Eigen::Matrix4Xd getLinkToRobotTransform(std::vector<std::string> joint_names, std::vector<double> joint_positions,
+                                           std::string link_name);
 };

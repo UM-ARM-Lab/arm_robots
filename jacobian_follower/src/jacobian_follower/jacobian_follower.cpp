@@ -12,6 +12,7 @@
 #include <arc_utilities/moveit_pose_type.hpp>
 #include <arc_utilities/ostream_operators.hpp>
 #include <arc_utilities/ros_helpers.hpp>
+#include <boost/range/combine.hpp>
 #include <jacobian_follower/jacobian_follower.hpp>
 #include <jacobian_follower/jacobian_utils.hpp>
 #include <sstream>
@@ -141,12 +142,11 @@ void JacobianFollower::debugLogState(const std::string prefix, robot_state::Robo
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".joint_state", prefix << ss.str());
 }
 
-PlanResultMsg JacobianFollower::plan(std::string const &group_name,
-                                                std::vector<std::string> const &tool_names,
-                                                std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
-                                                std::vector<PointSequence> const &grippers,
-                                                double const max_velocity_scaling_factor,
-                                                double const max_acceleration_scaling_factor) {
+PlanResultMsg JacobianFollower::plan(std::string const &group_name, std::vector<std::string> const &tool_names,
+                                     std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
+                                     std::vector<PointSequence> const &grippers,
+                                     double const max_velocity_scaling_factor,
+                                     double const max_acceleration_scaling_factor) {
   scene_monitor_->lockSceneRead();
   auto planning_scene = planning_scene::PlanningScene::clone(scene_monitor_->getPlanningScene());
   scene_monitor_->unlockSceneRead();
@@ -164,13 +164,12 @@ PlanResultMsg JacobianFollower::plan(std::string const &group_name,
   return std::make_pair(plan_msg, plan_result.second);
 }
 
-PlanResultMsg JacobianFollower::plan(std::string const &group_name,
-                                                std::vector<std::string> const &tool_names,
-                                                std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
-                                                moveit_msgs::RobotState const &start_state_msg,
-                                                std::vector<PointSequence> const &grippers,
-                                                double const max_velocity_scaling_factor,
-                                                double const max_acceleration_scaling_factor) {
+PlanResultMsg JacobianFollower::plan(std::string const &group_name, std::vector<std::string> const &tool_names,
+                                     std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
+                                     moveit_msgs::RobotState const &start_state_msg,
+                                     std::vector<PointSequence> const &grippers,
+                                     double const max_velocity_scaling_factor,
+                                     double const max_acceleration_scaling_factor) {
   scene_monitor_->lockSceneRead();
   auto planning_scene = planning_scene::PlanningScene::clone(scene_monitor_->getPlanningScene());
   scene_monitor_->unlockSceneRead();
@@ -188,11 +187,13 @@ PlanResultMsg JacobianFollower::plan(std::string const &group_name,
   return std::make_pair(plan_msg, plan_result.second);
 }
 
-PlanResultMsg JacobianFollower::plan(
-    std::string const &group_name, std::vector<std::string> const &tool_names,
-    std::vector<Eigen::Vector4d> const &preferred_tool_orientations, moveit_msgs::RobotState const &start_state_msg,
-    moveit_msgs::PlanningScene const &scene_msg, std::vector<PointSequence> const &grippers,
-    double const max_velocity_scaling_factor, double const max_acceleration_scaling_factor) {
+PlanResultMsg JacobianFollower::plan(std::string const &group_name, std::vector<std::string> const &tool_names,
+                                     std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
+                                     moveit_msgs::RobotState const &start_state_msg,
+                                     moveit_msgs::PlanningScene const &scene_msg,
+                                     std::vector<PointSequence> const &grippers,
+                                     double const max_velocity_scaling_factor,
+                                     double const max_acceleration_scaling_factor) {
   robot_state::RobotState robot_start_state(model_);
   robotStateMsgToRobotState(start_state_msg, robot_start_state);
   auto planning_scene = std::make_shared<planning_scene::PlanningScene>(model_);
@@ -363,7 +364,7 @@ PlanResult JacobianFollower::moveInWorldFrame(JacobianWaypointCommand waypoint_c
   auto const traj = jacobianPath3d(waypoint_command.context.planning_scene, waypoint_command.context.world_to_robot,
                                    jmg, waypoint_command.context.tool_names,
                                    waypoint_command.preferred_tool_orientations, tools_waypoint_interpolated);
-  auto const n_waypoints = tools_waypoint_interpolated[0].size(); // just pick gripper 0, they are all the same
+  auto const n_waypoints = tools_waypoint_interpolated[0].size();  // just pick gripper 0, they are all the same
   // NOTE: if the result of jacobianPath3d has the same number of waypoints as the input (tools_waypoint_interpolated)
   // that means it reached the final position
   auto const reached_target = traj.getWayPointCount() == (n_waypoints - 1);
@@ -811,4 +812,11 @@ PointSequence JacobianFollower::get_tool_positions(std::vector<std::string> tool
   auto get_translation = [](auto const &t) { return t.translation(); };
   std::transform(tool_transforms.cbegin(), tool_transforms.cend(), std::back_inserter(positions), get_translation);
   return positions;
+}
+Eigen::Matrix4Xd JacobianFollower::getLinkToRobotTransform(std::vector<std::string> joint_names,
+                                                           std::vector<double> joint_positions, std::string link_name) {
+  robot_state::RobotState state(model_);
+  state.setVariablePositions(joint_names, joint_positions);
+  auto const &transform = state.getGlobalLinkTransform(link_name);
+  return transform.matrix();
 }
