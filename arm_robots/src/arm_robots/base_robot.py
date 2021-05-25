@@ -45,6 +45,9 @@ class BaseRobot:
     def ns(self, name: str):
         return ns_join(self.robot_namespace, name)
 
+    def get_joint_state_listener(self):
+        return self._joint_state_listener
+
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         raise NotImplementedError()
 
