@@ -40,6 +40,7 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
       .def("check_collision", &JacobianFollower::check_collision, py::arg("scene"), py::arg("start_state"))
       .def("get_tool_positions", &JacobianFollower::get_tool_positions, py::arg("tool_names"), py::arg("state"))
       .def("connect_to_psm", &JacobianFollower::connect_to_psm)
+      .def("get_link_to_robot_transform", &JacobianFollower::getLinkToRobotTransform)
       //
       ;
 }
