@@ -43,6 +43,7 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
       .def("connect_to_psm", &JacobianFollower::connect_to_psm)
       .def("get_link_to_robot_transform", &JacobianFollower::getLinkToRobotTransform)
       .def("get_link_to_robot_transforms", &JacobianFollower::getLinkToRobotTransforms)
+      .def("batch_get_link_to_robot_transforms", &JacobianFollower::batchGetLinkToRobotTransforms)
       .def("get_link_names", &JacobianFollower::getLinkNames)
       //
       ;
