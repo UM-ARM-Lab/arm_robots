@@ -42,7 +42,9 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
       .def("get_tool_positions", &JacobianFollower::get_tool_positions, py::arg("tool_names"), py::arg("state"))
       .def("connect_to_psm", &JacobianFollower::connect_to_psm)
       .def("get_link_to_robot_transform", &JacobianFollower::getLinkToRobotTransform)
-      .def("get_link_to_robot_transforms", &JacobianFollower::getLinkToRobotTransforms)
+      .def("get_link_to_robot_transforms",
+           py::overload_cast<std::vector<std::string> const &, std::vector<double> const &>(
+               &JacobianFollower::getLinkToRobotTransforms, py::const_))
       .def("batch_get_link_to_robot_transforms", &JacobianFollower::batchGetLinkToRobotTransforms)
       .def("get_link_names", &JacobianFollower::getLinkNames)
       //
