@@ -821,31 +821,38 @@ Eigen::Matrix4Xd JacobianFollower::getLinkToRobotTransform(std::vector<std::stri
   return transform.matrix();
 }
 
-std::vector<Eigen::Matrix4Xd> JacobianFollower::getLinkToRobotTransforms(std::vector<std::string> joint_names,
-                                                                         std::vector<double> joint_positions) {
-  robot_state::RobotState state(model_);
-  state.setVariablePositions(joint_names, joint_positions);
+std::vector<Eigen::Matrix4Xd> JacobianFollower::getLinkToRobotTransforms(std::vector<std::string> const &joint_names,
+                                                                         std::vector<double> const &joint_positions,
+                                                                         robot_state::RobotStatePtr state) const {
+  state->setVariablePositions(joint_names, joint_positions);
   std::vector<Eigen::Matrix4Xd> transforms;
   auto const &link_names = model_->getLinkModelNames();
   auto get_transform = [&](std::string const &link_name) {
-    auto const &transform = state.getGlobalLinkTransform(link_name);
+    auto const &transform = state->getGlobalLinkTransform(link_name);
     return transform.matrix();
   };
   std::transform(link_names.cbegin(), link_names.cend(), std::back_inserter(transforms), get_transform);
   return transforms;
 }
 
+std::vector<Eigen::Matrix4Xd> JacobianFollower::getLinkToRobotTransforms(
+    std::vector<std::string> const &joint_names, std::vector<double> const &joint_positions) const {
+  auto state = std::make_shared<robot_state::RobotState>(model_);
+  return getLinkToRobotTransforms(joint_names, joint_positions, state);
+}
+
 std::vector<std::vector<Eigen::Matrix4Xd>> JacobianFollower::batchGetLinkToRobotTransforms(
-    std::vector<std::vector<std::string>> joint_names, std::vector<std::vector<double>> joint_positions) {
-  robot_state::RobotState state(model_);
+    std::vector<std::vector<std::string>> const &joint_names,
+    std::vector<std::vector<double>> const &joint_positions) const {
+  auto state = std::make_shared<robot_state::RobotState>(model_);
   std::vector<std::vector<Eigen::Matrix4Xd>> transforms;
   auto const batch_size = joint_names.size();
   for (auto b{0u}; b < batch_size; ++b) {
     auto const joint_names_b = joint_names[b];
     auto const joint_positions_b = joint_positions[b];
-    transforms.emplace_back(getLinkToRobotTransforms(joint_names_b, joint_positions_b));
+    transforms.emplace_back(getLinkToRobotTransforms(joint_names_b, joint_positions_b, state));
   }
   return transforms;
 }
 
-std::vector<std::string> JacobianFollower::getLinkNames() { return model_->getLinkModelNames(); }
+std::vector<std::string> JacobianFollower::getLinkNames() const { return model_->getLinkModelNames(); }
