@@ -184,14 +184,16 @@ class JacobianFollower {
 
   std::vector<Eigen::Matrix4Xd> getLinkToRobotTransforms(std::vector<std::string> const &joint_names,
                                                          std::vector<double> const &joint_positions,
-                                                         robot_state::RobotStatePtr robot_state) const;
+                                                         robot_state::RobotStatePtr robot_state,
+                                                         std::vector<std::string> const &link_names) const;
 
   std::vector<Eigen::Matrix4Xd> getLinkToRobotTransforms(std::vector<std::string> const &joint_names,
-                                                         std::vector<double> const &joint_positions) const;
+                                                         std::vector<double> const &joint_positions,
+                                                         std::vector<std::string> const &link_names) const;
 
   std::vector<std::vector<Eigen::Matrix4Xd>> batchGetLinkToRobotTransforms(
-      std::vector<std::vector<std::string>> const &joint_names,
-      std::vector<std::vector<double>> const &joint_positions) const;
+      std::vector<std::vector<std::string>> const &joint_names, std::vector<std::vector<double>> const &joint_positions,
+      std::vector<std::string> const &link_names) const;
 
-  std::vector<std::string> getLinkNames()const ;
+  std::vector<std::string> getLinkNames() const;
 };
