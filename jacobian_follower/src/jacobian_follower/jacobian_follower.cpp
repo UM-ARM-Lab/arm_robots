@@ -12,7 +12,6 @@
 #include <arc_utilities/moveit_pose_type.hpp>
 #include <arc_utilities/ostream_operators.hpp>
 #include <arc_utilities/ros_helpers.hpp>
-#include <boost/range/combine.hpp>
 #include <jacobian_follower/jacobian_follower.hpp>
 #include <jacobian_follower/jacobian_utils.hpp>
 #include <sstream>
@@ -813,8 +812,9 @@ PointSequence JacobianFollower::get_tool_positions(std::vector<std::string> tool
   std::transform(tool_transforms.cbegin(), tool_transforms.cend(), std::back_inserter(positions), get_translation);
   return positions;
 }
-Eigen::Matrix4Xd JacobianFollower::getLinkToRobotTransform(std::vector<std::string> joint_names,
-                                                           std::vector<double> joint_positions, std::string link_name) {
+Eigen::Matrix4Xd JacobianFollower::getLinkToRobotTransform(std::vector<std::string> const &joint_names,
+                                                           std::vector<double> const &joint_positions,
+                                                           std::string const &link_name) {
   robot_state::RobotState state(model_);
   state.setVariablePositions(joint_names, joint_positions);
   auto const &transform = state.getGlobalLinkTransform(link_name);
@@ -824,6 +824,8 @@ Eigen::Matrix4Xd JacobianFollower::getLinkToRobotTransform(std::vector<std::stri
 std::vector<Eigen::Matrix4Xd> JacobianFollower::getLinkToRobotTransforms(
     std::vector<std::string> const &joint_names, std::vector<double> const &joint_positions,
     robot_state::RobotStatePtr state, std::vector<std::string> const &link_names) const {
+  validateNamesAndPositions(joint_names, joint_positions);
+
   state->setVariablePositions(joint_names, joint_positions);
   std::vector<Eigen::Matrix4Xd> transforms;
   auto get_transform = [&](std::string const &link_name) {
@@ -844,15 +846,14 @@ std::vector<Eigen::Matrix4Xd> JacobianFollower::getLinkToRobotTransforms(
 std::vector<std::vector<Eigen::Matrix4Xd>> JacobianFollower::batchGetLinkToRobotTransforms(
     std::vector<std::vector<std::string>> const &joint_names, std::vector<std::vector<double>> const &joint_positions,
     std::vector<std::string> const &link_names) const {
+  validateNamesAndPositions(joint_names, joint_positions);
+
   auto state = std::make_shared<robot_state::RobotState>(model_);
   std::vector<std::vector<Eigen::Matrix4Xd>> transforms;
   auto const batch_size = joint_names.size();
   for (auto b{0u}; b < batch_size; ++b) {
-    auto const joint_names_b = joint_names[b];
-    auto const joint_positions_b = joint_positions[b];
-    transforms.emplace_back(getLinkToRobotTransforms(joint_names_b, joint_positions_b, state, link_names));
+    transforms.emplace_back(getLinkToRobotTransforms(joint_names[b], joint_positions[b], state, link_names));
   }
   return transforms;
 }
-
 std::vector<std::string> JacobianFollower::getLinkNames() const { return model_->getLinkModelNames(); }
