@@ -179,8 +179,8 @@ class JacobianFollower {
 
   void debugLogState(std::string prefix, robot_state::RobotState const &state);
 
-  Eigen::Matrix4Xd getLinkToRobotTransform(std::vector<std::string> joint_names, std::vector<double> joint_positions,
-                                           std::string link_name);
+  Eigen::Matrix4Xd getLinkToRobotTransform(std::vector<std::string> const &joint_names,
+                                           std::vector<double> const &joint_positions, std::string const &link_name);
 
   std::vector<Eigen::Matrix4Xd> getLinkToRobotTransforms(std::vector<std::string> const &joint_names,
                                                          std::vector<double> const &joint_positions,
@@ -196,4 +196,14 @@ class JacobianFollower {
       std::vector<std::string> const &link_names) const;
 
   std::vector<std::string> getLinkNames() const;
+
+  template <typename A, typename B>
+  void validateNamesAndPositions(const std::vector<A> &joint_names, const std::vector<B> &joint_positions) const {
+    if (joint_names.size() != joint_positions.size()) {
+      std::stringstream ss;
+      ss << "joint names and joint positions must be equal, but are " << joint_names.size() << " and "
+         << joint_positions.size();
+      throw std::range_error(ss.str());
+    }
+  }
 };
