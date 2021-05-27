@@ -2,6 +2,8 @@
 import collections
 from typing import List, Dict, Tuple, Sequence
 
+from deprecated import deprecated
+
 import moveit_commander
 import numpy as np
 import rospy
@@ -12,10 +14,6 @@ from moveit_msgs.msg import DisplayRobotState
 from scipy import signal
 from std_msgs.msg import String, Float32
 from trajectory_msgs.msg import JointTrajectoryPoint
-from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, MotionCommand, Robotiq3FingerCommand, \
-    Robotiq3FingerStatus
-from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
-    GetControlModeResponse, SetControlModeResponse
 
 from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
 from arc_utilities.listener import Listener
@@ -29,6 +27,10 @@ from arm_robots.robot import MoveitEnabledRobot
 from arm_robots.robot_utils import make_joint_tolerance
 from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list, \
     default_gripper_command, gripper_status_to_list, is_gripper_closed
+from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, MotionCommand, Robotiq3FingerCommand, \
+    Robotiq3FingerStatus
+from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
+    GetControlModeResponse, SetControlModeResponse
 
 
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
@@ -392,11 +394,12 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         self._max_velocity_scale_factor = vel
 
     def move_to_impedance_switch(self, actually_switch: bool = True, new_relative_velocity=0.1):
-        self.move_to("impedance switch")
+        self.plan_to_joint_config("both_arms", "impedance_switch")
         if actually_switch:
             return self.set_control_mode(ControlMode.JOINT_IMPEDANCE, vel=new_relative_velocity)
         return True
 
+    @deprecated(reason="Use plan_to_joint_config instead")
     def move_to(self, position_name: str):
         if position_name not in NAMED_POSITIONS:
             raise ValueError(f'{position_name} is not a known position for victor')

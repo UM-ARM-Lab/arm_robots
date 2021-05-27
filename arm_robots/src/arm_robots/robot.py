@@ -220,9 +220,10 @@ class MoveitEnabledRobot(BaseRobot):
             joint_config = move_group.get_named_target_values(joint_config_name)
             if len(joint_config) == 0:
                 raise ValueError(f"No group state named {joint_config_name}")
-            move_group.set_joint_value_target(joint_config)
-        else:
-            move_group.set_joint_value_target(joint_config)
+        if isinstance(joint_config, List):
+            joint_config = {name: val for name, val in zip(move_group.get_active_joints(), joint_config)}
+
+        move_group.set_joint_value_target(joint_config)
 
         if self.display_goals:
             robot_state = RobotState(joint_state=JointState(name=joint_config.keys(), position=joint_config.values()))
