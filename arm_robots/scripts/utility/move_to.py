@@ -1,8 +1,9 @@
 #! /usr/bin/env python
-import rospy
 from argparse import ArgumentParser
+
+import rospy
+
 from arc_utilities import ros_init
-from colorama import Fore
 from arm_robots.get_robot import get_moveit_robot
 
 

@@ -7,7 +7,7 @@ from arm_robots.get_robot import get_moveit_robot
 
 
 def print_current_position_xml(robot, group_name, position_name):
-    joint_names = robot.get_joint_names("both_arms")
+    joint_names = robot.get_joint_names(group_name)
     positions = robot.get_joint_positions(joint_names)
 
     print(f"\n{Fore.GREEN}Copy this code to the moveit srdf file "
