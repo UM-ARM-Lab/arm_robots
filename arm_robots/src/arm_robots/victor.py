@@ -20,7 +20,7 @@ from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, G
 from arc_utilities.conversions import convert_to_pose_msg, normalize_quaternion, convert_to_positions
 from arc_utilities.listener import Listener
 from arm_robots.base_robot import BaseRobot
-from arm_robots.config.victor_config import NAMED_POSITIONS, default_robotiq_command, \
+from arm_robots.config.victor_config import default_robotiq_command, \
     KUKA_MIN_PATH_JOINT_POSITION_TOLERANCE, KUKA_FULL_SPEED_PATH_JOINT_POSITION_TOLERANCE, LEFT_GRIPPER_JOINT_NAMES, \
     RIGHT_GRIPPER_JOINT_NAMES, LEFT_ARM_JOINT_NAMES, RIGHT_ARM_JOINT_NAMES, BOTH_ARM_JOINT_NAMES, ALL_JOINT_NAMES, \
     KUKA_GOAL_JOINT_POSITION_TOLERANCE, KUKA_MIN_PATH_JOINT_IMPEDANCE_TOLERANCE, \
@@ -65,10 +65,10 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
         return [joint_position_of[name] for name in joint_ordering]
 
     positions_by_interface = {
-        'right_arm':     fill_using(RIGHT_ARM_JOINT_NAMES),
-        'left_arm':      fill_using(LEFT_ARM_JOINT_NAMES),
+        'right_arm': fill_using(RIGHT_ARM_JOINT_NAMES),
+        'left_arm': fill_using(LEFT_ARM_JOINT_NAMES),
         'right_gripper': fill_using(RIGHT_GRIPPER_JOINT_NAMES),
-        'left_gripper':  fill_using(LEFT_GRIPPER_JOINT_NAMES),
+        'left_gripper': fill_using(LEFT_GRIPPER_JOINT_NAMES),
     }
     # set equality ignores order
 
@@ -182,7 +182,7 @@ class BaseVictor(BaseRobot):
         self.right_gripper_command_pub.publish(self.get_close_gripper_msg())
 
     def get_gripper_statuses(self):
-        return {'left':  self.get_left_gripper_status(),
+        return {'left': self.get_left_gripper_status(),
                 'right': self.get_right_gripper_status()}
 
     def get_right_gripper_status(self) -> Robotiq3FingerStatus:
@@ -207,7 +207,7 @@ class BaseVictor(BaseRobot):
         return is_gripper_closed(status)
 
     def get_arms_statuses(self):
-        return {'left':  self.get_left_arm_status(),
+        return {'left': self.get_left_arm_status(),
                 'right': self.get_right_arm_status()}
 
     def get_right_arm_status(self) -> MotionStatus:
@@ -305,7 +305,7 @@ class BaseVictor(BaseRobot):
         desired_right_pose.position.z += delta_positions['right'].z
 
         poses = {
-            'left':  desired_left_pose,
+            'left': desired_left_pose,
             'right': desired_right_pose,
         }
         self.send_cartesian_command(poses)
@@ -392,23 +392,10 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         self._max_velocity_scale_factor = vel
 
     def move_to_impedance_switch(self, actually_switch: bool = True, new_relative_velocity=0.1):
-        self.move_to("impedance switch")
+        self.plan_to_joint_config("both_arms", "impedance_switch")
         if actually_switch:
             return self.set_control_mode(ControlMode.JOINT_IMPEDANCE, vel=new_relative_velocity)
         return True
-
-    def move_to(self, position_name: str):
-        if position_name not in NAMED_POSITIONS:
-            raise ValueError(f'{position_name} is not a known position for victor')
-
-        position = NAMED_POSITIONS[position_name]
-        if "left_arm" in position and "right_arm" in position:
-            self.plan_to_joint_config("both_arms", self.both_arm_config(left_arm_config=position["left_arm"],
-                                                                        right_arm_config=position["right_arm"]))
-
-        else:
-            for joint_group, configs in position.items():
-                self.plan_to_joint_config(joint_group, configs)
 
     def move_to_config(self, joint_group, configs):
         _, res, _ = self.plan_to_joint_config(joint_group, configs)
