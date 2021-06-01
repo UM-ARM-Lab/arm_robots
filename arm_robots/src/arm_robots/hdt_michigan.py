@@ -30,6 +30,7 @@ class BaseVal(BaseRobot):
         self.command_rate = rospy.Rate(100)
         self.ready = 0
         self.has_started_command_thread = False
+        self._max_velocity_scale_factor = 1.0
 
     def __del__(self):
         self.disconnect()
