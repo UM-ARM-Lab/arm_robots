@@ -103,6 +103,7 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, double con
       translation_step_size_(translation_step_size),
       minimize_rotation_(minimize_rotation),
       visualize_(visualize),
+      check_constraints_(collision_check),
       robot_namespace_(robot_namespace) {
   if (!ros::isInitialized()) {
     ROS_FATAL_STREAM_NAMED(LOGGER_NAME,
@@ -733,7 +734,7 @@ bool JacobianFollower::jacobianIK(planning_scene::PlanningScenePtr planning_scen
     state.setJointGroupPositions(jmg, currConfig);
     state.update();
 
-    if (constraint_fn) {
+    if (check_constraints_ and constraint_fn) {
       auto const constraint_violated = constraint_fn(planning_scene, state);
       if (constraint_violated) {
         ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Projection stalled at itr " << itr);
@@ -857,3 +858,5 @@ std::vector<std::vector<Eigen::Matrix4Xd>> JacobianFollower::batchGetLinkToRobot
   return transforms;
 }
 std::vector<std::string> JacobianFollower::getLinkNames() const { return model_->getLinkModelNames(); }
+
+void JacobianFollower::setCheckConstraints(bool const check_constraints) { check_constraints_ = check_constraints; }

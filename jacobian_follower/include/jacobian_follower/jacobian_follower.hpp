@@ -115,6 +115,7 @@ class JacobianFollower {
   ConstraintFn constraint_fun_;
 
   bool visualize_;
+  bool check_constraints_;
   std::string robot_namespace_;
 
   explicit JacobianFollower(std::string robot_namespace, double translation_step_size, bool minimize_rotation = true,
@@ -196,6 +197,8 @@ class JacobianFollower {
       std::vector<std::string> const &link_names) const;
 
   std::vector<std::string> getLinkNames() const;
+
+  void setCheckConstraints(bool check_constraints);
 
   template <typename A, typename B>
   void validateNamesAndPositions(const std::vector<A> &joint_names, const std::vector<B> &joint_positions) const {
