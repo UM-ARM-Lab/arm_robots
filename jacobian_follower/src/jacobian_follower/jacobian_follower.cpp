@@ -272,20 +272,48 @@ std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry
   return solutions;
 }
 
-geometry_msgs::Pose JacobianFollower::computeFK(const std::vector<double> &joint_angles,
-                                                const std::string &group_name) const {
-  auto jmg = model_->getJointModelGroup(group_name);
-  auto kinematic_state = std::make_shared<robot_state::RobotState>(model_);
-  kinematic_state->setJointGroupPositions(group_name, joint_angles);
+geometry_msgs::Pose JacobianFollower::computeGroupFK(const moveit_msgs::RobotState &robot_state_msg,
+                                                     const std::string &group_name) const {
+  robot_state::RobotState state(model_);
+  robotStateMsgToRobotState(robot_state_msg, state);
 
-  //    const auto& ee_name = jmg->getEndEffectorName();
-  //    const auto& ee_name = jmg->getJointModelNames().back();
+  auto jmg = state.getJointModelGroup(group_name);
   const auto &ee_name = jmg->getLinkModelNames().back();
-  const Eigen::Affine3d &end_effector_state = kinematic_state->getGlobalLinkTransform(ee_name);
+  const auto &end_effector_state = state.getGlobalLinkTransform(ee_name);
 
   geometry_msgs::Pose pose;
   tf::poseEigenToMsg(end_effector_state, pose);
   return pose;
+}
+
+geometry_msgs::Pose JacobianFollower::computeGroupFK(const std::vector<double> &joint_positions,
+                                                const std::vector<std::string> &joint_names,
+                                                const std::string &group_name) const {
+  moveit_msgs::RobotState robot_state_msg;
+  robot_state_msg.joint_state.position = joint_positions;
+  robot_state_msg.joint_state.name = joint_names;
+  return computeGroupFK(robot_state_msg, group_name);
+}
+
+geometry_msgs::Pose JacobianFollower::computeFK(const moveit_msgs::RobotState &robot_state_msg,
+                                                const std::string &link_name) const {
+  robot_state::RobotState state(model_);
+  robotStateMsgToRobotState(robot_state_msg, state);
+
+  const auto &end_effector_state = state.getGlobalLinkTransform(link_name);
+
+  geometry_msgs::Pose pose;
+  tf::poseEigenToMsg(end_effector_state, pose);
+  return pose;
+}
+
+geometry_msgs::Pose JacobianFollower::computeFK(const std::vector<double> &joint_positions,
+                                                const std::vector<std::string> &joint_names,
+                                                const std::string &link_name) const {
+  moveit_msgs::RobotState robot_state_msg;
+  robot_state_msg.joint_state.position = joint_positions;
+  robot_state_msg.joint_state.name = joint_names;
+  return computeFK(robot_state_msg, link_name);
 }
 
 bool JacobianFollower::isRequestValid(JacobianWaypointsCommand waypoints_command) const {
