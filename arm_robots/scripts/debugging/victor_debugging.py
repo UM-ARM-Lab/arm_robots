@@ -37,12 +37,12 @@ def open_and_close_grippers(victor):
     rospy.sleep(1)
 
 
-@ros_init.with_ros("victor_basic_motion")
+@ros_init.with_ros("victor_debugging")
 def main():
     np.set_printoptions(suppress=True, precision=0, linewidth=200)
     colorama.init(autoreset=True)
 
-    victor = Victor(display_goals=False)
+    victor = Victor()
     victor.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=0.1)
     victor.connect()
 
@@ -92,8 +92,6 @@ def main():
                                                 points=[[[1.1, -0.2, 0.8]]])
 
     victor.display_robot_traj(result.planning_result.plan, 'jacobian')
-
-    roscpp_initializer.shutdown()
 
 
 if __name__ == "__main__":
