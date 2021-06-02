@@ -20,7 +20,7 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
                             std::vector<PointSequence> const &, double, double>(&JacobianFollower::plan),
           py::arg("group_name"), py::arg("tool_names"), py::arg("preferred_tool_orientations"), py::arg("start_state"),
           py::arg("scene"),
-          py::arg("grippers"),  // TODO: rename 'grippers' to 'tool_names'
+          py::arg("grippers"),
           py::arg("max_velocity_scaling_factor"), py::arg("max_acceleration_scaling_factor"))
       .def(
           "plan",
@@ -37,7 +37,22 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
           py::arg("max_velocity_scaling_factor"), py::arg("max_acceleration_scaling_factor"))
       .def("compute_IK_solutions", &JacobianFollower::compute_IK_solutions, py::arg("pose"),
            py::arg("joint_group_name"))
-      .def("fk", &JacobianFollower::computeFK, py::arg("joint_angles"), py::arg("joint_group_name"))
+      .def("group_fk",
+           py::overload_cast<const std::vector<double> &, const std::vector<std::string> &, const std::string &>(
+               &JacobianFollower::computeGroupFK, py::const_),
+           py::arg("joint_angles"), py::arg("joint_names"), py::arg("group_name"))
+      .def("fk",
+           py::overload_cast<const std::vector<double> &, const std::vector<std::string> &, const std::string &>(
+               &JacobianFollower::computeFK, py::const_),
+           py::arg("joint_angles"), py::arg("joint_names"), py::arg("link_name"))
+      .def("group_fk",
+           py::overload_cast<const moveit_msgs::RobotState &, const std::string &>(&JacobianFollower::computeGroupFK,
+                                                                                   py::const_),
+           py::arg("robot_state"), py::arg("group_name"))
+      .def("fk",
+           py::overload_cast<const moveit_msgs::RobotState &, const std::string &>(&JacobianFollower::computeFK,
+                                                                                   py::const_),
+           py::arg("robot_state"), py::arg("link_name"))
       .def("check_collision", &JacobianFollower::check_collision, py::arg("scene"), py::arg("start_state"))
       .def("get_tool_positions", &JacobianFollower::get_tool_positions, py::arg("tool_names"), py::arg("state"))
       .def("connect_to_psm", &JacobianFollower::connect_to_psm)
