@@ -12,6 +12,7 @@
 #include <arc_utilities/moveit_pose_type.hpp>
 #include <arc_utilities/ostream_operators.hpp>
 #include <arc_utilities/ros_helpers.hpp>
+#include <exception>
 #include <jacobian_follower/jacobian_follower.hpp>
 #include <jacobian_follower/jacobian_utils.hpp>
 #include <sstream>
@@ -277,6 +278,10 @@ geometry_msgs::Pose JacobianFollower::computeGroupFK(const moveit_msgs::RobotSta
   robot_state::RobotState state(model_);
   robotStateMsgToRobotState(robot_state_msg, state);
 
+  if (not model_->hasJointModelGroup(group_name)) {
+    throw std::runtime_error("Model has no group " + group_name);
+  }
+
   auto jmg = state.getJointModelGroup(group_name);
   const auto &ee_name = jmg->getLinkModelNames().back();
   const auto &end_effector_state = state.getGlobalLinkTransform(ee_name);
@@ -287,8 +292,8 @@ geometry_msgs::Pose JacobianFollower::computeGroupFK(const moveit_msgs::RobotSta
 }
 
 geometry_msgs::Pose JacobianFollower::computeGroupFK(const std::vector<double> &joint_positions,
-                                                const std::vector<std::string> &joint_names,
-                                                const std::string &group_name) const {
+                                                     const std::vector<std::string> &joint_names,
+                                                     const std::string &group_name) const {
   moveit_msgs::RobotState robot_state_msg;
   robot_state_msg.joint_state.position = joint_positions;
   robot_state_msg.joint_state.name = joint_names;
@@ -299,6 +304,10 @@ geometry_msgs::Pose JacobianFollower::computeFK(const moveit_msgs::RobotState &r
                                                 const std::string &link_name) const {
   robot_state::RobotState state(model_);
   robotStateMsgToRobotState(robot_state_msg, state);
+
+  if (not model_->hasLinkModel(link_name)) {
+    throw std::runtime_error("Model has no link " + link_name);
+  }
 
   const auto &end_effector_state = state.getGlobalLinkTransform(link_name);
 
