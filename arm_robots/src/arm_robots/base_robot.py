@@ -22,8 +22,8 @@ class BaseRobot:
         """
         self.robot_namespace = robot_namespace
         # the robot namespace will be prepended by setting ROS_NAMESPACE environment variable or the ns="" in roslaunch
-        joint_states_topic = ns_join(self.robot_namespace, 'joint_states')
-        self._joint_state_listener = Listener(joint_states_topic, JointState)
+        self.joint_states_topic = ns_join(self.robot_namespace, 'joint_states')
+        self._joint_state_listener = Listener(self.joint_states_topic, JointState)
 
         self.tf_wrapper = TF2Wrapper()
 
