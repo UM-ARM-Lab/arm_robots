@@ -61,6 +61,7 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
                              std::vector<std::string> const &>(&JacobianFollower::getLinkToRobotTransforms, py::const_))
       .def("batch_get_link_to_robot_transforms", &JacobianFollower::batchGetLinkToRobotTransforms)
       .def("get_link_names", &JacobianFollower::getLinkNames)
+      .def("is_collision_checking", &JacobianFollower::isCollisionChecking)
       //
       ;
 }

@@ -894,3 +894,5 @@ std::vector<std::vector<Eigen::Matrix4Xd>> JacobianFollower::batchGetLinkToRobot
   return transforms;
 }
 std::vector<std::string> JacobianFollower::getLinkNames() const { return model_->getLinkModelNames(); }
+
+bool JacobianFollower::isCollisionChecking() const { return static_cast<bool>(constraint_fun_); }
