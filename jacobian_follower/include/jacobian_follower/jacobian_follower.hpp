@@ -205,6 +205,8 @@ class JacobianFollower {
 
   std::vector<std::string> getLinkNames() const;
 
+  bool isCollisionChecking() const;
+
   template <typename A, typename B>
   void validateNamesAndPositions(const std::vector<A> &joint_names, const std::vector<B> &joint_positions) const {
     if (joint_names.size() != joint_positions.size()) {
