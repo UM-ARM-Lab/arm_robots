@@ -22,7 +22,7 @@ if __name__ == "__main__":
         victor = Victor(robot_namespace='victor')
         victor.connect()
 
-        actually_switch = rospy.get_param("~actually_switch", False)
+        actually_switch = rospy.get_param("~actually_switch", True)
         if actually_switch:
             rospy.loginfo("switching to impedance mode")
 

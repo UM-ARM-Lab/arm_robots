@@ -21,6 +21,7 @@
 #include <arc_utilities/eigen_typedefs.hpp>
 #include <arc_utilities/moveit_pose_type.hpp>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -99,7 +100,7 @@ class JacobianFollower {
   planning_scene_monitor::PlanningSceneMonitorPtr scene_monitor_;
 
   // Debugging
-  moveit_visual_tools::MoveItVisualTools visual_tools_;
+  mutable moveit_visual_tools::MoveItVisualTools visual_tools_;
 
   tf2_ros::Buffer tf_buffer_;
   tf2_ros::TransformListener tf_listener_;
@@ -144,6 +145,10 @@ class JacobianFollower {
   std::vector<std::vector<double>> compute_IK_solutions(geometry_msgs::Pose target_pose,
                                                         const std::string &group_name) const;
 
+  std::optional<moveit_msgs::RobotState> computeCollisionFreeIK(geometry_msgs::Pose target_pose,
+                                                                const std::string &group_name,
+                                                                const moveit_msgs::PlanningScene &scene_smg) const;
+
   geometry_msgs::Pose computeGroupFK(const moveit_msgs::RobotState &robot_state_msg,
                                      const std::string &group_name) const;
 
@@ -179,7 +184,7 @@ class JacobianFollower {
                                         robot_state::RobotState const &state, PoseSequence const &robotTservo);
 
   collision_detection::CollisionResult checkCollision(planning_scene::PlanningScenePtr planning_scene,
-                                                      robot_state::RobotState const &state);
+                                                      robot_state::RobotState const &state) const;
 
   bool check_collision(moveit_msgs::PlanningScene const &scene_msg, moveit_msgs::RobotState const &start_state);
 

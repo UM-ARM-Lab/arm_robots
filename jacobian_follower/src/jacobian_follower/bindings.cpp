@@ -36,6 +36,8 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
           py::arg("max_velocity_scaling_factor"), py::arg("max_acceleration_scaling_factor"))
       .def("compute_IK_solutions", &JacobianFollower::compute_IK_solutions, py::arg("pose"),
            py::arg("joint_group_name"))
+      .def("compute_collision_free_ik", &JacobianFollower::computeCollisionFreeIK, py::arg("pose"),
+           py::arg("group_name"), py::arg("scene_name"))
       .def("group_fk",
            py::overload_cast<const std::vector<double> &, const std::vector<std::string> &, const std::string &>(
                &JacobianFollower::computeGroupFK, py::const_),

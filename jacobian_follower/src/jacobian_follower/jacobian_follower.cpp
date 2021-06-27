@@ -241,6 +241,26 @@ PlanResult JacobianFollower::plan(JacobianTrajectoryCommand traj_command) {
   return {robot_trajectory, reached_target};
 }
 
+std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreeIK(
+    geometry_msgs::Pose target_pose, const std::string &group_name, const moveit_msgs::PlanningScene &scene_msg) const {
+  auto planning_scene = std::make_shared<planning_scene::PlanningScene>(model_);
+  planning_scene->usePlanningSceneMsg(scene_msg);
+  auto const jmg = model_->getJointModelGroup(group_name);
+  auto const &joint_names = jmg->getJointModelNames();
+  auto const &potential_solutions = compute_IK_solutions(target_pose, group_name);
+  for (auto const &potential_solution : potential_solutions) {
+    robot_state::RobotState &potential_solution_state = planning_scene->getCurrentStateNonConst();
+    potential_solution_state.setVariablePositions(joint_names, potential_solution);
+    auto const &res = checkCollision(planning_scene, potential_solution_state);
+    if (not res.collision) {
+      moveit_msgs::RobotState solution_msg;
+      moveit::core::robotStateToRobotStateMsg(potential_solution_state, solution_msg);
+      return solution_msg;
+    }
+  }
+  return {};
+}
+
 std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry_msgs::Pose target_pose,
                                                                         const std::string &group_name) const {
   auto const jmg = model_->getJointModelGroup(group_name);
@@ -494,7 +514,7 @@ robot_trajectory::RobotTrajectory JacobianFollower::jacobianPath3d(
 }
 
 collision_detection::CollisionResult JacobianFollower::checkCollision(planning_scene::PlanningScenePtr planning_scene,
-                                                                      robot_state::RobotState const &state) {
+                                                                      robot_state::RobotState const &state) const {
   collision_detection::CollisionRequest collisionRequest;
   collisionRequest.contacts = true;
   collisionRequest.max_contacts = 1;
