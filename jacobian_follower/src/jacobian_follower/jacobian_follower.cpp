@@ -6,6 +6,7 @@
 
 #include <arc_utilities/arc_helpers.hpp>
 #include <arc_utilities/eigen_helpers.hpp>
+#include <arc_utilities/eigen_helpers_conversions.hpp>
 #include <arc_utilities/eigen_ros_conversions.hpp>
 #include <arc_utilities/eigen_transforms.hpp>
 #include <arc_utilities/moveit_ostream_operators.hpp>
@@ -241,22 +242,48 @@ PlanResult JacobianFollower::plan(JacobianTrajectoryCommand traj_command) {
   return {robot_trajectory, reached_target};
 }
 
+bool isStateValid(planning_scene::PlanningScenePtr planning_scene, moveit::core::RobotState *robot_state,
+                  moveit::core::JointModelGroup const *jmg, double const *joint_positions) {
+  robot_state->setJointGroupPositions(jmg, joint_positions);
+  robot_state->update();  // I *think* this updates the internally stored transforms, and probably isn't necessary
+  return planning_scene->isStateValid(*robot_state);
+}
+
 std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreeIK(
-    geometry_msgs::Pose target_pose, const std::string &group_name, const moveit_msgs::PlanningScene &scene_msg) const {
+    const std::vector<geometry_msgs::Pose> &target_pose, const std::string &group_name,
+    const std::vector<std::string> &tip_names, const moveit_msgs::PlanningScene &scene_msg) const {
+  auto joint_model_group = model_->getJointModelGroup(group_name);
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "Tips: " << tip_names);
+
+  kinematics::KinematicsQueryOptions opts;
+
+  robot_state::RobotState robot_state_ik(model_);
+  robot_state_ik.setToDefaultValues();
+  robot_state_ik.update();
+
+  auto const tip_transforms = EigenHelpersConversions::VectorGeometryPoseToVectorIsometry3d(target_pose);
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "target " << tip_transforms[0].matrix());
+
+  // Collision checking
   auto planning_scene = std::make_shared<planning_scene::PlanningScene>(model_);
   planning_scene->usePlanningSceneMsg(scene_msg);
-  auto const jmg = model_->getJointModelGroup(group_name);
-  auto const &joint_names = jmg->getJointModelNames();
-  auto const &potential_solutions = compute_IK_solutions(target_pose, group_name);
-  for (auto const &potential_solution : potential_solutions) {
-    robot_state::RobotState &potential_solution_state = planning_scene->getCurrentStateNonConst();
-    potential_solution_state.setVariablePositions(joint_names, potential_solution);
-    auto const &res = checkCollision(planning_scene, potential_solution_state);
-    if (not res.collision) {
-      moveit_msgs::RobotState solution_msg;
-      moveit::core::robotStateToRobotStateMsg(potential_solution_state, solution_msg);
-      return solution_msg;
-    }
+  moveit::core::GroupStateValidityCallbackFn constraint_fn_boost;
+  constraint_fn_boost = boost::bind(&isStateValid, planning_scene, _1, _2, _3);
+
+  bool ok = robot_state_ik.setFromIK(joint_model_group,  // joints to be used for IK
+                                     tip_transforms,     // multiple end-effector goal poses
+                                     tip_names,          // names of the end-effector links
+                                     0.1,                // timeout
+                                     constraint_fn_boost,
+                                     opts  // mostly empty
+  );
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "ok? " << ok);
+
+  if (ok) {
+    moveit_msgs::RobotState solution_msg;
+    moveit::core::robotStateToRobotStateMsg(robot_state_ik, solution_msg);
+    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "sln: " << solution_msg.joint_state.position);
+    return solution_msg;
   }
   return {};
 }

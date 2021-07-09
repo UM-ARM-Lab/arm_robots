@@ -182,8 +182,9 @@ def make_robot_state_from_joint_state(scene_msg: PlanningScene, joint_state: Joi
                       joint_state=joint_state)
 
 
-def merge_joint_state_and_scene_msg(scene_msg, joint_state):
+def merge_joint_state_and_scene_msg(scene_msg: PlanningScene, joint_state: JointState):
     robot_state = make_robot_state_from_joint_state(scene_msg=scene_msg, joint_state=joint_state)
+    robot_state.attached_collision_objects = scene_msg.robot_state.attached_collision_objects
     scene_msg_with_state = scene_msg  # NOTE: I used to have a deepcopy here, but it was slow so I removed it
     scene_msg_with_state.robot_state.joint_state = joint_state
     return scene_msg_with_state, robot_state
