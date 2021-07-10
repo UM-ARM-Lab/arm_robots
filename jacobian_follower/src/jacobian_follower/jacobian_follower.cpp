@@ -262,13 +262,13 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
   opts.return_approximate_solution = false;
 
   for (auto tup : boost::combine(target_point, tip_names)) {
-    auto goal = std::make_unique<bio_ik::PositionGoal>();
     std::string name;
     geometry_msgs::Point p;
     boost::tie(p, name) = tup;
-    goal->setPosition(tf2::Vector3(p.x, p.y, p.z));
-    goal->setLinkName(name);
-    opts.goals.emplace_back(goal.get());
+    tf2::Vector3 position(p.x, p.y, p.z);
+    opts.goals.emplace_back(std::make_unique<bio_ik::PositionGoal>(name, position));
+    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik",
+                           "goal:  [" << name << "] positions " << p.x << "," << p.y << "," << p.z);
   }
 
   robot_state::RobotState robot_state_ik(model_);
@@ -281,10 +281,10 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
   moveit::core::GroupStateValidityCallbackFn constraint_fn_boost;
   constraint_fn_boost = boost::bind(&isStateValid, planning_scene, _1, _2, _3);
 
-  bool ok = robot_state_ik.setFromIK(joint_model_group,            // joints to be used for IK
+  bool ok = robot_state_ik.setFromIK(joint_model_group,              // joints to be used for IK
                                      EigenSTL::vector_Isometry3d(),  // this isn't used, goals are described in opts
-                                     std::vector<std::string>(),   // names of the end-effector links
-                                     0.1,                          // timeout
+                                     std::vector<std::string>(),     // names of the end-effector links
+                                     0,                              // take values from YAML
                                      constraint_fn_boost,
                                      opts  // mostly empty
   );
@@ -320,13 +320,7 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePos
   moveit::core::GroupStateValidityCallbackFn constraint_fn_boost;
   constraint_fn_boost = boost::bind(&isStateValid, planning_scene, _1, _2, _3);
 
-  bool ok = robot_state_ik.setFromIK(joint_model_group,  // joints to be used for IK
-                                     tip_transforms,     // multiple end-effector goal poses
-                                     tip_names,          // names of the end-effector links
-                                     0.1,                // timeout
-                                     constraint_fn_boost,
-                                     opts  // mostly empty
-  );
+  bool ok = robot_state_ik.setFromIK(joint_model_group, tip_transforms, tip_names, 0.0, constraint_fn_boost, opts);
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "ok? " << ok);
 
   if (ok) {
