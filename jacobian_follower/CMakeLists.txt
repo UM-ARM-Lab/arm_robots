@@ -3,15 +3,16 @@ project(jacobian_follower)
 
 set(CATKIN_PACKAGES
         arc_utilities
-        moveit_ros_planning
         arm_robots_msgs
-        roscpp
-        tf2_ros
-        tf2_msgs
-        pyrosmsg
+        bio_ik
+        eigen_conversions
+        moveit_ros_planning
         moveit_visual_tools
         pybind11_catkin
-        eigen_conversions
+        pyrosmsg
+        roscpp
+        tf2_msgs
+        tf2_ros
         )
 
 find_package(catkin REQUIRED COMPONENTS
