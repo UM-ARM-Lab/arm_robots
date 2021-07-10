@@ -9,13 +9,14 @@
   <buildtool_depend>catkin</buildtool_depend>
 
   <depend>arc_utilities</depend>
-  <depend>moveit_ros_planning</depend>
   <depend>arm_robots_msgs</depend>
-  <depend>roscpp</depend>
-  <depend>pyrosmsg</depend>
-  <depend>tf2_ros</depend>
-  <depend>tf2_msgs</depend>
+  <depend>bio_ik</depend>
+  <depend>eigen_conversions</depend>
+  <depend>moveit_ros_planning</depend>
   <depend>moveit_visual_tools</depend>
   <depend>pybind11_catkin</depend>
-  <depend>eigen_conversions</depend>
+  <depend>pyrosmsg</depend>
+  <depend>roscpp</depend>
+  <depend>tf2_msgs</depend>
+  <depend>tf2_ros</depend>
 </package>

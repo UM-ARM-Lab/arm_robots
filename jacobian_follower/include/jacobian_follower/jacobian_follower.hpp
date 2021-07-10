@@ -145,10 +145,14 @@ class JacobianFollower {
   std::vector<std::vector<double>> compute_IK_solutions(geometry_msgs::Pose target_pose,
                                                         const std::string &group_name) const;
 
-  std::optional<moveit_msgs::RobotState> computeCollisionFreeIK(const std::vector<geometry_msgs::Pose> &target_pose,
-                                                                const std::string &group_name,
-                                                                const std::vector<std::string> &tip_names,
-                                                                const moveit_msgs::PlanningScene &scene_smg) const;
+  std::optional<moveit_msgs::RobotState> computeCollisionFreePointIK(
+      const std::vector<geometry_msgs::Point> &target_point, const std::string &group_name,
+      const std::vector<std::string> &tip_names, const moveit_msgs::PlanningScene &scene_smg) const;
+
+  std::optional<moveit_msgs::RobotState> computeCollisionFreePoseIK(const std::vector<geometry_msgs::Pose> &target_pose,
+                                                                    const std::string &group_name,
+                                                                    const std::vector<std::string> &tip_names,
+                                                                    const moveit_msgs::PlanningScene &scene_smg) const;
 
   geometry_msgs::Pose computeGroupFK(const moveit_msgs::RobotState &robot_state_msg,
                                      const std::string &group_name) const;
