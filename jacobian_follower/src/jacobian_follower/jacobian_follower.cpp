@@ -252,8 +252,9 @@ bool isStateValid(planning_scene::PlanningScenePtr planning_scene, moveit::core:
 }
 
 std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePointIK(
-    const std::vector<geometry_msgs::Point> &target_point, const std::string &group_name,
-    const std::vector<std::string> &tip_names, const moveit_msgs::PlanningScene &scene_msg) const {
+    const moveit_msgs::RobotState &default_robot_state, const std::vector<geometry_msgs::Point> &target_point,
+    const std::string &group_name, const std::vector<std::string> &tip_names,
+    const moveit_msgs::PlanningScene &scene_msg) const {
   auto joint_model_group = model_->getJointModelGroup(group_name);
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "Tips: " << tip_names);
 
@@ -272,7 +273,12 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
   }
 
   robot_state::RobotState robot_state_ik(model_);
-  robot_state_ik.setToDefaultValues();
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "" << default_robot_state.joint_state.name.size() << " " << default_robot_state.joint_state.position.size());
+  auto const success = moveit::core::robotStateMsgToRobotState(default_robot_state, robot_state_ik);
+  if (not success) {
+    throw std::runtime_error("conversion from default_robot_state message to RobotState object failed");
+  }
+
   robot_state_ik.update();
 
   // Collision checking
@@ -301,15 +307,19 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
 }
 
 std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoseIK(
-    const std::vector<geometry_msgs::Pose> &target_pose, const std::string &group_name,
-    const std::vector<std::string> &tip_names, const moveit_msgs::PlanningScene &scene_msg) const {
+    const moveit_msgs::RobotState &default_robot_state, const std::vector<geometry_msgs::Pose> &target_pose,
+    const std::string &group_name, const std::vector<std::string> &tip_names,
+    const moveit_msgs::PlanningScene &scene_msg) const {
   auto joint_model_group = model_->getJointModelGroup(group_name);
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "Tips: " << tip_names);
 
   kinematics::KinematicsQueryOptions opts;
 
   robot_state::RobotState robot_state_ik(model_);
-  robot_state_ik.setToDefaultValues();
+  auto const success = moveit::core::robotStateMsgToRobotState(default_robot_state, robot_state_ik);
+  if (not success) {
+    throw std::runtime_error("conversion from default_robot_state message to RobotState object failed");
+  }
   robot_state_ik.update();
 
   auto const tip_transforms = EigenHelpersConversions::VectorGeometryPoseToVectorIsometry3d(target_pose);

@@ -219,11 +219,15 @@ def main():
         scene_msg.robot_state.joint_state.position = [0] * len(name)
         scene_msg.robot_state.joint_state.name = name
 
+        default_robot_state = RobotState()
+        default_robot_state.joint_state.position = [0] * len(name)
+        default_robot_state.joint_state.name = name
+
         robot_state: RobotState
         if args.position_only:
-            robot_state = j.compute_collision_free_point_ik(points, group_name, tip_names, scene_msg)
+            robot_state = j.compute_collision_free_point_ik(default_robot_state, points, group_name, tip_names, scene_msg)
         else:
-            robot_state = j.compute_collision_free_pose_ik(poses, group_name, tip_names, scene_msg)
+            robot_state = j.compute_collision_free_pose_ik(default_robot_state, poses, group_name, tip_names, scene_msg)
 
         planning_scene_viz_pub.publish(scene_msg)
         for tip_name, position, pose in zip(tip_names, points, poses):
