@@ -247,7 +247,7 @@ PlanResult JacobianFollower::plan(JacobianTrajectoryCommand traj_command) {
 bool isStateValid(planning_scene::PlanningScenePtr planning_scene, moveit::core::RobotState *robot_state,
                   moveit::core::JointModelGroup const *jmg, double const *joint_positions) {
   robot_state->setJointGroupPositions(jmg, joint_positions);
-  robot_state->update();  // I *think* this updates the internally stored transforms, and probably isn't necessary
+  robot_state->update();  // This updates the internally stored transforms, needed before collision checking
   return planning_scene->isStateValid(*robot_state);
 }
 

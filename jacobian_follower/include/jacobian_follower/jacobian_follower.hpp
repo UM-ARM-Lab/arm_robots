@@ -145,16 +145,36 @@ class JacobianFollower {
   std::vector<std::vector<double>> compute_IK_solutions(geometry_msgs::Pose target_pose,
                                                         const std::string &group_name) const;
 
+  /**
+   * Attempts to find a collision free joint configuration with the tip links at the specified points
+   * @param default_robot_state In the case where the group doesn't contain every joint,
+       this lets you control the rest of the joints. this function will leave joints outside of the group unchanged
+   * @param target_point points, should match order of tip_names
+   * @param group_name
+   * @param tip_names names of the links, should match order of target_points
+   * @param scene_msg
+   * @return
+   */
   std::optional<moveit_msgs::RobotState> computeCollisionFreePointIK(
       moveit_msgs::RobotState const &default_robot_state, const std::vector<geometry_msgs::Point> &target_point,
       const std::string &group_name, const std::vector<std::string> &tip_names,
-      const moveit_msgs::PlanningScene &scene_smg) const;
+      const moveit_msgs::PlanningScene &scene_msg) const;
 
+  /**
+   * Attempst to find a collision free joint configuration with the tip links at the specified poses
+   * @param default_robot_state In the case where the group doesn't contain every joint,
+       this lets you control the rest of the joints. this function will leave joints outside of the group unchanged
+   * @param target_pose should match order of tip_names
+   * @param group_name
+   * @param tip_names should match order of target_pose
+   * @param scene_msg
+   * @return
+   */
   std::optional<moveit_msgs::RobotState> computeCollisionFreePoseIK(const moveit_msgs::RobotState &default_robot_state,
                                                                     const std::vector<geometry_msgs::Pose> &target_pose,
                                                                     const std::string &group_name,
                                                                     const std::vector<std::string> &tip_names,
-                                                                    const moveit_msgs::PlanningScene &scene_smg) const;
+                                                                    const moveit_msgs::PlanningScene &scene_msg) const;
 
   geometry_msgs::Pose computeGroupFK(const moveit_msgs::RobotState &robot_state_msg,
                                      const std::string &group_name) const;

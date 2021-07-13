@@ -17,3 +17,6 @@
 - git:
     local-name: wsg50-ros-pkg
     uri: git@github.com:MMintLab/wsg50-ros-pkg.git
+- git:
+    local-name: bio_ik
+    uri: git@github.com:UM-ARM-Lab/bio_ik.git
