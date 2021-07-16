@@ -1,7 +1,6 @@
 - git:
     local-name: arc_utilities
     uri: git@github.com:UM-ARM-Lab/arc_utilities.git
-    version: peter
 - git:
     local-name: arm_robots
     uri: git@github.com:UM-ARM-Lab/arm_robots.git
