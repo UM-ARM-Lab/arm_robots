@@ -15,7 +15,10 @@ class Panda(MoveitEnabledRobot):
                                     arms_controller_name='effort_joint_trajectory_controller',
                                     force_trigger=force_trigger,
                                     **kwargs)
-
+        self.nebula_arm = "nebula_arm"
+        self.rocket_arm = "rocket_arm"
+        self.nebula_wrist = "panda_1_link8"
+        self.rocket_wrist = "panda_2_link8"
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         # TODO: Fill in to send set point to controller.
         pass
