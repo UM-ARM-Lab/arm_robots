@@ -26,7 +26,6 @@ class BaseRobot:
         self._joint_state_listener = Listener(self.joint_states_topic, JointState)
 
         self.tf_wrapper = TF2Wrapper()
-        print(self.robot_namespace)
         try:
             self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace, robot_description=robot_description)
         except RuntimeError as e:
