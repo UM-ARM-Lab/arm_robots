@@ -95,9 +95,10 @@ JacobianTrajectoryCommand make_traj_command_from_python_inputs(
   return traj_command;
 }
 
-JacobianFollower::JacobianFollower(std::string const robot_namespace, double const translation_step_size,
-                                   bool const minimize_rotation, bool const collision_check, bool const visualize)
-    : model_loader_(std::make_shared<robot_model_loader::RobotModelLoader>()),
+JacobianFollower::JacobianFollower(std::string const robot_namespace, std::string const robot_description,
+                                   double const translation_step_size, bool const minimize_rotation,
+                                   bool const collision_check, bool const visualize)
+    : model_loader_(std::make_shared<robot_model_loader::RobotModelLoader>(robot_description)),
       model_(model_loader_->getModel()),
       scene_monitor_(std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(model_loader_)),
       visual_tools_("robot_root", ros::names::append(robot_namespace, "/moveit_visual_markers"), model_),

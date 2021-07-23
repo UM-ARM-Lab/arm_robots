@@ -9,10 +9,9 @@ from rosgraph.names import ns_join
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
-
 class BaseRobot:
 
-    def __init__(self, robot_namespace: str = ''):
+    def __init__(self, robot_namespace: str = '', robot_description: str = 'robot_description'):
         """
         This class is designed around the needs of the trajectory_follower.TrajectoryFollower
         This class really only contains API that is needed by that class. The trajectory follower only needs to know about the
@@ -21,14 +20,15 @@ class BaseRobot:
         execution services.
         """
         self.robot_namespace = robot_namespace
+        self.robot_description = robot_description
         # the robot namespace will be prepended by setting ROS_NAMESPACE environment variable or the ns="" in roslaunch
         self.joint_states_topic = ns_join(self.robot_namespace, 'joint_states')
         self._joint_state_listener = Listener(self.joint_states_topic, JointState)
 
         self.tf_wrapper = TF2Wrapper()
-
+        print(self.robot_namespace)
         try:
-            self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace)
+            self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace, robot_description=robot_description)
         except RuntimeError as e:
             rospy.logerr("You may need to load the moveit planning context and robot description")
             print(e)

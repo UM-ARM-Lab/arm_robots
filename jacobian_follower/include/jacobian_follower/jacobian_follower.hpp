@@ -118,8 +118,8 @@ class JacobianFollower {
   bool visualize_;
   std::string robot_namespace_;
 
-  explicit JacobianFollower(std::string robot_namespace, double translation_step_size, bool minimize_rotation = true,
-                            bool collision_check = true, bool visualize = true);
+  explicit JacobianFollower(std::string robot_namespace, std::string robot_description, double translation_step_size,
+                            bool minimize_rotation = true, bool collision_check = true, bool visualize = true);
 
   bool connect_to_psm();
 
