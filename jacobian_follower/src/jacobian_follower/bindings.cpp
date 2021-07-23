@@ -10,9 +10,9 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(pyjacobian_follower, m) {
   py::class_<JacobianFollower>(m, "JacobianFollower")
-      .def(py::init<std::string, double, bool, bool, bool>(), py::arg("robot_namespace"),
-           py::arg("translation_step_size"), py::arg("minimize_rotation"), py::arg("collision_check"),
-           py::arg("visualize"))
+      .def(py::init<std::string, std::string, double, bool, bool, bool>(), py::arg("robot_namespace"),
+           py::arg("robot_description"), py::arg("translation_step_size"), py::arg("minimize_rotation"),
+           py::arg("collision_check"), py::arg("visualize"))
       .def(
           "plan",
           py::overload_cast<std::string const &, std::vector<std::string> const &, std::vector<Eigen::Vector4d> const &,

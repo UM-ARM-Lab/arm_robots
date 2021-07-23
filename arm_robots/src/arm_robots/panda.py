@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+from rosgraph.names import ns_join
 from typing import List, Tuple
 
 from arm_robots.robot import MoveitEnabledRobot
@@ -10,7 +11,8 @@ class Panda(MoveitEnabledRobot):
     def __init__(self, robot_namespace: str = 'combined_panda', force_trigger: float = -0.0, **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
-                                    arms_controller_name='effort_joint_trajectory_controller',  # TODO: Double check me!
+                                    robot_description=ns_join(robot_namespace, 'robot_description'),
+                                    arms_controller_name='effort_joint_trajectory_controller',
                                     force_trigger=force_trigger,
                                     **kwargs)
 

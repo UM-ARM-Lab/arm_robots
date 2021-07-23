@@ -50,13 +50,14 @@ class MoveitEnabledRobot(BaseRobot):
     def __init__(self,
                  robot_namespace: str,
                  arms_controller_name: str,
+                 robot_description: str = 'robot_description',
                  execute: bool = True,
                  block: bool = True,
                  raise_on_failure: bool = False,
                  display_goals: bool = True,
                  force_trigger: float = 9.0,
                  jacobian_follower: Optional[pyjacobian_follower.JacobianFollower] = None):
-        super().__init__(robot_namespace)
+        super().__init__(robot_namespace, robot_description)
         self._max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
@@ -77,6 +78,7 @@ class MoveitEnabledRobot(BaseRobot):
 
         if jacobian_follower is None:
             self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
+                                                                          robot_description=robot_description,
                                                                           translation_step_size=0.005,
                                                                           minimize_rotation=True,
                                                                           collision_check=True,
@@ -120,7 +122,7 @@ class MoveitEnabledRobot(BaseRobot):
 
     def get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
         if group_name not in self._move_groups:
-            self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
+            self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace, robot_description=self.robot_description)
         move_group = self._move_groups[group_name]
         move_group.set_planning_time(30.0)
         # TODO Make this a settable param or at least make the hardcoded param more obvious
