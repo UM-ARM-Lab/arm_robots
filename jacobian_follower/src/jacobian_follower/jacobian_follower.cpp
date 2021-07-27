@@ -249,6 +249,7 @@ bool isStateValid(planning_scene::PlanningScenePtr planning_scene, moveit::core:
                   moveit::core::JointModelGroup const *jmg, double const *joint_positions) {
   robot_state->setJointGroupPositions(jmg, joint_positions);
   robot_state->update();  // This updates the internally stored transforms, needed before collision checking
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "checking state validity");
   return planning_scene->isStateValid(*robot_state);
 }
 
@@ -274,7 +275,8 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
   }
 
   robot_state::RobotState robot_state_ik(model_);
-  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "" << default_robot_state.joint_state.name.size() << " " << default_robot_state.joint_state.position.size());
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "" << default_robot_state.joint_state.name.size() << " "
+                                                 << default_robot_state.joint_state.position.size());
   auto const success = moveit::core::robotStateMsgToRobotState(default_robot_state, robot_state_ik);
   if (not success) {
     throw std::runtime_error("conversion from default_robot_state message to RobotState object failed");
@@ -288,14 +290,22 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
   moveit::core::GroupStateValidityCallbackFn constraint_fn_boost;
   constraint_fn_boost = boost::bind(&isStateValid, planning_scene, _1, _2, _3);
 
-  bool ok = robot_state_ik.setFromIK(joint_model_group,              // joints to be used for IK
-                                     EigenSTL::vector_Isometry3d(),  // this isn't used, goals are described in opts
-                                     std::vector<std::string>(),     // names of the end-effector links
-                                     0,                              // take values from YAML
-                                     constraint_fn_boost,
-                                     opts  // mostly empty
-  );
-  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "ok? " << ok);
+  bool ok = false;
+  auto attempts{0};
+  for (; attempts < 100; ++attempts) {
+    robot_state_ik.setToRandomPositions(joint_model_group);
+    ok = robot_state_ik.setFromIK(joint_model_group,              // joints to be used for IK
+                                  EigenSTL::vector_Isometry3d(),  // this isn't used, goals are described in opts
+                                  std::vector<std::string>(),     // names of the end-effector links
+                                  0,                              // take values from YAML
+                                  constraint_fn_boost,
+                                  opts  // mostly empty
+    );
+    if (ok) {
+      break;
+    }
+  }
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "ok? " << ok << " attempts " << attempts);
 
   if (ok) {
     moveit_msgs::RobotState solution_msg;
