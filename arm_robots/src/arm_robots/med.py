@@ -61,8 +61,8 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
 
 class BaseMed(BaseRobot):
 
-    def __init__(self, robot_namespace: str):
-        BaseRobot.__init__(self, robot_namespace=robot_namespace)
+    def __init__(self, robot_namespace: str, robot_description: str = 'robot_description'):
+        BaseRobot.__init__(self, robot_namespace=robot_namespace, robot_description=robot_description)
 
         self.arm_command_pub = rospy.Publisher(self.ns("motion_command"), MotionCommand, queue_size=10)
         self.set_control_mode_srv = rospy.ServiceProxy(self.ns("set_control_mode_service"), SetControlMode)
