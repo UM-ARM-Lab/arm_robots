@@ -25,6 +25,7 @@ using ColorBuilder = arc_helpers::RGBAColorBuilder<std_msgs::ColorRGBA>;
 using ArrayXb = Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic>;
 using VecArrayXb = Eigen::Array<bool, Eigen::Dynamic, 1>;
 
+constexpr auto const max_collision_check_attempts{100};
 constexpr auto const LOGGER_NAME{"JacobianFollower"};
 
 PoseSequence getToolTransforms(Pose const &world_to_robot, std::vector<std::string> const &tool_names,
@@ -292,7 +293,7 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
 
   bool ok = false;
   auto attempts{0};
-  for (; attempts < 100 and not ok; ++attempts) {
+  for (; attempts < max_collision_check_attempts and not ok; ++attempts) {
     robot_state_ik.setToRandomPositions(joint_model_group);
     ok = robot_state_ik.setFromIK(joint_model_group,              // joints to be used for IK
                                   EigenSTL::vector_Isometry3d(),  // this isn't used, goals are described in opts
@@ -340,7 +341,7 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePos
 
   bool ok = false;
   auto attempts{0};
-  for (; attempts < 100 and not ok; ++attempts) {
+  for (; attempts < max_collision_check_attempts and not ok; ++attempts) {
     robot_state_ik.setToRandomPositions(joint_model_group);
     ok = robot_state_ik.setFromIK(joint_model_group, tip_transforms, tip_names, 0.0, constraint_fn_boost, opts);
   }
