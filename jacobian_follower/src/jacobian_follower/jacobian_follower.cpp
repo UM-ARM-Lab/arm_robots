@@ -292,7 +292,7 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
 
   bool ok = false;
   auto attempts{0};
-  for (; attempts < 100; ++attempts) {
+  for (; attempts < 100 and not ok; ++attempts) {
     robot_state_ik.setToRandomPositions(joint_model_group);
     ok = robot_state_ik.setFromIK(joint_model_group,              // joints to be used for IK
                                   EigenSTL::vector_Isometry3d(),  // this isn't used, goals are described in opts
@@ -301,9 +301,6 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
                                   constraint_fn_boost,
                                   opts  // mostly empty
     );
-    if (ok) {
-      break;
-    }
   }
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "ok? " << ok << " attempts " << attempts);
 
@@ -341,8 +338,13 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePos
   moveit::core::GroupStateValidityCallbackFn constraint_fn_boost;
   constraint_fn_boost = boost::bind(&isStateValid, planning_scene, _1, _2, _3);
 
-  bool ok = robot_state_ik.setFromIK(joint_model_group, tip_transforms, tip_names, 0.0, constraint_fn_boost, opts);
-  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "ok? " << ok);
+  bool ok = false;
+  auto attempts{0};
+  for (; attempts < 100 and not ok; ++attempts) {
+    robot_state_ik.setToRandomPositions(joint_model_group);
+    ok = robot_state_ik.setFromIK(joint_model_group, tip_transforms, tip_names, 0.0, constraint_fn_boost, opts);
+  }
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "ok? " << ok << " attempts " << attempts);
 
   if (ok) {
     moveit_msgs::RobotState solution_msg;
