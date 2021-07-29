@@ -160,7 +160,7 @@ class BaseMed(BaseRobot):
         return [position_of_joint[name] for name in joint_names]
 
 
-class Med(MoveitEnabledRobot, BaseMed):
+class Med(BaseMed, MoveitEnabledRobot):
 
     def __init__(self, robot_namespace: str = 'med', force_trigger: float = -0.0, **kwargs):
         MoveitEnabledRobot.__init__(self,
