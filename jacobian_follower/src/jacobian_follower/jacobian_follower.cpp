@@ -274,11 +274,14 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
     ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik",
                            "goal:  [" << name << "] positions " << p.x << "," << p.y << "," << p.z);
   }
+  opts.goals.emplace_back(std::make_unique<bio_ik::MinimalDisplacementGoal>());
 
   robot_state::RobotState robot_state_ik(model_);
+  robot_state::RobotState seed_robot_state_ik(model_);
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "" << default_robot_state.joint_state.name.size() << " "
                                                  << default_robot_state.joint_state.position.size());
-  auto const success = moveit::core::robotStateMsgToRobotState(default_robot_state, robot_state_ik);
+  auto success = moveit::core::robotStateMsgToRobotState(default_robot_state, robot_state_ik);
+  success = success and moveit::core::robotStateMsgToRobotState(default_robot_state, seed_robot_state_ik);
   if (not success) {
     throw std::runtime_error("conversion from default_robot_state message to RobotState object failed");
   }
@@ -294,7 +297,7 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
   bool ok = false;
   auto attempts{0};
   for (; attempts < max_collision_check_attempts and not ok; ++attempts) {
-    robot_state_ik.setToRandomPositions(joint_model_group);
+    robot_state_ik.setToRandomPositionsNearBy(joint_model_group, seed_robot_state_ik, 0.1);
     ok = robot_state_ik.setFromIK(joint_model_group,              // joints to be used for IK
                                   EigenSTL::vector_Isometry3d(),  // this isn't used, goals are described in opts
                                   std::vector<std::string>(),     // names of the end-effector links
