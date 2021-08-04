@@ -25,7 +25,6 @@ using ColorBuilder = arc_helpers::RGBAColorBuilder<std_msgs::ColorRGBA>;
 using ArrayXb = Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic>;
 using VecArrayXb = Eigen::Array<bool, Eigen::Dynamic, 1>;
 
-constexpr auto const max_collision_check_attempts{100};
 constexpr auto const LOGGER_NAME{"JacobianFollower"};
 
 PoseSequence getToolTransforms(Pose const &world_to_robot, std::vector<std::string> const &tool_names,
@@ -257,7 +256,7 @@ bool isStateValid(planning_scene::PlanningScenePtr planning_scene, moveit::core:
 std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePointIK(
     const moveit_msgs::RobotState &default_robot_state, const std::vector<geometry_msgs::Point> &target_point,
     const std::string &group_name, const std::vector<std::string> &tip_names,
-    const moveit_msgs::PlanningScene &scene_msg) const {
+    const moveit_msgs::PlanningScene &scene_msg, IkParams const &ik_params) const {
   auto joint_model_group = model_->getJointModelGroup(group_name);
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "Tips: " << tip_names);
 
@@ -276,12 +275,12 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
   }
   opts.goals.emplace_back(std::make_unique<bio_ik::MinimalDisplacementGoal>());
 
-  robot_state::RobotState robot_state_ik(model_);
-  robot_state::RobotState seed_robot_state_ik(model_);
+  robot_state::RobotState robot_state_ik{model_};
+  robot_state::RobotState seed_robot_state_ik{model_};
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "" << default_robot_state.joint_state.name.size() << " "
                                                  << default_robot_state.joint_state.position.size());
-  auto success = moveit::core::robotStateMsgToRobotState(default_robot_state, robot_state_ik);
-  success = success and moveit::core::robotStateMsgToRobotState(default_robot_state, seed_robot_state_ik);
+  auto const success = moveit::core::robotStateMsgToRobotState(default_robot_state, robot_state_ik) and
+                       moveit::core::robotStateMsgToRobotState(default_robot_state, seed_robot_state_ik);
   if (not success) {
     throw std::runtime_error("conversion from default_robot_state message to RobotState object failed");
   }
@@ -296,8 +295,8 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
 
   bool ok = false;
   auto attempts{0};
-  for (; attempts < max_collision_check_attempts and not ok; ++attempts) {
-    robot_state_ik.setToRandomPositionsNearBy(joint_model_group, seed_robot_state_ik, 0.1);
+  for (; attempts < ik_params.max_collision_check_attempts and not ok; ++attempts) {
+    robot_state_ik.setToRandomPositionsNearBy(joint_model_group, seed_robot_state_ik, ik_params.rng_dist);
     ok = robot_state_ik.setFromIK(joint_model_group,              // joints to be used for IK
                                   EigenSTL::vector_Isometry3d(),  // this isn't used, goals are described in opts
                                   std::vector<std::string>(),     // names of the end-effector links
@@ -321,7 +320,7 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
 std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoseIK(
     const moveit_msgs::RobotState &default_robot_state, const std::vector<geometry_msgs::Pose> &target_pose,
     const std::string &group_name, const std::vector<std::string> &tip_names,
-    const moveit_msgs::PlanningScene &scene_msg) const {
+    const moveit_msgs::PlanningScene &scene_msg, IkParams const &ik_params) const {
   auto joint_model_group = model_->getJointModelGroup(group_name);
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "Tips: " << tip_names);
 
@@ -344,7 +343,7 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePos
 
   bool ok = false;
   auto attempts{0};
-  for (; attempts < max_collision_check_attempts and not ok; ++attempts) {
+  for (; attempts < ik_params.max_collision_check_attempts and not ok; ++attempts) {
     robot_state_ik.setToRandomPositions(joint_model_group);
     ok = robot_state_ik.setFromIK(joint_model_group, tip_transforms, tip_names, 0.0, constraint_fn_boost, opts);
   }

@@ -31,6 +31,11 @@ using PlanResultMsg = std::pair<moveit_msgs::RobotTrajectory, bool>;
 using ConstraintFn =
     std::function<bool(planning_scene::PlanningScenePtr planning_scene, robot_state::RobotState const &state)>;
 
+struct IkParams {
+  double rng_dist = 0.1;
+  int max_collision_check_attempts = 100;
+};
+
 struct ToolWaypoint {
   Eigen::Vector3d point;
 
@@ -153,12 +158,13 @@ class JacobianFollower {
    * @param group_name
    * @param tip_names names of the links, should match order of target_points
    * @param scene_msg
+   * @param ik_params
    * @return
    */
   std::optional<moveit_msgs::RobotState> computeCollisionFreePointIK(
       moveit_msgs::RobotState const &default_robot_state, const std::vector<geometry_msgs::Point> &target_point,
       const std::string &group_name, const std::vector<std::string> &tip_names,
-      const moveit_msgs::PlanningScene &scene_msg) const;
+      const moveit_msgs::PlanningScene &scene_msg, IkParams const &ik_params = {}) const;
 
   /**
    * Attempst to find a collision free joint configuration with the tip links at the specified poses
@@ -168,13 +174,15 @@ class JacobianFollower {
    * @param group_name
    * @param tip_names should match order of target_pose
    * @param scene_msg
+   * @param ik_params
    * @return
    */
   std::optional<moveit_msgs::RobotState> computeCollisionFreePoseIK(const moveit_msgs::RobotState &default_robot_state,
                                                                     const std::vector<geometry_msgs::Pose> &target_pose,
                                                                     const std::string &group_name,
                                                                     const std::vector<std::string> &tip_names,
-                                                                    const moveit_msgs::PlanningScene &scene_msg) const;
+                                                                    const moveit_msgs::PlanningScene &scene_msg,
+                                                                    IkParams const &ik_params = {}) const;
 
   geometry_msgs::Pose computeGroupFK(const moveit_msgs::RobotState &robot_state_msg,
                                      const std::string &group_name) const;
