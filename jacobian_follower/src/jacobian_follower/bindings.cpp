@@ -9,6 +9,11 @@
 namespace py = pybind11;
 
 PYBIND11_MODULE(pyjacobian_follower, m) {
+  py::class_<IkParams>(m, "IkParams")
+      .def(py::init<double, int>(), py::arg("rng_dist"), py::arg("max_collision_check_attempts"))
+      //
+      ;
+
   py::class_<JacobianFollower>(m, "JacobianFollower")
       .def(py::init<std::string, std::string, double, bool, bool, bool>(), py::arg("robot_namespace"),
            py::arg("robot_description"), py::arg("translation_step_size"), py::arg("minimize_rotation"),
@@ -38,10 +43,10 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
            py::arg("joint_group_name"))
       .def("compute_collision_free_pose_ik", &JacobianFollower::computeCollisionFreePoseIK,
            py::arg("default_robot_state"), py::arg("poses"), py::arg("group_name"), py::arg("tip_names"),
-           py::arg("scene_name"), py::arg("ik_params"))
+           py::arg("scene_name"), py::arg("ik_params") = IkParams())
       .def("compute_collision_free_point_ik", &JacobianFollower::computeCollisionFreePointIK,
            py::arg("default_robot_state"), py::arg("points"), py::arg("group_name"), py::arg("tip_names"),
-           py::arg("scene_name"), py::arg("ik_params"))
+           py::arg("scene_name"), py::arg("ik_params") = IkParams())
       .def("group_fk",
            py::overload_cast<const std::vector<double> &, const std::vector<std::string> &, const std::string &>(
                &JacobianFollower::computeGroupFK, py::const_),
@@ -68,10 +73,6 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
       .def("batch_get_link_to_robot_transforms", &JacobianFollower::batchGetLinkToRobotTransforms)
       .def("get_link_names", &JacobianFollower::getLinkNames)
       .def("is_collision_checking", &JacobianFollower::isCollisionChecking)
-      //
-      ;
-  py::class_<IkParams>(m, "IkParams")
-      .def(py::init<double, int>(), py::arg("rng_dist"), py::arg("max_collision_check_attempts"))
       //
       ;
 }
