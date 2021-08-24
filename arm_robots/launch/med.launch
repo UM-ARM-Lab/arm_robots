@@ -61,4 +61,8 @@
         </include>
 
     </group>
+
+    <!-- Collision geometry -->
+    <node pkg="med_hardware_interface" type="med_collision_geometry.py" name="med_collision_geometry"/>
+
 </launch>
