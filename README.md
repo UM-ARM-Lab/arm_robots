@@ -18,7 +18,7 @@ Apt dependencies:
 Follow the [setup instructions](https://github.com/UM-ARM-Lab/documentation/wiki/Victor#quick-start)
 
     roslaunch arm_robots victor.launch
-    rosrun arm_robots basic_motion.py
+    rosrun arm_robots victor_basic_motion.py
     
 
 
