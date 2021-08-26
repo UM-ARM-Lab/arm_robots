@@ -126,6 +126,7 @@ class MoveitEnabledRobot(BaseRobot):
         move_group: moveit_commander.MoveGroupCommander = self._move_groups[group_name]
         move_group.clear_pose_targets()
         move_group.set_planning_time(30.0)
+
         # TODO Make this a settable param or at least make the hardcoded param more obvious
         # The purpose of this safety factor is to make sure we never send victor a velocity
         # faster than the kuka controller's max velocity, otherwise the kuka controllers will error out.
@@ -136,7 +137,8 @@ class MoveitEnabledRobot(BaseRobot):
     def plan_to_position(self,
                          group_name: str,
                          ee_link_name: str,
-                         target_position):
+                         target_position,
+                         stop_condition: Optional[Callable] = None):
         move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
         move_group.set_position_target(list(target_position))
@@ -145,7 +147,7 @@ class MoveitEnabledRobot(BaseRobot):
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to position failed {planning_result.planning_error_code}")
 
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def plan_to_position_cartesian(self,
@@ -153,6 +155,7 @@ class MoveitEnabledRobot(BaseRobot):
                                    ee_link_name: str,
                                    target_position: Union[Point, List, np.array],
                                    step_size: float = 0.02,
+                                   stop_condition: Optional[Callable] = None,
                                    ):
         move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
@@ -172,10 +175,11 @@ class MoveitEnabledRobot(BaseRobot):
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Cartesian path is only {fraction * 100}% complete")
 
-        execution_result = self.follow_arms_joint_trajectory(plan.joint_trajectory)
+        execution_result = self.follow_arms_joint_trajectory(plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
-    def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root'):
+    def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root',
+                     stop_condition: Optional[Callable] = None):
         self.check_inputs(group_name, ee_link_name)
         move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
@@ -192,7 +196,7 @@ class MoveitEnabledRobot(BaseRobot):
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to pose failed {planning_result.planning_error_code}")
 
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def get_link_pose(self, link_name: str):
@@ -205,7 +209,8 @@ class MoveitEnabledRobot(BaseRobot):
         pose = ros_numpy.msgify(Pose, transform)
         return pose
 
-    def plan_to_joint_config(self, group_name: str, joint_config: Union[List, Dict, str]):
+    def plan_to_joint_config(self, group_name: str, joint_config: Union[List, Dict, str],
+                             stop_condition: Optional[Callable] = None):
         """
         Args:
             group_name: group name, defined in the SRDF
@@ -213,6 +218,7 @@ class MoveitEnabledRobot(BaseRobot):
              or a string for the group_state defined in the SRDF. You can technically use a list
              here instead of a dict but you need to provide all joints in the right order,
              which is hard to get right and gives bad error messages
+            stop_condition: optional stop condition function to halt execution early.
 
         Returns:
             The result message of following the trajectory
@@ -235,7 +241,7 @@ class MoveitEnabledRobot(BaseRobot):
         planning_result = PlanningResult(move_group.plan())
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to position failed {planning_result.planning_error_code}")
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
