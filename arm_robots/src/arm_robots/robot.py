@@ -123,7 +123,8 @@ class MoveitEnabledRobot(BaseRobot):
     def get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
         if group_name not in self._move_groups:
             self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace, robot_description=self.robot_description)
-        move_group = self._move_groups[group_name]
+        move_group: moveit_commander.MoveGroupCommander = self._move_groups[group_name]
+        move_group.clear_pose_targets()
         move_group.set_planning_time(30.0)
         # TODO Make this a settable param or at least make the hardcoded param more obvious
         # The purpose of this safety factor is to make sure we never send victor a velocity
