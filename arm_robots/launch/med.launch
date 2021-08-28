@@ -3,10 +3,14 @@
     <arg name="gui" default="true"/>
     <arg name="update_description" default="true"/>
     <arg name="verbose" default="false"/>
+    <arg name="bubbles" default="false"/>
+
+    <arg name="moveit_config_path" default="$(find med_moveit_config)" unless="$(arg bubbles)"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_bubbles_config)" if="$(arg bubbles)"/>
 
     <group if="$(arg update_description)">
         <!-- uploads robot description and setups up other parameters -->
-        <include file="$(find med_moveit_config)/launch/planning_context.launch">
+        <include file="$(arg moveit_config_path)/launch/planning_context.launch">
             <arg name="load_robot_description" value="true"/>
         </include>
     </group>
@@ -30,10 +34,11 @@
         </include>
 
         <!-- Move it-->
-        <include ns="med" file="$(find med_moveit_config)/launch/move_group.launch">
+       <include ns="med" file="$(arg moveit_config_path)/launch/move_group.launch">
             <arg name="allow_trajectory_execution" value="true"/>
             <arg name="moveit_controller_manager" value="gazebo"/>
         </include>
+
     </group>
     <group unless="$(arg sim)">
         <!-- Start gazebo -->
@@ -50,9 +55,14 @@
         </include>
 
         <!-- MoveIt-->
-        <include ns="med" file="$(find med_moveit_config)/launch/move_group.launch">
+        <include ns="med" file="$(arg moveit_config_path)/launch/move_group.launch">
             <arg name="allow_trajectory_execution" value="true"/>
             <arg name="moveit_controller_manager" value="real"/>
         </include>
+
     </group>
+
+    <!-- Collision geometry -->
+    <node pkg="med_hardware_interface" type="med_collision_geometry.py" name="med_collision_geometry"/>
+
 </launch>
