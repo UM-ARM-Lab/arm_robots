@@ -22,7 +22,7 @@ class ArmSide(enum.IntEnum):
 
 class CartesianImpedanceController:
     def __init__(self, tf_buffer, motion_status_listeners, motion_command_publisher, joint_lim_low, joint_lim_high,
-                 position_close_enough=0.0025, timeout_per_1m=150, intermediate_acceptance_factor=5.,
+                 position_close_enough=0.0025, timeout_per_1m=500, intermediate_acceptance_factor=7.,
                  joint_limit_boundary=0.03):
         """
 
