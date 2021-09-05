@@ -29,7 +29,7 @@ class ArmSide(enum.IntEnum):
 
 class CartesianImpedanceController:
     def __init__(self, tf_buffer, motion_status_listeners, motion_command_publisher, joint_lim_low, joint_lim_high,
-                 position_close_enough=0.0025, timeout_per_1m=500, intermediate_acceptance_factor=7.,
+                 position_close_enough=0.0025, timeout_per_m=500, intermediate_acceptance_factor=7.,
                  joint_limit_boundary=0.03):
         """
 
@@ -39,7 +39,7 @@ class CartesianImpedanceController:
         :param joint_lim_low: lower joint limits in degrees
         :param joint_lim_high: upper joint limits in degrees
         :param position_close_enough: Distance (m) to target position to be considered close enough
-        :param timeout_per_1m: Allowed time (s) to execute before timing out per 1m of travel
+        :param timeout_per_m: Allowed time (s) to execute before timing out per 1m of travel
         :param joint_limit_boundary: Angle (radian or list of radian) boundary of each joint limit to avoid by
         returning to the previous pose for any entering. If this boundary is larger than what any single motion command
         will step, then we will not receive exceptions on the robot side.
@@ -66,7 +66,7 @@ class CartesianImpedanceController:
         self._this_target_start_time = None
         self._goal_start_time = None
         self._init_goal_dist = None
-        self._timeout_per_1m = timeout_per_1m
+        self._timeout_per_m = timeout_per_m
 
         # safety parameters
         self._joint_boundary = joint_limit_boundary
@@ -79,13 +79,9 @@ class CartesianImpedanceController:
         self._start_violation = 0
 
         self.active_arm = ArmSide.LEFT
-        # ROS subscribers
         self.motion_status_listeners = motion_status_listeners
-
-        # ROS publishers
         self.motion_command_publisher = motion_command_publisher
 
-        # TODO should probably move control loop onto separate thread
 
     def set_active_arm(self, active_arm: ArmSide):
         self.active_arm = active_arm
@@ -176,8 +172,6 @@ class CartesianImpedanceController:
             self._intermediate_target.pose.position.x = cp.pose.position.x + diff[0]
             self._intermediate_target.pose.position.y = cp.pose.position.y + diff[1]
             self._intermediate_target.pose.position.z = cp.pose.position.z + diff[2]
-            # rospy.loginfo("Current position {}".format(cp.pose.position))
-            # rospy.loginfo("Set intermediate goal {}".format(self._intermediate_target.pose.position))
             self._intermediate_target_start_pose = cp
             self._this_target_start_time = rospy.get_time()
 
@@ -199,8 +193,8 @@ class CartesianImpedanceController:
                 self.reached_joint_limit = True
 
         # abort if we take too long
-        if (now - self._this_target_start_time) > self._timeout_per_1m * step_size or \
-                (now - self._goal_start_time) > self._timeout_per_1m * self._init_goal_dist:
+        if (now - self._this_target_start_time) > self._timeout_per_m * step_size or \
+                (now - self._goal_start_time) > self._timeout_per_m * self._init_goal_dist:
             rospy.loginfo("Goal aborted due to timeout")
             self.timed_out = True
             self.abort_goal()
