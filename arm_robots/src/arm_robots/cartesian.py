@@ -3,16 +3,23 @@ import enum
 
 import numpy as np
 import rospy
-from geometry_msgs.msg import PoseStamped
+import ros_numpy
+from geometry_msgs.msg import PoseStamped, Quaternion, Pose
 from victor_hardware_interface_msgs.msg import ControlMode, MotionCommand
 
 
-def point_to_np_array(a):
-    return np.array([a.x, a.y, a.z])
+def quaternion_angle_diff(q1: Quaternion, q2: Quaternion):
+    """Angle of rotation required to get from one orientation to another
+    see https://math.stackexchange.com/a/90098/184113
+    """
+    inner = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w
+    return np.arccos(2 * inner ** 2 - 1)
 
 
-def pose_distance(a, b):
-    return np.linalg.norm(point_to_np_array(a.position) - point_to_np_array(b.position))
+def pose_distance(a: Pose, b: Pose, rot_weight=0):
+    pos_distance = np.linalg.norm(ros_numpy.numpify(a.position) - ros_numpy.numpify(b.position))
+    rot_distance = 0 if rot_weight == 0 else rot_weight * quaternion_angle_diff(a.orientation, b.orientation)
+    return pos_distance + rot_distance
 
 
 class ArmSide(enum.IntEnum):
@@ -160,7 +167,7 @@ class CartesianImpedanceController:
         if self._intermediate_target is None or pose_distance(cp.pose,
                                                               self._intermediate_target.pose) < self._intermediate_close_enough:
             # take step along direction to goal
-            diff = point_to_np_array(self.target_pose.pose.position) - point_to_np_array(cp.pose.position)
+            diff = ros_numpy.numpify(self.target_pose.pose.position) - ros_numpy.numpify(cp.pose.position)
             diff_norm = np.linalg.norm(diff)
             this_step = min(step_size, diff_norm)
             diff *= this_step / diff_norm
