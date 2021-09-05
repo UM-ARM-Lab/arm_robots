@@ -176,11 +176,11 @@ class BaseVictor(BaseRobot):
     def get_left_gripper_links(self):
         return self.robot_commander.get_link_names("left_gripper")
 
-    def open_left_gripper(self):
-        self.left_gripper_command_pub.publish(self.get_open_gripper_msg())
+    def open_left_gripper(self, position=0.25):
+        self.left_gripper_command_pub.publish(self.get_open_gripper_msg(position))
 
-    def open_right_gripper(self):
-        self.right_gripper_command_pub.publish(self.get_open_gripper_msg())
+    def open_right_gripper(self, position=0.25):
+        self.right_gripper_command_pub.publish(self.get_open_gripper_msg(position))
 
     def close_left_gripper(self):
         # TODO: implementing blocking grasping
@@ -329,11 +329,12 @@ class BaseVictor(BaseRobot):
     def get_left_gripper_command_pub(self):
         return self.left_gripper_command_pub
 
-    def get_open_gripper_msg(self):
+    def get_open_gripper_msg(self, position=0.25):
+        """:param position 0 is the most open, 0.25 will make fingers straight"""
         cmd = default_robotiq_command()
-        cmd.finger_a_command.position = 0.25
-        cmd.finger_b_command.position = 0.25
-        cmd.finger_c_command.position = 0.25
+        cmd.finger_a_command.position = position
+        cmd.finger_b_command.position = position
+        cmd.finger_c_command.position = position
         cmd.scissor_command.position = 0.8
         return cmd
 
