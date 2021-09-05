@@ -277,28 +277,6 @@ class BaseVictor(BaseRobot):
                 succeeded = self.cartesian.step(step_size)
         return succeeded
 
-    def send_delta_cartesian_command(self, delta_positions):
-        delta_positions = convert_to_positions(delta_positions)
-        statuses = self.get_arms_statuses()
-
-        current_left_pose = statuses['left'].measured_cartesian_pose
-        desired_left_pose = current_left_pose
-        desired_left_pose.position.x += delta_positions['left'].x
-        desired_left_pose.position.y += delta_positions['left'].y
-        desired_left_pose.position.z += delta_positions['left'].z
-
-        current_right_pose = statuses['right'].measured_cartesian_pose
-        desired_right_pose = current_right_pose
-        desired_right_pose.position.x += delta_positions['right'].x
-        desired_right_pose.position.y += delta_positions['right'].y
-        desired_right_pose.position.z += delta_positions['right'].z
-
-        poses = {
-            'left': desired_left_pose,
-            'right': desired_right_pose,
-        }
-        self.send_cartesian_command(poses)
-
     @staticmethod
     def send_gripper_command(command_pub: rospy.Publisher, positions):
         if positions is not None:
