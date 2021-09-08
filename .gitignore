@@ -1,5 +1,6 @@
 *.swp
 nohup.out
 .idea
+*.npy
 *.pyc
 __pycache__
