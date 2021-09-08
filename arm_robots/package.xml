@@ -12,7 +12,8 @@
   <depend>jacobian_follower</depend>
   <depend>joy</depend>
   <depend>kuka_hardware_interface</depend>
-  <depend>moveit-commander</depend>
+  <depend>moveit_commander</depend>
+  <depend>ros_numpy</depend>
   <depend>victor_description</depend>
   <depend>wsg_50_common</depend>
 
