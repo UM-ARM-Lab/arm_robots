@@ -73,6 +73,7 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
       .def("batch_get_link_to_robot_transforms", &JacobianFollower::batchGetLinkToRobotTransforms)
       .def("get_link_names", &JacobianFollower::getLinkNames)
       .def("is_collision_checking", &JacobianFollower::isCollisionChecking)
+      .def("estimated_torques", &JacobianFollower::estimatedTorques)
       //
       ;
 }

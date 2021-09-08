@@ -247,6 +247,10 @@ class JacobianFollower {
 
   bool isCollisionChecking() const;
 
+  std::optional<std::vector<double>> estimatedTorques(
+      moveit_msgs::RobotState const &robot_state, std::string const &group_name,
+      std::optional<std::vector<geometry_msgs::Wrench>> const &wrenches) const;
+
   template <typename A, typename B>
   void validateNamesAndPositions(const std::vector<A> &joint_names, const std::vector<B> &joint_positions) const {
     if (joint_names.size() != joint_positions.size()) {
