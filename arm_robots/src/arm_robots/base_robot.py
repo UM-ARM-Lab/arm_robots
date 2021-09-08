@@ -5,9 +5,11 @@ import rospy
 from arc_utilities import ros_helpers
 from arc_utilities.listener import Listener
 from arc_utilities.tf2wrapper import TF2Wrapper
+from moveit_msgs.msg import RobotState
 from rosgraph.names import ns_join
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
+
 
 class BaseRobot:
 
@@ -27,7 +29,8 @@ class BaseRobot:
 
         self.tf_wrapper = TF2Wrapper()
         try:
-            self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace, robot_description=robot_description)
+            self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace,
+                                                                   robot_description=robot_description)
         except RuntimeError as e:
             rospy.logerr("You may need to load the moveit planning context and robot description")
             print(e)
@@ -49,6 +52,23 @@ class BaseRobot:
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         raise NotImplementedError()
+
+    def get_joint_velocities(self, joint_names: Optional[List[str]] = None):
+        """
+        :args joint_names an optional list of names if you want to have a specific order or a subset
+        """
+        joint_state: JointState = self._joint_state_listener.get()
+        if joint_names is None:
+            return joint_state.velocity
+
+        current_joint_velocities = []
+        for name in joint_names:
+            if name not in joint_state.name:
+                ros_helpers.logfatal(ValueError, f"Joint {name} not found in joint states")
+            idx = joint_state.name.index(name)
+            pos = joint_state.position[idx]
+            current_joint_velocities.append(pos)
+        return current_joint_velocities
 
     def get_joint_positions(self, joint_names: Optional[List[str]] = None):
         """

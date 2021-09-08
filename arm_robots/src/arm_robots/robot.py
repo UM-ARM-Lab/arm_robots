@@ -122,7 +122,8 @@ class MoveitEnabledRobot(BaseRobot):
 
     def get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
         if group_name not in self._move_groups:
-            self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace, robot_description=self.robot_description)
+            self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace,
+                                                                                robot_description=self.robot_description)
         move_group: moveit_commander.MoveGroupCommander = self._move_groups[group_name]
         move_group.clear_pose_targets()
         move_group.set_planning_time(30.0)
@@ -515,3 +516,18 @@ class MoveitEnabledRobot(BaseRobot):
 
     def display_goal_pose(self, pose: Pose):
         self.tf_wrapper.send_transform_from_pose_msg(pose, 'robot_root', 'arm_robots_goal')
+
+    def get_state(self, group_name: str = None):
+        robot_state = RobotState()
+        if group_name is None:
+            joint_names = self.get_joint_names()
+        else:
+            joint_names = self.get_move_group_commander(group_name).get_active_joints()
+
+        robot_state.joint_state.name = joint_names
+        robot_state.joint_state.position = self.get_joint_positions(joint_names)
+        robot_state.joint_state.velocity = self.get_joint_velocities(joint_names)
+        return robot_state
+
+    def estimated_torques(self, robot_state: RobotState, group, wrenches=None):
+        return self.jacobian_follower.estimated_torques(robot_state, group, wrenches)

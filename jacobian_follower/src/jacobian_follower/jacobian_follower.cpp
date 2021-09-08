@@ -3,6 +3,7 @@
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/DisplayTrajectory.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
+#include <moveit/dynamics_solver/dynamics_solver.h>
 #include <std_msgs/String.h>
 
 #include <arc_utilities/arc_helpers.hpp>
@@ -1013,3 +1014,33 @@ std::vector<std::vector<Eigen::Matrix4Xd>> JacobianFollower::batchGetLinkToRobot
 std::vector<std::string> JacobianFollower::getLinkNames() const { return model_->getLinkModelNames(); }
 
 bool JacobianFollower::isCollisionChecking() const { return static_cast<bool>(constraint_fun_); }
+
+std::optional<std::vector<double>> JacobianFollower::estimatedTorques(
+    moveit_msgs::RobotState const &robot_state, std::string const &group_name,
+    std::optional<std::vector<geometry_msgs::Wrench>> const &in_wrenches) const {
+  auto const n_joints = robot_state.joint_state.position.size();
+  auto const n_links = model_->getJointModelGroup(group_name)->getLinkModels().size();
+
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".dynamics", "group " << group_name);
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".dynamics", "n_joints " << n_joints);
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".dynamics", "n_links " << n_links);
+
+  std::vector<geometry_msgs::Wrench> wrenches(n_links);
+  if (in_wrenches) {
+    wrenches = *in_wrenches;
+  }
+  std::vector<double> torques_out(n_joints);
+  auto const positions = robot_state.joint_state.position;
+  auto const velocities = robot_state.joint_state.velocity;
+  auto const accelerations = std::vector<double>(n_joints, 0.0);
+  geometry_msgs::Vector3 gravity;
+  gravity.z = 1;
+  dynamics_solver::DynamicsSolver solver{model_, group_name, gravity};
+  auto const ok = solver.getTorques(positions, velocities, accelerations, wrenches, torques_out);
+  if (not ok) {
+    ROS_WARN_STREAM_NAMED(LOGGER_NAME + ".dynamics", "Error computing torques");
+    return {};
+  }
+
+  return torques_out;
+}
