@@ -6,21 +6,14 @@
     <arg name="gui" default="true"/>
     <arg name="update_description" default="true"/>
     <arg name="verbose" default="false"/>
-    <group ns="static_transform_publishers">
-        <node pkg="tf2_ros" type="static_transform_publisher" name="rename_origin" required="true"
-              args="0 0 0 0 0 0 robot_root world">
-        </node>
-    </group>
-
-    <group if="$(arg update_description)">
-        <!-- uploads robot description and setups up other parameters -->
-        <include file="$(find hdt_michigan_moveit)/launch/planning_context.launch">
-            <arg name="load_robot_description" value="true"/>
-        </include>
-    </group>
-
 
     <group if="$(arg sim)">
+        <group ns="static_transform_publishers">
+            <node pkg="tf2_ros" type="static_transform_publisher" name="rename_origin" required="true"
+                  args="0 0 0 0 0 0 robot_root world">
+            </node>
+        </group>
+
         <arg name="world_name" default="$(find arm_robots)/world/val_walls_sim.world"/>
 
         <!-- Start gazebo -->
@@ -47,15 +40,25 @@
 
         <!-- Move it-->
         <include ns="hdt_michigan" file="$(find hdt_michigan_moveit)/launch/move_group.launch">
+            <arg name="load_robot_description" value="true"/>
+            <arg name="with_husky" value="false"/>
             <arg name="allow_trajectory_execution" value="true"/>
             <arg name="moveit_controller_manager" value="gazebo"/>
         </include>
     </group>
     <group unless="$(arg sim)">
-        <arg name="world_name" default="$(find arm_robots)/world/val_walls.world"/>
+        <group ns="static_transform_publishers">
+            <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_base_link" required="true"
+                  args="0 0 0 0 0 0 world base_link">
+            </node>
+        </group>
+
+        <arg name="world_name" default="$(find arm_robots)/world/val_husky_walls.world"/>
 
         <!-- Start gazebo -->
         <include file="$(find gazebo_ros)/launch/empty_world.launch">
+            <!-- Gazebo's code assumes HOME is set to something -->
+            <env name="HOME" value="/home/administrator"/>
             <arg name="world_name" value="$(arg world_name)"/>
             <arg name="gui" value="$(arg gui)"/>
             <arg name="paused" value="false"/>
@@ -76,6 +79,7 @@
         <!-- Move it-->
         <include ns="hdt_michigan" file="$(find hdt_michigan_moveit)/launch/move_group.launch">
             <arg name="load_robot_description" value="false"/>
+            <arg name="with_husky" value="true"/>
             <arg name="allow_trajectory_execution" value="true"/>
             <arg name="moveit_controller_manager" value="real"/>
         </include>

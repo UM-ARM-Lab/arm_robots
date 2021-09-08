@@ -27,11 +27,8 @@
 
   <group if="$(arg use_val)">
     <!-- add grippers / controller names -->
-    <node pkg="arm_robots" type="trajectory_follower_node.py" name="val_trajectory_follower" args="hdt_michigan both_arms_trajectory_controller"/>
-    <group ns="static_transform_publishers">
-      <node pkg="tf2_ros" type="static_transform_publisher" name="active_robot_root_broadcaster" required="true"
-            args="0 0 0 0 0 0 val_root robot_root">
-      </node>
-    </group>
+    <node pkg="arm_robots" type="trajectory_follower_node.py" name="val_trajectory_follower" args="hdt_michigan both_arms_trajectory_controller">
+      <remap from="robot_description" to="hdt_michigan/robot_description"/>
+    </node>
   </group>
 </launch>

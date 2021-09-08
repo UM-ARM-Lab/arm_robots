@@ -236,7 +236,8 @@ class MoveitEnabledRobot(BaseRobot):
         move_group.set_joint_value_target(joint_config)
 
         if self.display_goals:
-            robot_state = RobotState(joint_state=JointState(name=joint_config.keys(), position=joint_config.values()))
+            robot_state = RobotState(joint_state=JointState(name=list(joint_config.keys()),
+                                                            position=list(joint_config.values())))
             self.display_robot_state(robot_state, label='joint_config_goal')
 
         planning_result = PlanningResult(move_group.plan())
@@ -429,7 +430,7 @@ class MoveitEnabledRobot(BaseRobot):
         #   However, MoveIt does not have this implemented that way, it requires connecting to the move group node.
         #   This causes problems sometimes, so to simplify things we do the lookup manually if no group name is given.
         if group_name is None:
-            robot = urdf.from_parameter_server()
+            robot = urdf.from_parameter_server(key=self.robot_description)
             active_joint_names = [j.name for j in robot.joints if j.type != 'fixed']
             return active_joint_names
         if hasattr(self.robot_commander, 'get_active_joint_names'):

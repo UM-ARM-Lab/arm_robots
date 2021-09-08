@@ -5,7 +5,6 @@ import rospy
 from arc_utilities import ros_helpers
 from arc_utilities.listener import Listener
 from arc_utilities.tf2wrapper import TF2Wrapper
-from moveit_msgs.msg import RobotState
 from rosgraph.names import ns_join
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
@@ -21,6 +20,7 @@ class BaseRobot:
         TrajectoryFollower class, we do not want BaseRobot to use any MoveIt TrajectoryExeuction or rely on any trajectory
         execution services.
         """
+        robot_description = rospy.resolve_name(robot_description)
         self.robot_namespace = robot_namespace
         self.robot_description = robot_description
         # the robot namespace will be prepended by setting ROS_NAMESPACE environment variable or the ns="" in roslaunch
