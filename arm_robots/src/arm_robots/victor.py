@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+import math
 import collections
 from typing import List, Dict, Tuple, Sequence
 
@@ -29,6 +30,7 @@ from arm_robots.robot import MoveitEnabledRobot
 from arm_robots.robot_utils import make_joint_tolerance
 from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list, \
     default_gripper_command, gripper_status_to_list, is_gripper_closed
+from arm_robots.cartesian import CartesianImpedanceController, ArmSide
 
 
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
@@ -76,6 +78,8 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
 
 
 class BaseVictor(BaseRobot):
+    JOINT_LIM = np.array([math.pi * d / 180 for d in [170, 120, 170, 120, 170, 120, 175]])
+    JOINT_LIM_LOW = np.array([-d for d in JOINT_LIM])
 
     def __init__(self, robot_namespace: str):
         BaseRobot.__init__(self, robot_namespace=robot_namespace)
@@ -105,6 +109,10 @@ class BaseVictor(BaseRobot):
         self.right_gripper_status_listener = Listener(self.ns("right_arm/gripper_status"), Robotiq3FingerStatus)
 
         self.waypoint_state_pub = rospy.Publisher(self.ns("waypoint_robot_state"), DisplayRobotState, queue_size=10)
+        self.cartesian = CartesianImpedanceController(self.tf_wrapper.tf_buffer,
+                                                      [self.left_arm_status_listener, self.right_arm_status_listener],
+                                                      [self.left_arm_command_pub, self.right_arm_command_pub],
+                                                      self.JOINT_LIM_LOW, self.JOINT_LIM)
 
     def send_joint_command(self, joint_names: Sequence[str], trajectory_point: JointTrajectoryPoint) -> Tuple[
         bool, str]:
@@ -168,11 +176,11 @@ class BaseVictor(BaseRobot):
     def get_left_gripper_links(self):
         return self.robot_commander.get_link_names("left_gripper")
 
-    def open_left_gripper(self):
-        self.left_gripper_command_pub.publish(self.get_open_gripper_msg())
+    def open_left_gripper(self, position=0.25):
+        self.left_gripper_command_pub.publish(self.get_open_gripper_msg(position))
 
-    def open_right_gripper(self):
-        self.right_gripper_command_pub.publish(self.get_open_gripper_msg())
+    def open_right_gripper(self, position=0.25):
+        self.right_gripper_command_pub.publish(self.get_open_gripper_msg(position))
 
     def close_left_gripper(self):
         # TODO: implementing blocking grasping
@@ -257,58 +265,17 @@ class BaseVictor(BaseRobot):
             rospy.logerr(res.message)
         return res
 
-    def send_cartesian_command(self, poses: Dict):
-        """ absolute """
-        self.send_left_arm_cartesian_command(poses['left'])
-        self.send_right_arm_cartesian_command(poses['right'])
-
-    def send_left_arm_cartesian_command(self, pose_stamped):
-        pose_stamped = convert_to_pose_msg(pose_stamped)
-        pose_stamped.pose.orientation = normalize_quaternion(pose_stamped.pose.orientation)
-
-        left_arm_command = MotionCommand()
-        left_arm_command.header.frame_id = 'victor_left_arm_world_frame_kuka'
-        left_arm_command.cartesian_pose = pose_stamped.pose
-        left_arm_command.control_mode = self.get_left_arm_control_mode()
-        while self.left_arm_command_pub.get_num_connections() < 1:
-            rospy.sleep(0.01)
-
-        self.left_arm_command_pub.publish(left_arm_command)
-
-    def send_right_arm_cartesian_command(self, pose_stamped):
-        pose_stamped = convert_to_pose_msg(pose_stamped)
-        pose_stamped.pose.orientation = normalize_quaternion(pose_stamped.pose.orientation)
-
-        right_arm_command = MotionCommand()
-        right_arm_command.header.frame_id = 'victor_right_arm_world_frame_kuka'
-        right_arm_command.cartesian_pose = pose_stamped.pose
-        right_arm_command.control_mode = self.get_right_arm_control_mode()
-        while self.right_arm_command_pub.get_num_connections() < 1:
-            rospy.sleep(0.01)
-
-        self.right_arm_command_pub.publish(right_arm_command)
-
-    def send_delta_cartesian_command(self, delta_positions):
-        delta_positions = convert_to_positions(delta_positions)
-        statuses = self.get_arms_statuses()
-
-        current_left_pose = statuses['left'].measured_cartesian_pose
-        desired_left_pose = current_left_pose
-        desired_left_pose.position.x += delta_positions['left'].x
-        desired_left_pose.position.y += delta_positions['left'].y
-        desired_left_pose.position.z += delta_positions['left'].z
-
-        current_right_pose = statuses['right'].measured_cartesian_pose
-        desired_right_pose = current_right_pose
-        desired_right_pose.position.x += delta_positions['right'].x
-        desired_right_pose.position.y += delta_positions['right'].y
-        desired_right_pose.position.z += delta_positions['right'].z
-
-        poses = {
-            'left': desired_left_pose,
-            'right': desired_right_pose,
-        }
-        self.send_cartesian_command(poses)
+    def move_delta_cartesian_impedance(self, arm: ArmSide, dx, dy, target_z=None, target_orientation=None,
+                                       step_size=0.005, blocking=True):
+        self.cartesian.set_active_arm(arm)
+        if not self.cartesian.set_relative_goal_2d(dx, dy, target_z=target_z, target_orientation=target_orientation):
+            return False
+        succeeded = self.cartesian.step(step_size)
+        if blocking:
+            # TODO add a rospy.Rate and sleep here?
+            while self.cartesian.target_pose is not None:
+                succeeded = self.cartesian.step(step_size)
+        return succeeded
 
     @staticmethod
     def send_gripper_command(command_pub: rospy.Publisher, positions):
@@ -340,11 +307,12 @@ class BaseVictor(BaseRobot):
     def get_left_gripper_command_pub(self):
         return self.left_gripper_command_pub
 
-    def get_open_gripper_msg(self):
+    def get_open_gripper_msg(self, position=0.25):
+        """:param position 0 is the most open, 0.25 will make fingers straight"""
         cmd = default_robotiq_command()
-        cmd.finger_a_command.position = 0.25
-        cmd.finger_b_command.position = 0.25
-        cmd.finger_c_command.position = 0.25
+        cmd.finger_a_command.position = position
+        cmd.finger_b_command.position = position
+        cmd.finger_c_command.position = position
         cmd.scissor_command.position = 0.8
         return cmd
 
