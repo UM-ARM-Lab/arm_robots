@@ -13,15 +13,15 @@ from moveit_msgs.msg import RobotState
 from sensor_msgs.msg import JointState
 
 
-def robot_state_from_joint_state_and_joint_names(joint_names1, joint_state):
-    robot_state1 = RobotState()
-    for name in joint_names1:
+def robot_state_from_joint_state_and_joint_names(joint_names, joint_state):
+    robot_state = RobotState()
+    for name in joint_names:
         i = joint_state.name.index(name)
         p = joint_state.position[i]
-        robot_state1.joint_state.name.append(name)
-        robot_state1.joint_state.position.append(p)
-        robot_state1.joint_state.velocity.append(0)
-    return robot_state1
+        robot_state.joint_state.name.append(name)
+        robot_state.joint_state.position.append(p)
+        robot_state.joint_state.velocity.append(0)
+    return robot_state
 
 
 @ros_init.with_ros("calibrate_val_currents")
