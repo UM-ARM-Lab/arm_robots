@@ -29,15 +29,15 @@ torque_viz_scales = {
 }
 
 
-def robot_state_from_joint_state_and_joint_names(joint_names1, joint_state):
-    robot_state1 = RobotState()
-    for name in joint_names1:
+def robot_state_from_joint_state_and_joint_names(joint_names, joint_state):
+    robot_state = RobotState()
+    for name in joint_names:
         i = joint_state.name.index(name)
         p = joint_state.position[i]
-        robot_state1.joint_state.name.append(name)
-        robot_state1.joint_state.position.append(p)
-        robot_state1.joint_state.velocity.append(0)
-    return robot_state1
+        robot_state.joint_state.name.append(name)
+        robot_state.joint_state.position.append(p)
+        robot_state.joint_state.velocity.append(0)
+    return robot_state
 
 
 @ros_init.with_ros("estimated_torques_demo")
@@ -52,6 +52,9 @@ def main():
     args = parser.parse_args(rospy.myargv(sys.argv[1:]))
 
     robot = get_moveit_robot(args.robot_namespace)
+
+    print(f"Using robot {robot}")
+
     group_name1 = "left_side"
     group_name2 = "right_side"
     n_links = 14
