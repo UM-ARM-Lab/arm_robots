@@ -20,9 +20,8 @@ class BaseRobot:
         TrajectoryFollower class, we do not want BaseRobot to use any MoveIt TrajectoryExeuction or rely on any trajectory
         execution services.
         """
-        robot_description = rospy.resolve_name(robot_description)
         self.robot_namespace = robot_namespace
-        self.robot_description = robot_description
+        self.robot_description = rospy.resolve_name(robot_description)
         # the robot namespace will be prepended by setting ROS_NAMESPACE environment variable or the ns="" in roslaunch
         self.joint_states_topic = ns_join(self.robot_namespace, 'joint_states')
         self._joint_state_listener = Listener(self.joint_states_topic, JointState)
@@ -30,7 +29,7 @@ class BaseRobot:
         self.tf_wrapper = TF2Wrapper()
         try:
             self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace,
-                                                                   robot_description=robot_description)
+                                                                   robot_description=self.robot_description)
         except RuntimeError as e:
             rospy.logerr("You may need to load the moveit planning context and robot description")
             print(e)

@@ -14,7 +14,9 @@ from geometry_msgs.msg import Wrench
 from hdt_robot.hdt_michigan_control.scripts.joint_state_filter import torque_to_current
 from sensor_msgs.msg import JointState
 
-configs = [
+# NOTE: These configurations are chosen to cover the configuration space,
+#  to get lots of different current readings on the motors
+CALIBRATION_CONFIGS = [
     {
         'joint1':  -5.396254512529697,
         'joint2':  -2.0917040017045907,
@@ -154,7 +156,7 @@ def main():
     sub = rospy.Subscriber(val.joint_states_topic, JointState, _joint_state_cb)
 
     val.plan_to_joint_config('both_arms', 'home')
-    for i, config in enumerate(configs):
+    for i, config in enumerate(CALIBRATION_CONFIGS):
         print(i)
         val.plan_to_joint_config('both_arms', config)
 
@@ -244,7 +246,7 @@ def main():
     sub = rospy.Subscriber(val.joint_states_topic, JointState, _joint_state_cb)
 
     val.plan_to_joint_config('both_arms', 'home')
-    for i, config in enumerate(configs):
+    for i, config in enumerate(CALIBRATION_CONFIGS):
         print(i)
         val.plan_to_joint_config('both_arms', config)
 
