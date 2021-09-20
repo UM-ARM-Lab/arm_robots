@@ -43,10 +43,10 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
            py::arg("joint_group_name"))
       .def("compute_collision_free_pose_ik", &JacobianFollower::computeCollisionFreePoseIK,
            py::arg("default_robot_state"), py::arg("poses"), py::arg("group_name"), py::arg("tip_names"),
-           py::arg("scene_name"), py::arg("ik_params") = IkParams())
+           py::arg("scene_msg"), py::arg("ik_params") = IkParams())
       .def("compute_collision_free_point_ik", &JacobianFollower::computeCollisionFreePointIK,
            py::arg("default_robot_state"), py::arg("points"), py::arg("group_name"), py::arg("tip_names"),
-           py::arg("scene_name"), py::arg("ik_params") = IkParams())
+           py::arg("scene_msg"), py::arg("ik_params") = IkParams())
       .def("group_fk",
            py::overload_cast<const std::vector<double> &, const std::vector<std::string> &, const std::string &>(
                &JacobianFollower::computeGroupFK, py::const_),
@@ -74,6 +74,7 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
       .def("get_link_names", &JacobianFollower::getLinkNames)
       .def("is_collision_checking", &JacobianFollower::isCollisionChecking)
       .def("estimated_torques", &JacobianFollower::estimatedTorques)
+      .def("get_scene", &JacobianFollower::get_scene)
       //
       ;
 }
