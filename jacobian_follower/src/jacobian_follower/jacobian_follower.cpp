@@ -1,9 +1,9 @@
 #include <arc_utilities/enumerate.h>
 #include <bio_ik/bio_ik.h>
+#include <moveit/dynamics_solver/dynamics_solver.h>
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/DisplayTrajectory.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
-#include <moveit/dynamics_solver/dynamics_solver.h>
 #include <std_msgs/String.h>
 
 #include <arc_utilities/arc_helpers.hpp>
@@ -1043,4 +1043,9 @@ std::optional<std::vector<double>> JacobianFollower::estimatedTorques(
   }
 
   return torques_out;
+}
+moveit_msgs::PlanningScene JacobianFollower::get_scene() const {
+  moveit_msgs::PlanningScene msg;
+  scene_monitor_->getPlanningScene()->getPlanningSceneMsg(msg);
+  return msg;
 }
