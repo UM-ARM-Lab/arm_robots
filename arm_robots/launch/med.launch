@@ -4,9 +4,14 @@
     <arg name="update_description" default="true"/>
     <arg name="verbose" default="false"/>
     <arg name="bubbles" default="false"/>
+    <arg name="medusa" default="false"/>
 
     <arg name="moveit_config_path" default="$(find med_moveit_config)" unless="$(arg bubbles)"/>
     <arg name="moveit_config_path" default="$(find med_moveit_bubbles_config)" if="$(arg bubbles)"/>
+
+    <!-- Collision geometry -->
+    <node pkg="med_hardware_interface" type="med_collision_geometry.py" name="med_collision_geometry" unless="$(arg medusa)"/>
+    <node pkg="med_hardware_interface" type="medusa_collision_geometry.py" name="medusa_collision_geometry" if="$(arg medusa)"/>
 
     <group if="$(arg update_description)">
         <!-- uploads robot description and setups up other parameters -->
@@ -62,7 +67,6 @@
 
     </group>
 
-    <!-- Collision geometry -->
-    <node pkg="med_hardware_interface" type="med_collision_geometry.py" name="med_collision_geometry"/>
+
 
 </launch>
