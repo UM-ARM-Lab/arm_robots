@@ -1,11 +1,11 @@
 <launch>
     <arg name="update_description" default="true"/>
+    <arg name="launch_fake_dual_arm_bridge" default="false"/>
 
-    <group ns="static_transform_publishers">
-        <node pkg="tf2_ros" type="static_transform_publisher" name="rename_origin" required="true"
-              args="0 0 0 0 0 0 robot_root world">
-        </node>
+    <group if="$(arg launch_fake_dual_arm_bridge)">
+        <include file="$(find victor_fake_hardware_interface)/launch/fake_dual_arm_lcm_bridge.launch"/>
     </group>
+
 
     <group if="$(arg update_description)">
         <!-- uploads robot description and setups up other parameters -->
@@ -13,13 +13,13 @@
             <arg name="load_robot_description" value="true"/>
         </include>
     </group>
-    
+
     <!-- Move it-->
     <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
-      <arg name="allow_trajectory_execution" value="true"/>
-      <arg name="moveit_controller_manager" value="fake"/>
+        <arg name="allow_trajectory_execution" value="true"/>
+        <arg name="moveit_controller_manager" value="fake"/>
     </include>
     <include file="$(find arm_robots)/launch/trajectory_follower.launch">
-      <arg name="use_victor" value="true"/>
+        <arg name="use_victor" value="true"/>
     </include>
 </launch>

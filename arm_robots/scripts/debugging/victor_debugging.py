@@ -1,35 +1,31 @@
-#! /usr/bin/env python
+"""
+This script is similar to victor_basic_motion, but offers a slightly easier starting point for debugging
+"""
+
+# ! /usr/bin/env python
 import colorama
 import numpy as np
 import roscpp_initializer
-
 import rospy
-from arc_utilities.ros_init import rospy_and_cpp_init
+from geometry_msgs.msg import Pose
+from tf.transformations import quaternion_from_euler
 
 from arc_utilities import ros_init
 from arm_robots.victor import Victor
-from geometry_msgs.msg import Pose
-from tf.transformations import quaternion_from_euler
 from victor_hardware_interface_msgs.msg import ControlMode
 
-ask_before_moving = True
+ask_before_moving = False
 
 
 def myinput(msg):
     global ask_before_moving
     if ask_before_moving:
         input(msg)
+    else:
+        print(msg)
 
 
-@ros_init.with_ros("victor_basic_motion")
-def main():
-    np.set_printoptions(suppress=True, precision=0, linewidth=200)
-    colorama.init(autoreset=True)
-
-    victor = Victor(display_goals=False)
-    victor.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=0.1)
-    victor.connect()
-    
+def open_and_close_grippers(victor):
     rospy.sleep(1)
     victor.open_left_gripper()
     rospy.sleep(1)
@@ -39,6 +35,18 @@ def main():
     rospy.sleep(1)
     victor.close_right_gripper()
     rospy.sleep(1)
+
+
+@ros_init.with_ros("victor_debugging")
+def main():
+    np.set_printoptions(suppress=True, precision=0, linewidth=200)
+    colorama.init(autoreset=True)
+
+    victor = Victor()
+    victor.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=0.1)
+    victor.connect()
+
+    # open_and_close_grippers(victor)
 
     print("press enter if prompted")
 
@@ -78,12 +86,12 @@ def main():
     victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[0.7, -0.4, 0.6]]])
     victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[0.8, -0.4, 1.0]]])
     victor.follow_jacobian_to_position(victor.right_arm_group, [victor.right_tool_name], [[[1.1, -0.4, 0.9]]])
-    victor.follow_jacobian_to_position(group_name=victor.right_arm_group,
-                                       tool_names=[victor.right_tool_name],
-                                       preferred_tool_orientations=[quaternion_from_euler(np.pi, 0, 0)],
-                                       points=[[[1.1, -0.2, 0.8]]])
+    result = victor.follow_jacobian_to_position(group_name=victor.right_arm_group,
+                                                tool_names=[victor.right_tool_name],
+                                                preferred_tool_orientations=[quaternion_from_euler(np.pi, 0, 0)],
+                                                points=[[[1.1, -0.2, 0.8]]])
 
-    roscpp_initializer.shutdown()
+    victor.display_robot_traj(result.planning_result.plan, 'jacobian')
 
 
 if __name__ == "__main__":

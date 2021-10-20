@@ -1,28 +1,23 @@
 from typing import Optional, Type
 
 import rospy
-from arm_robots.hdt_michigan import Val, BaseVal
 from arm_robots.robot import MoveitEnabledRobot
-from arm_robots.victor import BaseVictor, Victor
-from arm_robots.med import BaseMed, Med
+from arm_robots.base_robot import BaseRobot
 
+def get_base_robot(robot_name: Optional[str] = None, **kwargs) -> BaseRobot:
+    return get_robot(base=True, robot_name=robot_name, **kwargs)
 
-def get_moveit_robot(robot_name: Optional[str] = None, **kwargs):
-    return get_robot(Val, Victor, Med, robot_name, **kwargs)
+def get_moveit_robot(robot_name: Optional[str] = None, **kwargs) -> MoveitEnabledRobot:
+    return get_robot(base=False, robot_name=robot_name, **kwargs)
 
-
-def get_base_robot(robot_name: Optional[str] = None, **kwargs):
-    return get_robot(BaseVal, BaseVictor, BaseMed, robot_name, **kwargs)
-
-
-def get_robot(val_type: Type, victor_type: Type, med_type: Type, robot_name: Optional[str] = None, **kwargs) -> MoveitEnabledRobot:
+def get_robot(base: bool, robot_name: Optional[str] = None, **kwargs):
     """
     Get the right robot. It considers first the robot_name argument,
     then checks the ros parameter server,
     then the ROS_NAMESPACE variable.
+    this nonsense is all to avoid a bit of code duplication
     Args:
-        victor_type: the class to instantiate for victor
-        val_type:  the class to instantiate for val
+        base:  true for the base versions of the class
         robot_name: robot name
 
     Returns:
@@ -39,10 +34,13 @@ def get_robot(val_type: Type, victor_type: Type, med_type: Type, robot_name: Opt
             robot_name = default
 
     if robot_name == 'victor':
-        return victor_type(robot_name, **kwargs)
+        from arm_robots.victor import Victor, BaseVictor
+        return BaseVictor(robot_name, **kwargs) if base else Victor(robot_name, **kwargs)
     elif robot_name in ['val', 'hdt_michigan']:
-        return val_type('hdt_michigan', **kwargs)
+        from arm_robots.hdt_michigan import Val, BaseVal
+        return BaseVal('hdt_michigan', **kwargs) if base else Val('hdt_michigan', **kwargs)
     elif robot_name == 'med':
-        return med_type(robot_name, **kwargs)
+        from arm_robots.med import Med, BaseMed
+        return BaseMed(robot_name, **kwargs) if base else Med(robot_name, **kwargs)
     else:
         raise NotImplementedError(f"robot with name {robot_name} not implemented")

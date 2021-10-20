@@ -1,7 +1,6 @@
 - git:
     local-name: arc_utilities
     uri: git@github.com:UM-ARM-Lab/arc_utilities.git
-    version: peter
 - git:
     local-name: arm_robots
     uri: git@github.com:UM-ARM-Lab/arm_robots.git
@@ -14,3 +13,9 @@
 - git:
     local-name: robotiq
     uri: git@github.com:UM-ARM-Lab/robotiq.git
+- git:
+    local-name: wsg50-ros-pkg
+    uri: git@github.com:MMintLab/wsg50-ros-pkg.git
+- git:
+    local-name: bio_ik
+    uri: git@github.com:UM-ARM-Lab/bio_ik.git

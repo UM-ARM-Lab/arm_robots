@@ -18,7 +18,8 @@ from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningRe
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
 from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PoseStamped
-from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor, RobotState, PlanningScene
+from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor, RobotState, PlanningScene, \
+    DisplayTrajectory
 from rosgraph.names import ns_join
 from rospy import logfatal
 from sensor_msgs.msg import JointState
@@ -49,32 +50,39 @@ class MoveitEnabledRobot(BaseRobot):
     def __init__(self,
                  robot_namespace: str,
                  arms_controller_name: str,
+                 robot_description: str = 'robot_description',
                  execute: bool = True,
                  block: bool = True,
                  raise_on_failure: bool = False,
                  display_goals: bool = True,
-                 force_trigger: float = 9.0):
-        super().__init__(robot_namespace)
+                 force_trigger: float = 9.0,
+                 jacobian_follower: Optional[pyjacobian_follower.JacobianFollower] = None):
+        super().__init__(robot_namespace, robot_description)
         self._max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
         self.execute = execute
         self.block = block
-        self.force_trigger = force_trigger
         self.display_goals = display_goals
+        self.force_trigger = force_trigger
+        self.jacobian_follower = jacobian_follower
 
         self.arms_controller_name = arms_controller_name
 
         self.display_robot_state_pub = rospy.Publisher('display_robot_state', DisplayRobotState, queue_size=10)
         self.display_goal_position_pub = rospy.Publisher('goal_position', Marker, queue_size=10)
         self.display_robot_state_pubs = {}
+        self.display_robot_traj_pubs = {}
 
         self.arms_client = None
-        self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
-                                                                      translation_step_size=0.005,
-                                                                      minimize_rotation=True,
-                                                                      collision_check=True,
-                                                                      visualize=True)
+
+        if jacobian_follower is None:
+            self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
+                                                                          robot_description=robot_description,
+                                                                          translation_step_size=0.005,
+                                                                          minimize_rotation=True,
+                                                                          collision_check=True,
+                                                                          visualize=True)
 
         self.feedback_callbacks = []
         self._move_groups = {}
@@ -114,9 +122,12 @@ class MoveitEnabledRobot(BaseRobot):
 
     def get_move_group_commander(self, group_name: str) -> moveit_commander.MoveGroupCommander:
         if group_name not in self._move_groups:
-            self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace)
-        move_group = self._move_groups[group_name]
+            self._move_groups[group_name] = moveit_commander.MoveGroupCommander(group_name, ns=self.robot_namespace,
+                                                                                robot_description=self.robot_description)
+        move_group: moveit_commander.MoveGroupCommander = self._move_groups[group_name]
+        move_group.clear_pose_targets()
         move_group.set_planning_time(30.0)
+
         # TODO Make this a settable param or at least make the hardcoded param more obvious
         # The purpose of this safety factor is to make sure we never send victor a velocity
         # faster than the kuka controller's max velocity, otherwise the kuka controllers will error out.
@@ -127,7 +138,8 @@ class MoveitEnabledRobot(BaseRobot):
     def plan_to_position(self,
                          group_name: str,
                          ee_link_name: str,
-                         target_position):
+                         target_position,
+                         stop_condition: Optional[Callable] = None):
         move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
         move_group.set_position_target(list(target_position))
@@ -136,7 +148,7 @@ class MoveitEnabledRobot(BaseRobot):
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to position failed {planning_result.planning_error_code}")
 
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def plan_to_position_cartesian(self,
@@ -144,6 +156,7 @@ class MoveitEnabledRobot(BaseRobot):
                                    ee_link_name: str,
                                    target_position: Union[Point, List, np.array],
                                    step_size: float = 0.02,
+                                   stop_condition: Optional[Callable] = None,
                                    ):
         move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
@@ -163,10 +176,11 @@ class MoveitEnabledRobot(BaseRobot):
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Cartesian path is only {fraction * 100}% complete")
 
-        execution_result = self.follow_arms_joint_trajectory(plan.joint_trajectory)
+        execution_result = self.follow_arms_joint_trajectory(plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
-    def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root'):
+    def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root',
+                     stop_condition: Optional[Callable] = None):
         self.check_inputs(group_name, ee_link_name)
         move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
@@ -183,7 +197,7 @@ class MoveitEnabledRobot(BaseRobot):
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to pose failed {planning_result.planning_error_code}")
 
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def get_link_pose(self, link_name: str):
@@ -196,7 +210,8 @@ class MoveitEnabledRobot(BaseRobot):
         pose = ros_numpy.msgify(Pose, transform)
         return pose
 
-    def plan_to_joint_config(self, group_name: str, joint_config: Union[List, Dict, str]):
+    def plan_to_joint_config(self, group_name: str, joint_config: Union[List, Dict, str],
+                             stop_condition: Optional[Callable] = None):
         """
         Args:
             group_name: group name, defined in the SRDF
@@ -204,6 +219,7 @@ class MoveitEnabledRobot(BaseRobot):
              or a string for the group_state defined in the SRDF. You can technically use a list
              here instead of a dict but you need to provide all joints in the right order,
              which is hard to get right and gives bad error messages
+            stop_condition: optional stop condition function to halt execution early.
 
         Returns:
             The result message of following the trajectory
@@ -214,18 +230,20 @@ class MoveitEnabledRobot(BaseRobot):
             joint_config = move_group.get_named_target_values(joint_config_name)
             if len(joint_config) == 0:
                 raise ValueError(f"No group state named {joint_config_name}")
-            move_group.set_joint_value_target(joint_config)
-        else:
-            move_group.set_joint_value_target(joint_config)
+        if isinstance(joint_config, List):
+            joint_config = {name: val for name, val in zip(move_group.get_active_joints(), joint_config)}
+
+        move_group.set_joint_value_target(joint_config)
 
         if self.display_goals:
-            robot_state = RobotState(joint_state=JointState(name=joint_config.keys(), position=joint_config.values()))
+            robot_state = RobotState(joint_state=JointState(name=list(joint_config.keys()),
+                                                            position=list(joint_config.values())))
             self.display_robot_state(robot_state, label='joint_config_goal')
 
         planning_result = PlanningResult(move_group.plan())
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to position failed {planning_result.planning_error_code}")
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
@@ -412,7 +430,7 @@ class MoveitEnabledRobot(BaseRobot):
         #   However, MoveIt does not have this implemented that way, it requires connecting to the move group node.
         #   This causes problems sometimes, so to simplify things we do the lookup manually if no group name is given.
         if group_name is None:
-            robot = urdf.from_parameter_server()
+            robot = urdf.from_parameter_server(key=self.robot_description)
             active_joint_names = [j.name for j in robot.joints if j.type != 'fixed']
             return active_joint_names
         if hasattr(self.robot_commander, 'get_active_joint_names'):
@@ -425,6 +443,31 @@ class MoveitEnabledRobot(BaseRobot):
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         raise NotImplementedError()
+
+    def display_robot_traj(self, trajectory: RobotTrajectory, label: str, color: Optional = None):
+        """
+
+        Args:
+            trajectory:
+            label:
+            color: any kind of matplotlib color, e.g "blue", [0,0.6,1], "#ff0044", etc...
+
+        Returns:
+
+        """
+        topic_name = rospy.names.ns_join('display_robot_trajectory', label)
+        topic_name = topic_name.rstrip('/')
+
+        display_robot_traj_pub = self.display_robot_traj_pubs.get(label, None)
+        if display_robot_traj_pub is None:
+            display_robot_traj_pub = rospy.Publisher(topic_name, DisplayTrajectory, queue_size=10)
+            try_to_connect(display_robot_traj_pub)
+            self.display_robot_traj_pubs[label] = display_robot_traj_pub  # save a handle to the publisher
+
+        display_robot_traj_msg = DisplayTrajectory(model_id=self.robot_namespace,
+                                                   trajectory=[trajectory])
+
+        display_robot_traj_pub.publish(display_robot_traj_msg)
 
     def display_robot_state(self, robot_state: RobotState, label: str, color: Optional = None):
         """
@@ -474,3 +517,18 @@ class MoveitEnabledRobot(BaseRobot):
 
     def display_goal_pose(self, pose: Pose):
         self.tf_wrapper.send_transform_from_pose_msg(pose, 'robot_root', 'arm_robots_goal')
+
+    def get_state(self, group_name: str = None):
+        robot_state = RobotState()
+        if group_name is None:
+            joint_names = self.get_joint_names()
+        else:
+            joint_names = self.get_move_group_commander(group_name).get_active_joints()
+
+        robot_state.joint_state.name = joint_names
+        robot_state.joint_state.position = self.get_joint_positions(joint_names)
+        robot_state.joint_state.velocity = self.get_joint_velocities(joint_names)
+        return robot_state
+
+    def estimated_torques(self, robot_state: RobotState, group, wrenches=None):
+        return self.jacobian_follower.estimated_torques(robot_state, group, wrenches)

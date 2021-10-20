@@ -11,14 +11,20 @@ from colorama import Fore
 import rospy
 from arm_robots.base_robot import BaseRobot
 from arm_robots.robot import MoveitEnabledRobot
+from arm_robots.robot_utils import robot_state_from_joint_state_and_joint_names
+from geometry_msgs.msg import Wrench
+from moveit_msgs.msg import RobotState
+from rosgraph.names import ns_join
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 
 class BaseVal(BaseRobot):
 
-    def __init__(self, robot_namespace: str):
-        BaseRobot.__init__(self, robot_namespace=robot_namespace)
+    def __init__(self, robot_namespace: str, robot_description: str = None):
+        if robot_description is None:
+            robot_description = ns_join(robot_namespace, 'robot_description')
+        BaseRobot.__init__(self, robot_namespace=robot_namespace, robot_description=robot_description)
         self.first_valid_command = False
         self.should_disconnect = False
         self.min_velocity = 0.05
@@ -30,6 +36,7 @@ class BaseVal(BaseRobot):
         self.command_rate = rospy.Rate(100)
         self.ready = 0
         self.has_started_command_thread = False
+        self._max_velocity_scale_factor = 1.0
 
     def __del__(self):
         self.disconnect()
@@ -113,6 +120,7 @@ class BaseVal(BaseRobot):
     def get_left_gripper_links(self):
         return self.robot_commander.get_link_names("left_gripper")
 
+
 left_arm_joints = [
     'joint_1',
     'joint_2',
@@ -141,9 +149,11 @@ class Val(BaseVal, MoveitEnabledRobot):
     def __init__(self, robot_namespace: str = 'hdt_michigan', **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
+                                    robot_description=ns_join(robot_namespace, 'robot_description'),
                                     arms_controller_name='both_arms_trajectory_controller',
                                     **kwargs)
-        BaseVal.__init__(self, robot_namespace=robot_namespace)
+        BaseVal.__init__(self, robot_namespace=robot_namespace,
+                         robot_description=ns_join(robot_namespace, 'robot_description'))
         self.max_velocity_scale_factor = 1.0
         self.left_arm_group = 'left_arm'
         self.right_arm_group = 'right_arm'
@@ -214,3 +224,44 @@ class Val(BaseVal, MoveitEnabledRobot):
 
     def is_right_gripper_closed(self):
         return self.is_gripper_closed('right')
+
+
+def estimated_torques(joint_state: JointState, robot: Val):
+    group_name1 = "left_side"
+    group_name2 = "right_side"
+    n_links = 14
+    wrenches = [Wrench()] * n_links
+
+    joint_names1 = robot.robot_commander.get_active_joint_names(group_name1)
+    robot_state1 = robot_state_from_joint_state_and_joint_names(joint_names1, joint_state)
+    torques1 = robot.estimated_torques(robot_state1, group_name1, wrenches)
+
+    joint_names2 = robot.robot_commander.get_active_joint_names(group_name2)
+    robot_state2 = robot_state_from_joint_state_and_joint_names(joint_names2, joint_state)
+    torques2 = robot.estimated_torques(robot_state2, group_name2, wrenches)
+
+    if torques1 is None or torques2 is None:
+        return
+
+    robot_state = RobotState()
+    names = sorted(set(robot_state1.joint_state.name + robot_state2.joint_state.name))
+    for name in names:
+        p = None
+        e = None
+        try:
+            i = robot_state1.joint_state.name.index(name)
+            p = robot_state1.joint_state.position[i]
+            e = torques1[i]
+        except ValueError:
+            pass
+        try:
+            i = robot_state2.joint_state.name.index(name)
+            p = robot_state2.joint_state.position[i]
+            e = torques2[i]
+        except ValueError:
+            pass
+        robot_state.joint_state.name.append(name)
+        robot_state.joint_state.position.append(p)
+        robot_state.joint_state.effort.append(e)
+
+    return robot_state

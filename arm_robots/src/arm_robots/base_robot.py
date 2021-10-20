@@ -12,7 +12,7 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 
 class BaseRobot:
 
-    def __init__(self, robot_namespace: str = ''):
+    def __init__(self, robot_namespace: str = '', robot_description: str = 'robot_description'):
         """
         This class is designed around the needs of the trajectory_follower.TrajectoryFollower
         This class really only contains API that is needed by that class. The trajectory follower only needs to know about the
@@ -21,14 +21,15 @@ class BaseRobot:
         execution services.
         """
         self.robot_namespace = robot_namespace
+        self.robot_description = rospy.resolve_name(robot_description)
         # the robot namespace will be prepended by setting ROS_NAMESPACE environment variable or the ns="" in roslaunch
-        joint_states_topic = ns_join(self.robot_namespace, 'joint_states')
-        self._joint_state_listener = Listener(joint_states_topic, JointState)
+        self.joint_states_topic = ns_join(self.robot_namespace, 'joint_states')
+        self._joint_state_listener = Listener(self.joint_states_topic, JointState)
 
         self.tf_wrapper = TF2Wrapper()
-
         try:
-            self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace)
+            self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace,
+                                                                   robot_description=self.robot_description)
         except RuntimeError as e:
             rospy.logerr("You may need to load the moveit planning context and robot description")
             print(e)
@@ -45,8 +46,28 @@ class BaseRobot:
     def ns(self, name: str):
         return ns_join(self.robot_namespace, name)
 
+    def get_joint_state_listener(self):
+        return self._joint_state_listener
+
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         raise NotImplementedError()
+
+    def get_joint_velocities(self, joint_names: Optional[List[str]] = None):
+        """
+        :args joint_names an optional list of names if you want to have a specific order or a subset
+        """
+        joint_state: JointState = self._joint_state_listener.get()
+        if joint_names is None:
+            return joint_state.velocity
+
+        current_joint_velocities = []
+        for name in joint_names:
+            if name not in joint_state.name:
+                ros_helpers.logfatal(ValueError, f"Joint {name} not found in joint states")
+            idx = joint_state.name.index(name)
+            pos = joint_state.position[idx]
+            current_joint_velocities.append(pos)
+        return current_joint_velocities
 
     def get_joint_positions(self, joint_names: Optional[List[str]] = None):
         """

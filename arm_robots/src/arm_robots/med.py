@@ -156,11 +156,10 @@ class BaseMed(BaseRobot):
         """
         position_of_joint = self.get_joint_positions_map()
 
-        print(position_of_joint)
         return [position_of_joint[name] for name in joint_names]
 
 
-class Med(MoveitEnabledRobot, BaseMed):
+class Med(BaseMed, MoveitEnabledRobot):
 
     def __init__(self, robot_namespace: str = 'med', force_trigger: float = -0.0, **kwargs):
         MoveitEnabledRobot.__init__(self,
