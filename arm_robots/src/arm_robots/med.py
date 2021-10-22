@@ -189,6 +189,6 @@ class Med(BaseMed, MoveitEnabledRobot):
         return self.gripper.open_gripper()
 
     def release(self, width=110.0, speed=50.0):
-        sef.gripper.release(width=width, speed=speed)
+        self.gripper.release(width=width, speed=speed)
 
 
