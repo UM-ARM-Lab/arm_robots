@@ -100,11 +100,8 @@ class BaseMed(BaseRobot):
         # are so why does it not enforce them?
 
         # TODO: use enforce bounds? https://github.com/ros-planning/moveit/pull/2356
-        limit_enforced_positions = []
-        for i, joint_name in enumerate(ARM_JOINT_NAMES):
-            joint: moveit_commander.RobotCommander.Joint = self.robot_commander.get_joint(joint_name)
-            limit_enforced_position = np.clip(positions[i], joint.min_bound() + 1e-2, joint.max_bound() - 1e-2)
-            limit_enforced_positions.append(limit_enforced_position)
+        low, high = self.get_joint_limits(ARM_JOINT_NAMES, safety_margin=1e-2)
+        limit_enforced_positions = np.clip(positions, low, high)
 
         # TODO: enforce velocity limits
         cmd = MotionCommand(joint_position=list_to_jvq(limit_enforced_positions),

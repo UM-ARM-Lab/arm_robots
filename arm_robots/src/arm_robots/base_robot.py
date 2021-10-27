@@ -30,6 +30,7 @@ class BaseRobot:
         try:
             self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace,
                                                                    robot_description=self.robot_description)
+
         except RuntimeError as e:
             rospy.logerr("You may need to load the moveit planning context and robot description")
             print(e)
@@ -51,6 +52,17 @@ class BaseRobot:
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         raise NotImplementedError()
+
+    def get_joint_limits(self, joint_names: List[str], safety_margin=1e-2):
+        """
+        Get joint limits in radians with a safety margin
+        """
+        lower, upper = [], []
+        for joint_name in enumerate(joint_names):
+            joint: moveit_commander.RobotCommander.Joint = self.robot_commander.get_joint(joint_name)
+            lower.append(joint.min_bound() + safety_margin)
+            upper.append(joint.max_bound() - safety_margin)
+        return lower, upper
 
     def get_joint_velocities(self, joint_names: Optional[List[str]] = None):
         """
