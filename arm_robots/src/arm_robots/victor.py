@@ -30,7 +30,7 @@ from arm_robots.robot import MoveitEnabledRobot
 from arm_robots.robot_utils import make_joint_tolerance
 from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list, \
     default_gripper_command, gripper_status_to_list, is_gripper_closed
-from arm_robots.cartesian import CartesianImpedanceController, ArmSide
+from arm_robots.cartesian import CartesianImpedanceController
 
 
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
@@ -260,7 +260,7 @@ class BaseVictor(BaseRobot):
             rospy.logerr(res.message)
         return res
 
-    def move_delta_cartesian_impedance(self, arm: ArmSide, dx, dy, target_z=None, target_orientation=None,
+    def move_delta_cartesian_impedance(self, arm, dx, dy, target_z=None, target_orientation=None,
                                        step_size=0.005, blocking=True):
         self.cartesian.set_active_arm(arm)
         if not self.cartesian.set_relative_goal_2d(dx, dy, target_z=target_z, target_orientation=target_orientation):

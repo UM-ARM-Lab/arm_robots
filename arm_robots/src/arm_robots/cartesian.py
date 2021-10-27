@@ -1,5 +1,4 @@
 import copy
-import enum
 
 import numpy as np
 import rospy
@@ -20,11 +19,6 @@ def pose_distance(a: Pose, b: Pose, rot_weight=0):
     pos_distance = np.linalg.norm(ros_numpy.numpify(a.position) - ros_numpy.numpify(b.position))
     rot_distance = 0 if rot_weight == 0 else rot_weight * quaternion_angle_diff(a.orientation, b.orientation)
     return pos_distance + rot_distance
-
-
-class ArmSide(enum.IntEnum):
-    LEFT = 0
-    RIGHT = 1
 
 
 class CartesianImpedanceController:
@@ -81,11 +75,11 @@ class CartesianImpedanceController:
         self._check_joint_limits = True
         self._start_violation = 0
 
-        self.active_arm = ArmSide.LEFT
+        self.active_arm = 0
         self.motion_status_listeners = motion_status_listeners
         self.motion_command_publisher = motion_command_publisher
 
-    def set_active_arm(self, active_arm: ArmSide):
+    def set_active_arm(self, active_arm):
         self.active_arm = active_arm
 
     def reset(self):
