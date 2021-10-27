@@ -30,7 +30,6 @@ from arm_robots.robot import MoveitEnabledRobot
 from arm_robots.robot_utils import make_joint_tolerance
 from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list, \
     default_gripper_command, gripper_status_to_list, is_gripper_closed
-from arm_robots.cartesian import CartesianImpedanceController
 
 
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
@@ -106,11 +105,9 @@ class BaseVictor(BaseRobot):
         self.right_gripper_status_listener = Listener(self.ns("right_arm/gripper_status"), Robotiq3FingerStatus)
 
         self.waypoint_state_pub = rospy.Publisher(self.ns("waypoint_robot_state"), DisplayRobotState, queue_size=10)
-        lower, upper = self.get_joint_limits(RIGHT_ARM_JOINT_NAMES, safety_margin=0)
-        self.cartesian = CartesianImpedanceController(self.tf_wrapper.tf_buffer,
-                                                      [self.left_arm_status_listener, self.right_arm_status_listener],
-                                                      [self.left_arm_command_pub, self.right_arm_command_pub],
-                                                      lower, upper)
+        self.create_cartesian_impedance_controller([self.left_arm_status_listener, self.right_arm_status_listener],
+                                                   [self.left_arm_command_pub, self.right_arm_command_pub],
+                                                   RIGHT_ARM_JOINT_NAMES)
 
     def send_joint_command(self, joint_names: Sequence[str], trajectory_point: JointTrajectoryPoint) -> Tuple[
         bool, str]:
@@ -259,18 +256,6 @@ class BaseVictor(BaseRobot):
             rospy.logerr("Failed to switch left arm to control mode: " + str(control_mode))
             rospy.logerr(res.message)
         return res
-
-    def move_delta_cartesian_impedance(self, arm, dx, dy, target_z=None, target_orientation=None,
-                                       step_size=0.005, blocking=True):
-        self.cartesian.set_active_arm(arm)
-        if not self.cartesian.set_relative_goal_2d(dx, dy, target_z=target_z, target_orientation=target_orientation):
-            return False
-        succeeded = self.cartesian.step(step_size)
-        if blocking:
-            # TODO add a rospy.Rate and sleep here?
-            while self.cartesian.target_pose is not None:
-                succeeded = self.cartesian.step(step_size)
-        return succeeded
 
     @staticmethod
     def send_gripper_command(command_pub: rospy.Publisher, positions):

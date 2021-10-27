@@ -8,6 +8,7 @@ from arc_utilities.tf2wrapper import TF2Wrapper
 from rosgraph.names import ns_join
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
+from arm_robots.cartesian import CartesianImpedanceController
 
 
 class BaseRobot:
@@ -30,6 +31,7 @@ class BaseRobot:
         try:
             self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace,
                                                                    robot_description=self.robot_description)
+            self.cartesian = None
 
         except RuntimeError as e:
             rospy.logerr("You may need to load the moveit planning context and robot description")
@@ -108,3 +110,33 @@ class BaseRobot:
         if group_name not in groups:
             rospy.logwarn_throttle(1, f"Group [{group_name}] does not exist. Existing groups are:")
             rospy.logwarn_throttle(1, groups)
+
+    def create_cartesian_impedance_controller(self, motion_status_listeners: List[Listener],
+                                              motion_command_publishers: List[rospy.Publisher],
+                                              joint_names: List[str],
+                                              **kwargs):
+        """
+        Create the cartesian impedance controller. The number of listeners should match the number of publishers and
+        each element corresponds to 1 arm. We assume all arms share the same joint properties, so only 1 list of joint
+        names should be supplied.
+        """
+        lower, upper = self.get_joint_limits(joint_names, safety_margin=0)
+        self.cartesian = CartesianImpedanceController(self.tf_wrapper.tf_buffer,
+                                                      motion_status_listeners,
+                                                      motion_command_publishers,
+                                                      lower, upper, **kwargs)
+
+    def move_delta_cartesian_impedance(self, arm, dx, dy, target_z=None, target_orientation=None,
+                                       step_size=0.005, blocking=True):
+        if self.cartesian is None:
+            return False
+
+        self.cartesian.set_active_arm(arm)
+        if not self.cartesian.set_relative_goal_2d(dx, dy, target_z=target_z, target_orientation=target_orientation):
+            return False
+        succeeded = self.cartesian.step(step_size)
+        if blocking:
+            # TODO add a rospy.Rate and sleep here?
+            while self.cartesian.target_pose is not None:
+                succeeded = self.cartesian.step(step_size)
+        return succeeded
