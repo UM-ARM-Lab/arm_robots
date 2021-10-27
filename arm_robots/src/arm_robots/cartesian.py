@@ -23,6 +23,7 @@ def pose_distance(a: Pose, b: Pose, rot_weight=0):
 
 class CartesianImpedanceController:
     def __init__(self, tf_buffer, motion_status_listeners, motion_command_publisher, joint_lim_low, joint_lim_high,
+                 world_frame_name, sensor_frame_names=None,
                  position_close_enough=0.0025, timeout_per_m=500, intermediate_acceptance_factor=7.,
                  joint_limit_boundary=0.03):
         """
@@ -45,15 +46,18 @@ class CartesianImpedanceController:
         # joint limits, store as radians
         self.joint_lim_low = np.array(joint_lim_low)
         self.joint_lim_high = np.array(joint_lim_high)
-        if np.any(joint_lim_low < -np.pi * 2) or np.any(joint_lim_high > np.pi * 2):
+        if np.any(self.joint_lim_low < -np.pi * 2) or np.any(self.joint_lim_high > np.pi * 2):
             self.joint_lim_low *= np.pi / 180
             self.joint_lim_high *= np.pi / 180
 
         # tf
         self.tf_buffer = tf_buffer
         # what frames the measured cartesian pose is given in
-        self.sensor_frames = ["victor_left_arm_world_frame_kuka", "victor_right_arm_world_frame_kuka"]
-        self.world_frame = "victor_root"
+        self.world_frame = world_frame_name
+        if sensor_frame_names is None:
+            self.sensor_frames = [self.world_frame for _ in motion_status_listeners]
+        else:
+            self.sensor_frames = sensor_frame_names
 
         # goal parameters
         self._intermediate_target = None

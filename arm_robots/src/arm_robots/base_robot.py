@@ -60,7 +60,7 @@ class BaseRobot:
         Get joint limits in radians with a safety margin
         """
         lower, upper = [], []
-        for joint_name in enumerate(joint_names):
+        for joint_name in joint_names:
             joint: moveit_commander.RobotCommander.Joint = self.robot_commander.get_joint(joint_name)
             lower.append(joint.min_bound() + safety_margin)
             upper.append(joint.max_bound() - safety_margin)
@@ -114,6 +114,7 @@ class BaseRobot:
     def create_cartesian_impedance_controller(self, motion_status_listeners: List[Listener],
                                               motion_command_publishers: List[rospy.Publisher],
                                               joint_names: List[str],
+                                              world_frame_name: str,
                                               **kwargs):
         """
         Create the cartesian impedance controller. The number of listeners should match the number of publishers and
@@ -124,7 +125,7 @@ class BaseRobot:
         self.cartesian = CartesianImpedanceController(self.tf_wrapper.tf_buffer,
                                                       motion_status_listeners,
                                                       motion_command_publishers,
-                                                      lower, upper, **kwargs)
+                                                      lower, upper, world_frame_name, **kwargs)
 
     def move_delta_cartesian_impedance(self, arm, dx, dy, target_z=None, target_orientation=None,
                                        step_size=0.005, blocking=True):

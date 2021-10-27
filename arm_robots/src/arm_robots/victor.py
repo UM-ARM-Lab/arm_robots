@@ -107,7 +107,9 @@ class BaseVictor(BaseRobot):
         self.waypoint_state_pub = rospy.Publisher(self.ns("waypoint_robot_state"), DisplayRobotState, queue_size=10)
         self.create_cartesian_impedance_controller([self.left_arm_status_listener, self.right_arm_status_listener],
                                                    [self.left_arm_command_pub, self.right_arm_command_pub],
-                                                   RIGHT_ARM_JOINT_NAMES)
+                                                   RIGHT_ARM_JOINT_NAMES, "victor_root",
+                                                   sensor_frame_names=["victor_left_arm_world_frame_kuka",
+                                                                       "victor_right_arm_world_frame_kuka"])
 
     def send_joint_command(self, joint_names: Sequence[str], trajectory_point: JointTrajectoryPoint) -> Tuple[
         bool, str]:
