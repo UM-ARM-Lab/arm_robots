@@ -36,8 +36,8 @@ class CartesianImpedanceController:
         :param tf_buffer: tf2 Buffer object
         :param motion_status_listeners: ROS listener (wrapper around subscriber) for status messages
         :param motion_command_publisher: ROS publisher for arm commands
-        :param joint_lim_low: lower joint limits in degrees
-        :param joint_lim_high: upper joint limits in degrees
+        :param joint_lim_low: lower joint limits in degrees or radians
+        :param joint_lim_high: upper joint limits in degrees or radians
         :param position_close_enough: Distance (m) to target position to be considered close enough
         :param timeout_per_m: Allowed time (s) to execute before timing out per 1m of travel
         :param joint_limit_boundary: Angle (radian or list of radian) boundary of each joint limit to avoid by
@@ -48,9 +48,12 @@ class CartesianImpedanceController:
         # for users to read after reaching goal
         self.reached_joint_limit = False
         self.timed_out = False
-        # joint limits
-        self.joint_lim_low = joint_lim_low
-        self.joint_lim_high = joint_lim_high
+        # joint limits, store as radians
+        self.joint_lim_low = np.array(joint_lim_low)
+        self.joint_lim_high = np.array(joint_lim_high)
+        if np.any(joint_lim_low < -np.pi * 2) or np.any(joint_lim_high > np.pi * 2):
+            self.joint_lim_low *= np.pi / 180
+            self.joint_lim_high *= np.pi / 180
 
         # tf
         self.tf_buffer = tf_buffer
@@ -81,7 +84,6 @@ class CartesianImpedanceController:
         self.active_arm = ArmSide.LEFT
         self.motion_status_listeners = motion_status_listeners
         self.motion_command_publisher = motion_command_publisher
-
 
     def set_active_arm(self, active_arm: ArmSide):
         self.active_arm = active_arm
