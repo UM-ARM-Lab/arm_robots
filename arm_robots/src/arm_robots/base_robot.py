@@ -128,7 +128,7 @@ class BaseRobot:
                                                       lower, upper, world_frame_name, **kwargs)
 
     def move_delta_cartesian_impedance(self, arm, dx, dy, target_z=None, target_orientation=None,
-                                       step_size=0.005, blocking=True):
+                                       step_size=0.01, blocking=True):
         if self.cartesian is None:
             return False
 
