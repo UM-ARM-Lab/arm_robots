@@ -180,15 +180,15 @@ class MoveitEnabledRobot(BaseRobot):
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root',
-                     stop_condition: Optional[Callable] = None,  pos_tol=0.002, ori_tol=0.02):
+                     stop_condition: Optional[Callable] = None, position_tol=0.002, orientation_tol=0.02):
         self.check_inputs(group_name, ee_link_name)
         move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
         target_pose_stamped = convert_to_pose_msg(target_pose)
         target_pose_stamped.header.frame_id = frame_id
         move_group.set_pose_target(target_pose_stamped)
-        move_group.set_goal_position_tolerance(pos_tol)
-        move_group.set_goal_orientation_tolerance(ori_tol)
+        move_group.set_goal_position_tolerance(position_tol)
+        move_group.set_goal_orientation_tolerance(orientation_tol)
 
         if self.display_goals:
             self.display_goal_pose(target_pose_stamped.pose)
