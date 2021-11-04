@@ -3,15 +3,17 @@
     <arg name="gui" default="true"/>
     <arg name="update_description" default="true"/>
     <arg name="verbose" default="false"/>
-    <arg name="bubbles" default="false"/>
-    <arg name="medusa" default="false"/>
+    <arg name="finger" default="wsg50_fmf"/>
+    <arg name="med_scene" default="thanos"/>
 
-    <arg name="moveit_config_path" default="$(find med_moveit_config)" unless="$(arg bubbles)"/>
-    <arg name="moveit_config_path" default="$(find med_moveit_bubbles_config)" if="$(arg bubbles)"/>
+    <!-- Finger selection -->
+    <arg name="moveit_config_path" default="$(find med_moveit_config)" if="$(eval arg('finger') == 'wsg50_fmf')"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_bubbles_config)" if="$(eval arg('finger') == 'bubbles')"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_bubbles_flipped_config)" if="$(eval arg('finger') == 'bubbles_flipped')"/>
 
     <!-- Collision geometry -->
-    <node pkg="med_hardware_interface" type="med_collision_geometry.py" name="med_collision_geometry" unless="$(arg medusa)"/>
-    <node pkg="med_hardware_interface" type="medusa_collision_geometry.py" name="medusa_collision_geometry" if="$(arg medusa)"/>
+    <node pkg="med_hardware_interface" type="med_collision_geometry.py" name="med_collision_geometry" if="$(eval arg('med_scene') == 'thanos')"/>
+    <node pkg="med_hardware_interface" type="medusa_collision_geometry.py" name="medusa_collision_geometry" if="$(eval arg('med_scene') == 'medusa')"/>
 
     <group if="$(arg update_description)">
         <!-- uploads robot description and setups up other parameters -->
