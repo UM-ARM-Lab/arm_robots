@@ -191,7 +191,7 @@ class MoveitEnabledRobot(BaseRobot):
         move_group.set_goal_orientation_tolerance(0.02)
 
         if self.display_goals:
-            self.display_goal_pose(target_pose_stamped.pose)
+            self.display_goal_pose(target_pose_stamped.pose, frame_id, ee_link_name)
 
         planning_result = PlanningResult(move_group.plan())
         if self.raise_on_failure and not planning_result.success:
@@ -515,8 +515,8 @@ class MoveitEnabledRobot(BaseRobot):
         m.pose.orientation.w = 1
         self.display_goal_position_pub.publish(m)
 
-    def display_goal_pose(self, pose: Pose):
-        self.tf_wrapper.send_transform_from_pose_msg(pose, 'robot_root', 'arm_robots_goal')
+    def display_goal_pose(self, pose: Pose, root='robot_root', goal='arm_robots_goal'):
+        self.tf_wrapper.send_transform_from_pose_msg(pose, root, goal)
 
     def get_state(self, group_name: str = None):
         robot_state = RobotState()
