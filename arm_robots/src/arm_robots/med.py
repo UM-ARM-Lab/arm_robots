@@ -19,7 +19,7 @@ from victor_hardware_interface.victor_utils import get_control_mode_params, list
 from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, MotionCommand
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
     GetControlModeResponse, SetControlModeResponse
-from wsg_50_common.srv import Move, Conf
+from wsg_50_utils.wsg_50_gripper import WSG50Gripper
 
 
 # TODO: Since we have only one set of arms, this really just makes sure everythings in the right order. Could probably simplify but I'll keep it for now.
@@ -170,6 +170,7 @@ class Med(BaseMed, MoveitEnabledRobot):
         BaseMed.__init__(self, robot_namespace=robot_namespace)
         self.arm_group = 'kuka_arm'
         self.wrist = 'med_kuka_link_ee'
+        self.gripper = WSG50Gripper()
 
     def get_arm_joints(self):
         return ARM_JOINT_NAMES
@@ -179,41 +180,15 @@ class Med(BaseMed, MoveitEnabledRobot):
         self._max_velocity_scale_factor = vel
 
     def set_grasping_force(self, force):
-        if type(force) != float or force > 80.0 or force <= 0.0:
-            print("Bad grasp force value provided! Not setting grasping force.")
-            return None
-
-        rospy.wait_for_service('wsg_50_driver/set_force')
-        try:
-            force_proxy = rospy.ServiceProxy('wsg_50_driver/set_force', Conf)
-            force_resp = force_proxy(force)
-            return force_resp.error
-        except rospy.ServiceException as e:
-            print("Service call failed: %s" % e)
+        return self.gripper.set_grasping_force(force)
 
     def grasp(self, width, speed=50.0):
-        rospy.wait_for_service('wsg_50_driver/grasp')
-        try:
-            close_proxy = rospy.ServiceProxy('wsg_50_driver/grasp', Move)
-            grasp_resp = close_proxy(width, speed)
-            return grasp_resp.error
-        except rospy.ServiceException as e:
-            print("Service call failed: %s" % e)
+        return self.gripper.grasp(width, speed=speed)
 
     def open_gripper(self):
-        rospy.wait_for_service('wsg_50_driver/move')
-        try:
-            move_proxy = rospy.ServiceProxy('wsg_50_driver/move', Move)
-            move_resp = move_proxy(100.0, 50.0)
-            return move_resp.error
-        except rospy.ServiceException as e:
-            print("Service call failed: %s" % e)
+        return self.gripper.open_gripper()
 
     def release(self, width=110.0, speed=50.0):
-        rospy.wait_for_service('wsg_50_driver/release')
-        try:
-            release_proxy = rospy.ServiceProxy('wsg_50_driver/release', Move)
-            release_resp = release_proxy(width, speed)
-            return release_resp.error
-        except rospy.ServiceException as e:
-            print("Service call failed: %s" % e)
+        self.gripper.release(width=width, speed=speed)
+
+
