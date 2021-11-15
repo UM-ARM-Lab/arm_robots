@@ -1,5 +1,4 @@
 import copy
-import enum
 
 import numpy as np
 import rospy
@@ -22,13 +21,9 @@ def pose_distance(a: Pose, b: Pose, rot_weight=0):
     return pos_distance + rot_distance
 
 
-class ArmSide(enum.IntEnum):
-    LEFT = 0
-    RIGHT = 1
-
-
 class CartesianImpedanceController:
     def __init__(self, tf_buffer, motion_status_listeners, motion_command_publisher, joint_lim_low, joint_lim_high,
+                 world_frame_name, sensor_frame_names=None,
                  position_close_enough=0.0025, timeout_per_m=500, intermediate_acceptance_factor=7.,
                  joint_limit_boundary=0.03):
         """
@@ -36,8 +31,8 @@ class CartesianImpedanceController:
         :param tf_buffer: tf2 Buffer object
         :param motion_status_listeners: ROS listener (wrapper around subscriber) for status messages
         :param motion_command_publisher: ROS publisher for arm commands
-        :param joint_lim_low: lower joint limits in degrees
-        :param joint_lim_high: upper joint limits in degrees
+        :param joint_lim_low: lower joint limits in radians
+        :param joint_lim_high: upper joint limits in radians
         :param position_close_enough: Distance (m) to target position to be considered close enough
         :param timeout_per_m: Allowed time (s) to execute before timing out per 1m of travel
         :param joint_limit_boundary: Angle (radian or list of radian) boundary of each joint limit to avoid by
@@ -48,15 +43,20 @@ class CartesianImpedanceController:
         # for users to read after reaching goal
         self.reached_joint_limit = False
         self.timed_out = False
-        # joint limits
-        self.joint_lim_low = joint_lim_low
-        self.joint_lim_high = joint_lim_high
+        # joint limits, store as radians
+        self.joint_lim_low = np.array(joint_lim_low)
+        self.joint_lim_high = np.array(joint_lim_high)
+        if np.any(self.joint_lim_low < -np.pi * 2) or np.any(self.joint_lim_high > np.pi * 2):
+            rospy.logwarn(f"Joint limits supplied may be invalid radians: {self.joint_lim_low} {self.joint_lim_high}")
 
         # tf
         self.tf_buffer = tf_buffer
         # what frames the measured cartesian pose is given in
-        self.sensor_frames = ["victor_left_arm_world_frame_kuka", "victor_right_arm_world_frame_kuka"]
-        self.world_frame = "victor_root"
+        self.world_frame = world_frame_name
+        if sensor_frame_names is None:
+            self.sensor_frames = [self.world_frame for _ in motion_status_listeners]
+        else:
+            self.sensor_frames = sensor_frame_names
 
         # goal parameters
         self._intermediate_target = None
@@ -78,12 +78,15 @@ class CartesianImpedanceController:
         self._check_joint_limits = True
         self._start_violation = 0
 
-        self.active_arm = ArmSide.LEFT
+        self.active_arm = 0
         self.motion_status_listeners = motion_status_listeners
         self.motion_command_publisher = motion_command_publisher
 
+    def set_active_arm(self, active_arm):
+        if self.target_pose is not None:
+            rospy.logwarn(f"Resetting active arm with an active target pose; aborting that target {self.target_pose}")
+            self.abort_goal()
 
-    def set_active_arm(self, active_arm: ArmSide):
         self.active_arm = active_arm
 
     def reset(self):
