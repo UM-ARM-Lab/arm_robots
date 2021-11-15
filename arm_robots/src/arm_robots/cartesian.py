@@ -47,7 +47,7 @@ class CartesianImpedanceController:
         self.joint_lim_low = np.array(joint_lim_low)
         self.joint_lim_high = np.array(joint_lim_high)
         if np.any(self.joint_lim_low < -np.pi * 2) or np.any(self.joint_lim_high > np.pi * 2):
-            rospy.logwarn(f"Joint limits supplied may not be radians: {self.joint_lim_low} {self.joint_lim_high}")
+            rospy.logwarn(f"Joint limits supplied may be invalid radians: {self.joint_lim_low} {self.joint_lim_high}")
 
         # tf
         self.tf_buffer = tf_buffer
