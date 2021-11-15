@@ -31,8 +31,8 @@ class CartesianImpedanceController:
         :param tf_buffer: tf2 Buffer object
         :param motion_status_listeners: ROS listener (wrapper around subscriber) for status messages
         :param motion_command_publisher: ROS publisher for arm commands
-        :param joint_lim_low: lower joint limits in degrees or radians
-        :param joint_lim_high: upper joint limits in degrees or radians
+        :param joint_lim_low: lower joint limits in radians
+        :param joint_lim_high: upper joint limits in radians
         :param position_close_enough: Distance (m) to target position to be considered close enough
         :param timeout_per_m: Allowed time (s) to execute before timing out per 1m of travel
         :param joint_limit_boundary: Angle (radian or list of radian) boundary of each joint limit to avoid by
@@ -47,8 +47,7 @@ class CartesianImpedanceController:
         self.joint_lim_low = np.array(joint_lim_low)
         self.joint_lim_high = np.array(joint_lim_high)
         if np.any(self.joint_lim_low < -np.pi * 2) or np.any(self.joint_lim_high > np.pi * 2):
-            self.joint_lim_low *= np.pi / 180
-            self.joint_lim_high *= np.pi / 180
+            rospy.logwarn(f"Joint limits supplied may not be radians: {self.joint_lim_low} {self.joint_lim_high}")
 
         # tf
         self.tf_buffer = tf_buffer

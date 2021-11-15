@@ -28,10 +28,10 @@ class BaseRobot:
         self._joint_state_listener = Listener(self.joint_states_topic, JointState)
 
         self.tf_wrapper = TF2Wrapper()
+        self.cartesian = None
         try:
             self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace,
                                                                    robot_description=self.robot_description)
-            self.cartesian = None
 
         except RuntimeError as e:
             rospy.logerr("You may need to load the moveit planning context and robot description")
@@ -111,7 +111,8 @@ class BaseRobot:
             rospy.logwarn_throttle(1, f"Group [{group_name}] does not exist. Existing groups are:")
             rospy.logwarn_throttle(1, groups)
 
-    def create_cartesian_impedance_controller(self, motion_status_listeners: List[Listener],
+    def create_cartesian_impedance_controller(self,
+                                              motion_status_listeners: List[Listener],
                                               motion_command_publishers: List[rospy.Publisher],
                                               joint_names: List[str],
                                               world_frame_name: str,
@@ -135,9 +136,11 @@ class BaseRobot:
         self.cartesian.set_active_arm(arm)
         if not self.cartesian.set_relative_goal_2d(dx, dy, target_z=target_z, target_orientation=target_orientation):
             return False
-        succeeded = self.cartesian.step(step_size)
-        if blocking:
-            # TODO add a rospy.Rate and sleep here?
-            while self.cartesian.target_pose is not None:
-                succeeded = self.cartesian.step(step_size)
+        if not blocking:
+            return True
+
+        succeeded = True
+        # TODO add a rospy.Rate and sleep here?
+        while self.cartesian.target_pose is not None:
+            succeeded = self.cartesian.step(step_size)
         return succeeded
