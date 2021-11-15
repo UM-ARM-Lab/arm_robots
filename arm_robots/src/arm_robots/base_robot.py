@@ -128,13 +128,14 @@ class BaseRobot:
                                                       motion_command_publishers,
                                                       lower, upper, world_frame_name, **kwargs)
 
-    def move_delta_cartesian_impedance(self, arm, dx, dy, target_z=None, target_orientation=None,
-                                       step_size=0.01, blocking=True):
+    def move_delta_cartesian_impedance(self, arm, dx=0, dy=0, dz=0, target_z=None, target_orientation=None,
+                                       step_size=0.01, blocking=True, **kwargs):
         if self.cartesian is None:
             return False
 
         self.cartesian.set_active_arm(arm)
-        if not self.cartesian.set_relative_goal_2d(dx, dy, target_z=target_z, target_orientation=target_orientation):
+        if not self.cartesian.set_goal(dx=dx, dy=dy, dz=dz, target_z=target_z, target_orientation=target_orientation,
+                                       **kwargs):
             return False
         if not blocking:
             return True

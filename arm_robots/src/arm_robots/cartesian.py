@@ -5,6 +5,7 @@ import rospy
 import ros_numpy
 from geometry_msgs.msg import PoseStamped, Quaternion, Pose
 from victor_hardware_interface_msgs.msg import ControlMode, MotionCommand
+from tf.transformations import quaternion_from_euler
 
 
 def quaternion_angle_diff(q1: Quaternion, q2: Quaternion):
@@ -101,17 +102,34 @@ class CartesianImpedanceController:
         self._check_joint_limits = True
         self._start_violation = 0
 
-    def current_pose_in_world_frame(self, arm):
+    def current_pose_in_frame(self, arm, reference_frame=None):
         current_pose = self.motion_status_listeners[arm].get().measured_cartesian_pose
         if current_pose is None:
             return None
+        # current pose is actually in ee_frame
         tf_current_pose = PoseStamped()
         tf_current_pose.pose = current_pose
         tf_current_pose.header.frame_id = self.sensor_frames[arm]
-        return self.tf_buffer.transform(tf_current_pose, self.world_frame)
+        if reference_frame is None:
+            reference_frame = self.world_frame
+        return self.tf_buffer.transform(tf_current_pose, reference_frame)
 
-    def set_relative_goal_2d(self, dx, dy, target_z=None, target_orientation=None):
-        cp = self.current_pose_in_world_frame(self.active_arm)
+    def set_goal(self, dx=0, dy=0, dz=0, target_x=None, target_y=None, target_z=None, target_orientation=None,
+                 reference_frame=None):
+        """
+        Set position and optionally orientation goals specified in the given reference frame (default to world frame)
+        :param dx: desired change in x
+        :param dy: desired change in y
+        :param dz: desired change in z
+        :param target_x: desired absolute x, overriding any dx
+        :param target_y: desired absolute y, overriding any dy
+        :param target_z: desired absolute z, overriding any dz
+        :param target_orientation:
+        :param reference_frame:
+        :return: Whether the goal was successfully set
+        """
+
+        cp = self.current_pose_in_frame(self.active_arm, reference_frame=reference_frame)
         if cp is None:
             rospy.logwarn("Trying to set relative goal when we do not have current pose")
             return False
@@ -119,19 +137,36 @@ class CartesianImpedanceController:
         target_pose = copy.deepcopy(cp)
         target_pose.pose.position.x += dx
         target_pose.pose.position.y += dy
+        target_pose.pose.position.z += dz
+        if target_x is not None:
+            target_pose.pose.position.x = target_x
+        if target_y is not None:
+            target_pose.pose.position.y = target_y
         if target_z is not None:
             target_pose.pose.position.z = target_z
+
         if target_orientation is not None:
-            target_pose.pose.orientation = target_orientation
+            orientation = target_orientation
+            if len(orientation) == 3:
+                orientation = quaternion_from_euler(*orientation)
+            if len(orientation) == 4:
+                orientation = Quaternion(*orientation)
+            target_pose.pose.orientation = orientation
 
-        self.set_target_pose(target_pose, current_pose=cp)
-
-        rospy.logdebug("Current {}".format(cp.pose))
+        self.set_target_pose(target_pose, current_pose=None)  # re-get current pose in world frame
         return True
 
     def set_target_pose(self, target_pose, current_pose=None):
+        # convert the commanded target into a world frame target
+        # this avoids the issue of tracking moving reference frames; it will use the frame at the initial call time
+        target_pose = self.tf_buffer.transform(target_pose, self.world_frame)
+
         if current_pose is None:
-            current_pose = self.current_pose_in_world_frame(self.active_arm)
+            current_pose = self.current_pose_in_frame(self.active_arm, reference_frame=target_pose.header.frame_id)
+        if target_pose.header.frame_id != current_pose.header.frame_id:
+            raise RuntimeError("Target and current poses are given in different frames: "
+                               f"target {target_pose.header.frame_id} current {current_pose.header.frame_id}")
+
         self.target_pose = copy.deepcopy(target_pose)
         self._init_goal_dist = pose_distance(current_pose.pose, self.target_pose.pose)
         self._start_violation = self.joint_boundary_violation_amount()
@@ -154,7 +189,7 @@ class CartesianImpedanceController:
         if self.target_pose is None:
             return True
 
-        cp = self.current_pose_in_world_frame(self.active_arm)
+        cp = self.current_pose_in_frame(self.active_arm, reference_frame=self.target_pose.header.frame_id)
         dist_to_goal = pose_distance(cp.pose, self.target_pose.pose)
         self._dists_to_goal.append(dist_to_goal)
         # rospy.loginfo("Dist to goal {}".format(dist_to_goal))
@@ -209,7 +244,7 @@ class CartesianImpedanceController:
     def command_cartesian_pose(self, target_pose):
         """
         Send command to go to a pose in cartesian impedance mode (lowest level API)
-        :param target_pose: PoseStamped in world frame
+        :param target_pose: PoseStamped in previously specified reference frame
         :return:
         """
         motion_command = MotionCommand()
