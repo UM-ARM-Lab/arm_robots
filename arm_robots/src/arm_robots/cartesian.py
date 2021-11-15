@@ -83,6 +83,10 @@ class CartesianImpedanceController:
         self.motion_command_publisher = motion_command_publisher
 
     def set_active_arm(self, active_arm):
+        if self.target_pose is not None:
+            rospy.logwarn(f"Resetting active arm with an active target pose; aborting that target {self.target_pose}")
+            self.abort_goal()
+
         self.active_arm = active_arm
 
     def reset(self):
