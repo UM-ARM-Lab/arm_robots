@@ -147,10 +147,11 @@ class CartesianImpedanceController:
 
         if target_orientation is not None:
             orientation = target_orientation
-            if len(orientation) == 3:
-                orientation = quaternion_from_euler(*orientation)
-            if len(orientation) == 4:
-                orientation = Quaternion(*orientation)
+            if type(orientation) != Quaternion:
+                if len(orientation) == 3:
+                    orientation = quaternion_from_euler(*orientation)
+                if len(orientation) == 4:
+                    orientation = Quaternion(*orientation)
             target_pose.pose.orientation = orientation
 
         self.set_target_pose(target_pose, current_pose=None)  # re-get current pose in world frame
