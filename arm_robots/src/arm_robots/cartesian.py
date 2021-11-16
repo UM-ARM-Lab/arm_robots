@@ -234,7 +234,9 @@ class CartesianImpedanceController:
         # abort if we take too long
         if (now - self._this_target_start_time) > self._timeout_per_m * step_size or \
                 (now - self._goal_start_time) > self._timeout_per_m * self._init_goal_dist:
-            rospy.loginfo("Goal aborted due to timeout")
+            rospy.loginfo("Goal aborted due to timeout: \ngoal    {} \ncurrent {}\ndist {}".format(
+                str(self._intermediate_target.pose.position).replace('\n', ' '),
+                str(cp.pose.position).replace('\n', ' '), dist_to_goal))
             self.timed_out = True
             self.abort_goal()
             return False
