@@ -61,7 +61,7 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
 
 class BaseMed(BaseRobot):
 
-    def __init__(self, robot_namespace: str):
+    def __init__(self, robot_namespace: str, cartesian_impedance_controller_kwargs=None):
         BaseRobot.__init__(self, robot_namespace=robot_namespace)
 
         self.arm_command_pub = rospy.Publisher(self.ns("motion_command"), MotionCommand, queue_size=10)
@@ -69,8 +69,9 @@ class BaseMed(BaseRobot):
         self.get_control_mode_srv = rospy.ServiceProxy(self.ns("get_control_mode_service"), GetControlMode)
         self.arm_status_listener = Listener(self.ns("motion_status"), MotionStatus)
         self.waypoint_state_pub = rospy.Publisher(self.ns("waypoint_robot_state"), DisplayRobotState, queue_size=10)
+        kwargs = cartesian_impedance_controller_kwargs or {}
         self.create_cartesian_impedance_controller([self.arm_status_listener], [self.arm_command_pub], ARM_JOINT_NAMES,
-                                                   "med_base")
+                                                   "med_base", **kwargs)
 
     def send_joint_command(self, joint_names: Sequence[str], trajectory_point: JointTrajectoryPoint) -> Tuple[
         bool, str]:
@@ -160,13 +161,14 @@ class BaseMed(BaseRobot):
 
 class Med(BaseMed, MoveitEnabledRobot):
 
-    def __init__(self, robot_namespace: str = 'med', force_trigger: float = -0.0, **kwargs):
+    def __init__(self, robot_namespace: str = 'med', force_trigger: float = -0.0, base_kwargs=None, **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
                                     arms_controller_name='arm_trajectory_controller',
                                     force_trigger=force_trigger,
                                     **kwargs)
-        BaseMed.__init__(self, robot_namespace=robot_namespace)
+        base_kwargs = base_kwargs or {}
+        BaseMed.__init__(self, robot_namespace=robot_namespace, **base_kwargs)
         self.arm_group = 'kuka_arm'
         self.wrist = 'med_kuka_link_ee'
         self.gripper = WSG50Gripper()

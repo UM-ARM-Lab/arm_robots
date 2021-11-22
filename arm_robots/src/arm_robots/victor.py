@@ -77,7 +77,7 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
 
 
 class BaseVictor(BaseRobot):
-    def __init__(self, robot_namespace: str):
+    def __init__(self, robot_namespace: str, cartesian_impedance_controller_kwargs=None):
         BaseRobot.__init__(self, robot_namespace=robot_namespace)
 
         self.left_arm_command_pub = rospy.Publisher(self.ns("left_arm/motion_command"), MotionCommand, queue_size=10)
@@ -105,11 +105,12 @@ class BaseVictor(BaseRobot):
         self.right_gripper_status_listener = Listener(self.ns("right_arm/gripper_status"), Robotiq3FingerStatus)
 
         self.waypoint_state_pub = rospy.Publisher(self.ns("waypoint_robot_state"), DisplayRobotState, queue_size=10)
+        kwargs = cartesian_impedance_controller_kwargs or {}
         self.create_cartesian_impedance_controller([self.left_arm_status_listener, self.right_arm_status_listener],
                                                    [self.left_arm_command_pub, self.right_arm_command_pub],
                                                    RIGHT_ARM_JOINT_NAMES, "victor_root",
                                                    sensor_frame_names=["victor_left_arm_world_frame_kuka",
-                                                                       "victor_right_arm_world_frame_kuka"])
+                                                                       "victor_right_arm_world_frame_kuka"], **kwargs)
 
     def send_joint_command(self, joint_names: Sequence[str], trajectory_point: JointTrajectoryPoint) -> Tuple[
         bool, str]:
@@ -311,12 +312,13 @@ class BaseVictor(BaseRobot):
 class Victor(BaseVictor, MoveitEnabledRobot):
     trajectory_delay_in_s_before_log = 0.1
 
-    def __init__(self, robot_namespace: str = 'victor', force_trigger: float = -0.0, **kwargs):
+    def __init__(self, robot_namespace: str = 'victor', force_trigger: float = -0.0, base_kwargs=None, **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
                                     arms_controller_name='both_arms_trajectory_controller',
                                     **kwargs)
-        BaseVictor.__init__(self, robot_namespace=robot_namespace)
+        base_kwargs = base_kwargs or {}
+        BaseVictor.__init__(self, robot_namespace=robot_namespace, **base_kwargs)
         self.left_arm_group = 'left_arm'
         self.right_arm_group = 'right_arm'
         self.left_tool_name = 'left_tool'

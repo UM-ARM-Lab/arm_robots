@@ -26,7 +26,8 @@ class CartesianImpedanceController:
     def __init__(self, tf_buffer, motion_status_listeners, motion_command_publisher, joint_lim_low, joint_lim_high,
                  world_frame_name, sensor_frame_names=None,
                  position_close_enough=0.0025, timeout_per_m=500, intermediate_acceptance_factor=7.,
-                 joint_limit_boundary=0.03):
+                 joint_limit_boundary=0.03,
+                 pose_distance_fn=None):
         """
 
         :param tf_buffer: tf2 Buffer object
@@ -37,9 +38,13 @@ class CartesianImpedanceController:
         :param position_close_enough: Distance (m) to target position to be considered close enough
         :param timeout_per_m: Allowed time (s) to execute before timing out per 1m of travel
         :param joint_limit_boundary: Angle (radian or list of radian) boundary of each joint limit to avoid by
+        :param pose_distance_fn: distance function acting on 2 Pose objects, default to euclidean distance
         returning to the previous pose for any entering. If this boundary is larger than what any single motion command
         will step, then we will not receive exceptions on the robot side.
         """
+        self.pose_distance = pose_distance_fn
+        if self.pose_distance is None:
+            self.pose_distance = pose_distance
         self.target_pose = None
         # for users to read after reaching goal
         self.reached_joint_limit = False
@@ -169,7 +174,7 @@ class CartesianImpedanceController:
                                f"target {target_pose.header.frame_id} current {current_pose.header.frame_id}")
 
         self.target_pose = copy.deepcopy(target_pose)
-        self._init_goal_dist = pose_distance(current_pose.pose, self.target_pose.pose)
+        self._init_goal_dist = self.pose_distance(current_pose.pose, self.target_pose.pose)
         self._start_violation = self.joint_boundary_violation_amount()
         self._goal_start_time = rospy.get_time()
         self.timed_out = False
@@ -191,7 +196,7 @@ class CartesianImpedanceController:
             return True
 
         cp = self.current_pose_in_frame(self.active_arm, reference_frame=self.target_pose.header.frame_id)
-        dist_to_goal = pose_distance(cp.pose, self.target_pose.pose)
+        dist_to_goal = self.pose_distance(cp.pose, self.target_pose.pose)
         self._dists_to_goal.append(dist_to_goal)
         # rospy.loginfo("Dist to goal {}".format(dist_to_goal))
         if dist_to_goal < self.position_close_enough:
@@ -199,8 +204,8 @@ class CartesianImpedanceController:
             rospy.logdebug("Reached target {}".format(cp.pose.position))
             return True
 
-        if self._intermediate_target is None or pose_distance(cp.pose,
-                                                              self._intermediate_target.pose) < self._intermediate_close_enough:
+        if self._intermediate_target is None or self.pose_distance(cp.pose,
+                                                                   self._intermediate_target.pose) < self._intermediate_close_enough:
             # take step along direction to goal
             diff = ros_numpy.numpify(self.target_pose.pose.position) - ros_numpy.numpify(cp.pose.position)
             diff_norm = np.linalg.norm(diff)
