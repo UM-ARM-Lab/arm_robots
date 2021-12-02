@@ -22,6 +22,8 @@ def pose_distance(a: Pose, b: Pose, rot_weight=0):
     return pos_distance + rot_distance
 
 
+RE_QUERY_ATTEMPTS = 4
+
 class CartesianImpedanceController:
     def __init__(self, tf_buffer, motion_status_listeners, motion_command_publisher, joint_lim_low, joint_lim_high,
                  world_frame_name, sensor_frame_names=None,
@@ -108,7 +110,10 @@ class CartesianImpedanceController:
         self._start_violation = 0
 
     def current_pose_in_frame(self, arm, reference_frame=None):
-        current_pose = self.motion_status_listeners[arm].get().measured_cartesian_pose
+        current_pose = None
+        # query for pose multiple times as for some reason querying once sometimes gives stale messages
+        for _ in range(RE_QUERY_ATTEMPTS):
+            current_pose = self.motion_status_listeners[arm].get().measured_cartesian_pose
         if current_pose is None:
             return None
         # current pose is actually in ee_frame
@@ -179,7 +184,7 @@ class CartesianImpedanceController:
         self._goal_start_time = rospy.get_time()
         self.timed_out = False
         self.reached_joint_limit = False
-        rospy.logdebug("Target {}".format(self.target_pose.pose))
+        rospy.logdebug("Target\n{}".format(str(self.target_pose.pose).replace('\n', ' ')))
 
     def joint_boundary_violation_amount(self):
         q = self.motion_status_listeners[self.active_arm].get().measured_joint_position
@@ -196,12 +201,13 @@ class CartesianImpedanceController:
             return True
 
         cp = self.current_pose_in_frame(self.active_arm, reference_frame=self.target_pose.header.frame_id)
+
         dist_to_goal = self.pose_distance(cp.pose, self.target_pose.pose)
         self._dists_to_goal.append(dist_to_goal)
         # rospy.loginfo("Dist to goal {}".format(dist_to_goal))
         if dist_to_goal < self.position_close_enough:
             self.abort_goal()
-            rospy.logdebug("Reached target {}".format(cp.pose.position))
+            rospy.logdebug("Reached target\n{}".format(str(cp.pose.position).replace('\n', ' ')))
             return True
 
         if self._intermediate_target is None or self.pose_distance(cp.pose,
