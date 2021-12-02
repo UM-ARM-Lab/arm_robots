@@ -47,12 +47,6 @@
         </include>
     </group>
     <group unless="$(arg sim)">
-        <group ns="static_transform_publishers">
-            <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_base_link" required="true"
-                  args="0 0 0 0 0 0 world base_link">
-            </node>
-        </group>
-
         <arg name="world_name" default="$(find arm_robots)/world/val_husky_walls.world"/>
 
         <!-- Start gazebo -->
