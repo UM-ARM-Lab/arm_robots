@@ -22,8 +22,6 @@ def pose_distance(a: Pose, b: Pose, rot_weight=0):
     return pos_distance + rot_distance
 
 
-RE_QUERY_ATTEMPTS = 4
-
 class CartesianImpedanceController:
     def __init__(self, tf_buffer, motion_status_listeners, motion_command_publisher, joint_lim_low, joint_lim_high,
                  world_frame_name, sensor_frame_names=None,
@@ -110,10 +108,10 @@ class CartesianImpedanceController:
         self._start_violation = 0
 
     def current_pose_in_frame(self, arm, reference_frame=None):
-        current_pose = None
-        # query for pose multiple times as for some reason querying once sometimes gives stale messages
-        for _ in range(RE_QUERY_ATTEMPTS):
-            current_pose = self.motion_status_listeners[arm].get().measured_cartesian_pose
+        # clear potentially stale messages
+        self.motion_status_listeners[arm].data = None
+        current_pose = self.motion_status_listeners[arm].get(True).measured_cartesian_pose
+
         if current_pose is None:
             return None
         # current pose is actually in ee_frame
