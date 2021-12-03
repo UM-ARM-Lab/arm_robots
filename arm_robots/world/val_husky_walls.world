@@ -15,7 +15,8 @@
       <real_time_update_rate>1000</real_time_update_rate>
     </physics>
 
-    <plugin name="stepping_plugin" filename="libstepping_plugin.so"/>
+    <plugin name="collision_map_plugin" filename="libcollision_map_plugin.so"/>
+    <plugin name="arm_gazebo_ros" filename="libarm_gazebo_ros_plugin.so"/>
 
     <model name="moveit_plugin_model">
       <plugin name="gazebo_ros_moveit_planning_scene" filename="libgazebo_ros_moveit_planning_scene.so">
