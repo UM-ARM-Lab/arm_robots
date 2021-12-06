@@ -47,6 +47,12 @@
         </include>
     </group>
     <group unless="$(arg sim)">
+        <group ns="static_transform_publishers">
+            <node pkg="tf2_ros" type="static_transform_publisher" name="rename_origin" required="true"
+                  args="0 0 0 0 0 0 hdt_michigan_root world">
+            </node>
+        </group>
+
         <arg name="world_name" default="$(find arm_robots)/world/val_husky_walls.world"/>
 
         <!-- Start gazebo -->
