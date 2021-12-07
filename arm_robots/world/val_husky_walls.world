@@ -28,30 +28,30 @@
     </model>
 
     <include>
-      <pose>0 0 0 0 0 0</pose>
+      <pose>0 0 -0.42 0 0 0</pose>
       <uri>model://ground_plane</uri>
     </include>
 
     <include>
-      <name>fake_wall1</name>
+      <name>right_wall</name>
       <uri>model://fake_wall</uri>
       <pose>0 -1.0 0.4 0 0 0</pose>
     </include>
 
     <include>
-      <name>fake_wall2</name>
+      <name>left_wall</name>
       <uri>model://fake_wall</uri>
       <pose>0 1.0 0.4 0 0 0</pose>
     </include>
 
     <include>
-      <name>fake_wall3</name>
+      <name>back_wall</name>
       <uri>model://fake_wall</uri>
       <pose>-0.65 0 0.4 0 0 1.5707</pose>
     </include>
 
     <include>
-      <name>fake_wall4</name>
+      <name>front_wall</name>
       <uri>model://fake_wall</uri>
       <pose>1.3 0 0.4 0 0 1.5707</pose>
     </include>
