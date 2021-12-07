@@ -29,7 +29,6 @@ class BaseVal(BaseRobot):
         BaseRobot.__init__(self, robot_namespace=robot_namespace, robot_description=robot_description)
         self.first_valid_command = False
         self.should_disconnect = False
-        self.min_velocity = 0.05
         self.command_thread = Thread(target=BaseVal.command_thread_func, args=(weakref.proxy(self),))
 
         self.command_pub = rospy.Publisher("/hdt_adroit_coms/joint_cmd", JointState, queue_size=10)
@@ -38,7 +37,10 @@ class BaseVal(BaseRobot):
         self.command_rate = rospy.Rate(100)
         self.ready = 0
         self.has_started_command_thread = False
-        self._max_velocity_scale_factor = 1.0
+        self._max_velocity_scale_factor = 0.1
+        # FIXME: is there moveit API for this already?
+        joint_limits_param = rospy.get_param(self.robot_description + '_planning/joint_limits')
+        self.min_velocities = {k: v['min_nonzero_velocity'] for k, v in joint_limits_param.items()}
 
     def __del__(self):
         self.disconnect()
@@ -86,11 +88,11 @@ class BaseVal(BaseRobot):
         fixed_velocities = []
         for j, v in zip(joint_names, velocities):
             if v > 0:
-                fixed_velocity = max(self.min_velocity, v)
+                fixed_velocity = max(self.min_velocities[j], v)
             else:
                 # the HDT robot only uses positive velocities (absolute value)
                 # because the HDT driver code determines direction
-                fixed_velocity = -min(-self.min_velocity, v)
+                fixed_velocity = -min(-self.min_velocities[j], v)
 
             fixed_velocities.append(fixed_velocity)
 
@@ -126,27 +128,6 @@ class BaseVal(BaseRobot):
         pass
 
 
-left_arm_joints = [
-    'joint_1',
-    'joint_2',
-    'joint_3',
-    'joint_4',
-    'joint_5',
-    'joint_6',
-    'joint_7',
-]
-
-right_arm_joints = [
-    'joint_41',
-    'joint_42',
-    'joint_43',
-    'joint_44',
-    'joint_45',
-    'joint_46',
-    'joint_47',
-]
-
-
 class Val(BaseVal, MoveitEnabledRobot):
     gripper_open_position = 0.5
     gripper_closed_position = 0.2
@@ -159,7 +140,6 @@ class Val(BaseVal, MoveitEnabledRobot):
                                     **kwargs)
         BaseVal.__init__(self, robot_namespace=robot_namespace,
                          robot_description=ns_join(robot_namespace, 'robot_description'))
-        self.max_velocity_scale_factor = 1.0
         self.left_arm_group = 'left_arm'
         self.right_arm_group = 'right_arm'
         self.left_tool_name = 'left_tool'
@@ -201,10 +181,10 @@ class Val(BaseVal, MoveitEnabledRobot):
         return self.get_left_arm_joints() + self.get_right_arm_joints()
 
     def get_right_arm_joints(self):
-        return right_arm_joints
+        return self.robot_commander.get_active_joint_names('right_arm')
 
     def get_left_arm_joints(self):
-        return left_arm_joints
+        return self.robot_commander.get_active_joint_names('left_arm')
 
     def get_gripper_positions(self):
         # NOTE: this function requires that gazebo be playing
