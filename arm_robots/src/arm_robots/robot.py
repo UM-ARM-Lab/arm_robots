@@ -17,7 +17,7 @@ from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningRe
     ExecutionResult, is_empty_trajectory, merge_joint_state_and_scene_msg
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
-from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PoseStamped
+from geometry_msgs.msg import Point, Pose, Quaternion, Vector3
 from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor, RobotState, PlanningScene, \
     DisplayTrajectory
 from rosgraph.names import ns_join

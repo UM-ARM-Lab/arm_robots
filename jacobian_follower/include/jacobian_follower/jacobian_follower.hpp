@@ -184,16 +184,18 @@ class JacobianFollower {
                                                                     const moveit_msgs::PlanningScene &scene_msg,
                                                                     IkParams const &ik_params = {}) const;
 
-  geometry_msgs::Pose computeGroupFK(const moveit_msgs::RobotState &robot_state_msg,
-                                     const std::string &group_name) const;
+  geometry_msgs::PoseStamped computeGroupFK(const moveit_msgs::RobotState &robot_state_msg,
+                                            const std::string &group_name) const;
 
-  geometry_msgs::Pose computeFK(const moveit_msgs::RobotState &robot_state_msg, const std::string &link_name) const;
+  geometry_msgs::PoseStamped computeFK(const moveit_msgs::RobotState &robot_state_msg,
+                                       const std::string &link_name) const;
 
-  geometry_msgs::Pose computeGroupFK(const std::vector<double> &joint_positions,
-                                     const std::vector<std::string> &joint_names, const std::string &group_name) const;
+  geometry_msgs::PoseStamped computeGroupFK(const std::vector<double> &joint_positions,
+                                            const std::vector<std::string> &joint_names,
+                                            const std::string &group_name) const;
 
-  geometry_msgs::Pose computeFK(const std::vector<double> &joint_positions, const std::vector<std::string> &joint_names,
-                                const std::string &link_name) const;
+  geometry_msgs::PoseStamped computeFK(const std::vector<double> &joint_positions,
+                                       const std::vector<std::string> &joint_names, const std::string &link_name) const;
 
   PlanResult plan(JacobianTrajectoryCommand traj_command);
 

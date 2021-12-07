@@ -18,6 +18,8 @@ from rosgraph.names import ns_join
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
+MAX_JOINT_ANGLE_DELTA_RAD = 1.0
+
 
 class BaseVal(BaseRobot):
 
@@ -97,8 +99,8 @@ class BaseVal(BaseRobot):
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint):
         current_joint_command = self.get_joint_positions(joint_names)
         distance = np.linalg.norm(np.array(current_joint_command) - np.array(trajectory_point.positions))
-        if distance > 1:
-            rospy.logerr("Sending a huge joint command! I'm forcing velocities to zero to prevent this.")
+        if distance > MAX_JOINT_ANGLE_DELTA_RAD:
+            rospy.logerr("Sending a huge joint command! Forcing velocities to zero to prevent this.")
             trajectory_point.velocities = [0] * len(joint_names)
         elif not self.first_valid_command:
             self.first_valid_command = True
@@ -119,6 +121,9 @@ class BaseVal(BaseRobot):
 
     def get_left_gripper_links(self):
         return self.robot_commander.get_link_names("left_gripper")
+
+    def speak(self, message: str):
+        pass
 
 
 left_arm_joints = [
@@ -216,8 +221,8 @@ class Val(BaseVal, MoveitEnabledRobot):
             move_group = self.get_move_group_commander('right_gripper')
         else:
             raise NotImplementedError(f"invalid gripper {gripper}")
-        current_joint_values = move_group.get_current_joint_values()
-        return np.allclose(current_joint_values, self.gripper_closed_position, atol=0.01)
+        current_joint_values = np.array(move_group.get_current_joint_values())
+        return np.all(current_joint_values < self.gripper_closed_position)
 
     def is_left_gripper_closed(self):
         return self.is_gripper_closed('left')

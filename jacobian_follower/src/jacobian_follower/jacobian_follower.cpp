@@ -391,8 +391,8 @@ std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry
   return solutions;
 }
 
-geometry_msgs::Pose JacobianFollower::computeGroupFK(const moveit_msgs::RobotState &robot_state_msg,
-                                                     const std::string &group_name) const {
+geometry_msgs::PoseStamped JacobianFollower::computeGroupFK(const moveit_msgs::RobotState &robot_state_msg,
+                                                            const std::string &group_name) const {
   robot_state::RobotState state(model_);
   robotStateMsgToRobotState(robot_state_msg, state);
 
@@ -404,22 +404,24 @@ geometry_msgs::Pose JacobianFollower::computeGroupFK(const moveit_msgs::RobotSta
   const auto &ee_name = jmg->getLinkModelNames().back();
   const auto &end_effector_state = state.getGlobalLinkTransform(ee_name);
 
-  geometry_msgs::Pose pose;
-  tf::poseEigenToMsg(end_effector_state, pose);
-  return pose;
+  geometry_msgs::PoseStamped pose_stamped;
+  pose_stamped.header.frame_id = robot_frame_;
+  pose_stamped.header.stamp = ros::Time::now();
+  tf::poseEigenToMsg(end_effector_state, pose_stamped.pose);
+  return pose_stamped;
 }
 
-geometry_msgs::Pose JacobianFollower::computeGroupFK(const std::vector<double> &joint_positions,
-                                                     const std::vector<std::string> &joint_names,
-                                                     const std::string &group_name) const {
+geometry_msgs::PoseStamped JacobianFollower::computeGroupFK(const std::vector<double> &joint_positions,
+                                                            const std::vector<std::string> &joint_names,
+                                                            const std::string &group_name) const {
   moveit_msgs::RobotState robot_state_msg;
   robot_state_msg.joint_state.position = joint_positions;
   robot_state_msg.joint_state.name = joint_names;
   return computeGroupFK(robot_state_msg, group_name);
 }
 
-geometry_msgs::Pose JacobianFollower::computeFK(const moveit_msgs::RobotState &robot_state_msg,
-                                                const std::string &link_name) const {
+geometry_msgs::PoseStamped JacobianFollower::computeFK(const moveit_msgs::RobotState &robot_state_msg,
+                                                       const std::string &link_name) const {
   robot_state::RobotState state(model_);
   robotStateMsgToRobotState(robot_state_msg, state);
 
@@ -429,14 +431,16 @@ geometry_msgs::Pose JacobianFollower::computeFK(const moveit_msgs::RobotState &r
 
   const auto &end_effector_state = state.getGlobalLinkTransform(link_name);
 
-  geometry_msgs::Pose pose;
-  tf::poseEigenToMsg(end_effector_state, pose);
-  return pose;
+  geometry_msgs::PoseStamped pose_stamped;
+  pose_stamped.header.frame_id = robot_frame_;
+  pose_stamped.header.stamp = ros::Time::now();
+  tf::poseEigenToMsg(end_effector_state, pose_stamped.pose);
+  return pose_stamped;
 }
 
-geometry_msgs::Pose JacobianFollower::computeFK(const std::vector<double> &joint_positions,
-                                                const std::vector<std::string> &joint_names,
-                                                const std::string &link_name) const {
+geometry_msgs::PoseStamped JacobianFollower::computeFK(const std::vector<double> &joint_positions,
+                                                       const std::vector<std::string> &joint_names,
+                                                       const std::string &link_name) const {
   moveit_msgs::RobotState robot_state_msg;
   robot_state_msg.joint_state.position = joint_positions;
   robot_state_msg.joint_state.name = joint_names;
