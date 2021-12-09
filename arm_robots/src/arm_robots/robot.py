@@ -5,7 +5,13 @@ import numpy as np
 import pyjacobian_follower
 from matplotlib import colors
 
-import moveit_commander
+import warnings
+
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+    import moveit_commander
+
 import ros_numpy
 import rospy
 import urdf_parser_py.xml_reflection.core

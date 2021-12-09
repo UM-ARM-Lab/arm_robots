@@ -306,7 +306,7 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
                                   opts  // mostly empty
     );
   }
-  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "ok? " << ok << " attempts " << attempts);
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "ok: " << ok << ", attempts: " << attempts);
 
   if (ok) {
     moveit_msgs::RobotState solution_msg;
