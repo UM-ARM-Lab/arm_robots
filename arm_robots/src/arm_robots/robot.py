@@ -7,7 +7,6 @@ from matplotlib import colors
 
 import warnings
 
-
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", category=RuntimeWarning)
     import moveit_commander
@@ -236,7 +235,7 @@ class MoveitEnabledRobot(BaseRobot):
             joint_config = move_group.get_named_target_values(joint_config_name)
             if len(joint_config) == 0:
                 raise ValueError(f"No group state named {joint_config_name}")
-        if isinstance(joint_config, List):
+        if isinstance(joint_config, list):
             joint_config = {name: val for name, val in zip(move_group.get_active_joints(), joint_config)}
 
         move_group.set_joint_value_target(joint_config)
