@@ -38,35 +38,26 @@ def main():
     frame_a = 'mocap_world'
     radius = 0.005
 
-    def make_left_marker(scale: float):
-        marker = Marker(type=Marker.SPHERE)
-        marker.scale = Point(2 * radius, 2 * radius, 2 * radius)
-        marker.color = ColorRGBA(0.5, 1.0, 0.5, 0.7)
+    def make_marker(text, r, g, b):
+        def _make_marker(_):
+            marker = Marker(type=Marker.SPHERE)
+            marker.scale = Point(2 * radius, 2 * radius, 2 * radius)
+            marker.color = ColorRGBA(0.5, 1.0, 0.5, 0.7)
 
-        text = Marker(type=Marker.TEXT_VIEW_FACING)
-        text.text = 'left'
-        text.scale.z = radius * 3
-        text.color = ColorRGBA(1.0, 1.0, 1.0, 1.0)
+            text = Marker(type=Marker.TEXT_VIEW_FACING)
+            text.text = text
+            text.scale.z = radius * 3
+            text.color = ColorRGBA(r, g, b, 1.0)
 
-        return [marker, text]
+            return [marker, text]
 
-    def make_right_marker(scale: float):
-        marker = Marker(type=Marker.SPHERE)
-        marker.scale = Point(2 * radius, 2 * radius, 2 * radius)
-        marker.color = ColorRGBA(1.0, 0.5, 0.5, 0.7)
-
-        text = Marker(type=Marker.TEXT_VIEW_FACING)
-        text.text = 'right'
-        text.color = ColorRGBA(1.0, 1.0, 1.0, 1.0)
-        text.scale.z = radius * 3
-
-        return [marker, text]
+        return _make_marker
 
     left_tool_im = Basic3DPoseInteractiveMarker(name='left',
-                                                make_marker=make_left_marker,
+                                                make_marker=make_marker('left', 1, 0.5, 0.5),
                                                 frame_id=frame_a)
     right_tool_im = Basic3DPoseInteractiveMarker(name='right',
-                                                 make_marker=make_right_marker,
+                                                 make_marker=make_marker('right', 0.5, 0.5, 1),
                                                  frame_id=frame_a)
 
     tf = TF2Wrapper()
@@ -109,21 +100,19 @@ def main():
     fk_points_pcd = o3d.geometry.PointCloud()
     fk_points_pcd.points = o3d.utility.Vector3dVector(fk_points)
 
-    threshold = 0.1
     # init was copied from the Vicon software
     init = transformations.compose_matrix(angles=np.deg2rad([-0.226, -1.82, 49.329]), translate=[1.219, -0.932, -1.206])
 
+    threshold = 0.1
     reg_p2p = o3d.pipelines.registration.registration_icp(fk_points_pcd, pc_points_pcd, threshold, init,
-                                                          o3d.pipelines.registration.TransformationEstimationPointToPoint(),
-                                                          o3d.pipelines.registration.ICPConvergenceCriteria(
-                                                              max_iteration=2000))
-
-    if args.visualize:
-        draw_registration_result(fk_points_pcd, pc_points_pcd, reg_p2p.transformation)
+                                                          o3d.pipelines.registration.TransformationEstimationPointToPoint())
 
     print("Results:")
     print(np.rad2deg(transformations.euler_from_matrix(reg_p2p.transformation)))
     print(transformations.translation_from_matrix(reg_p2p.transformation) * 1000)
+
+    if args.visualize:
+        draw_registration_result(fk_points_pcd, pc_points_pcd, reg_p2p.transformation)
 
     val.disconnect()
 
