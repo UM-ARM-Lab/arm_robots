@@ -15,7 +15,9 @@
       <real_time_update_rate>1000</real_time_update_rate>
     </physics>
 
-    <plugin name="collision_map_plugin" filename="libcollision_map_plugin.so"/>
+    <plugin name="collision_map_plugin" filename="libcollision_map_plugin.so">
+      <frameId>base_link</frameId>
+    </plugin>
     <plugin name="arm_gazebo_ros" filename="libarm_gazebo_ros_plugin.so"/>
 
     <model name="moveit_plugin_model">
@@ -54,6 +56,12 @@
       <name>front_wall</name>
       <uri>model://fake_wall</uri>
       <pose>1.3 0 0.4 0 0 1.5707</pose>
+    </include>
+
+    <include>
+      <name>kinect_box</name>
+      <uri>model://kinect_box</uri>
+      <pose>0.938 0.043 -0.037 0 0 0</pose>
     </include>
 
   </world>
