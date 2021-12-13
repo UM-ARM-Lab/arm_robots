@@ -37,7 +37,7 @@ class BaseVal(BaseRobot):
         self.command_rate = rospy.Rate(100)
         self.ready = 0
         self.has_started_command_thread = False
-        self._max_velocity_scale_factor = 0.1
+        self._max_velocity_scale_factor = 1.0
         # FIXME: is there moveit API for this already?
         joint_limits_param = rospy.get_param(self.robot_description + '_planning/joint_limits')
         self.min_velocities = {k: v['min_nonzero_velocity'] for k, v in joint_limits_param.items()}
