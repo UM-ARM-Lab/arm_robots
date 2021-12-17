@@ -60,8 +60,8 @@
 
     <include>
       <name>engine4</name>
-      <uri>model://engine4</uri>
-      <pose>1.6 0 0.4 0 0 1.5707</pose>
+      <uri>model://car_engine4</uri>
+      <pose>0.96 -0.02 0.095 0 0 -1.6307</pose>
     </include>
 
   </world>
