@@ -41,12 +41,6 @@
     </include>
 
     <include>
-      <name>left_wall</name>
-      <uri>model://fake_wall</uri>
-      <pose>0.5 0.7 0.4 0 0 0</pose>
-    </include>
-
-    <include>
       <name>back_wall</name>
       <uri>model://fake_wall</uri>
       <pose>-0.65 0 0.4 0 0 1.5707</pose>
@@ -61,7 +55,7 @@
     <include>
       <name>engine4</name>
       <uri>model://car_engine4</uri>
-      <pose>0.96 -0.02 0.095 0 0 -1.6307</pose>
+      <pose>1.2584 -0.14 0.15 0.017 0 -1.5377</pose>
     </include>
 
   </world>
