@@ -250,7 +250,6 @@ bool isStateValid(planning_scene::PlanningScenePtr planning_scene, moveit::core:
                   moveit::core::JointModelGroup const *jmg, double const *joint_positions) {
   robot_state->setJointGroupPositions(jmg, joint_positions);
   robot_state->update();  // This updates the internally stored transforms, needed before collision checking
-  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "checking state validity");
   return planning_scene->isStateValid(*robot_state);
 }
 
@@ -278,8 +277,6 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
 
   robot_state::RobotState robot_state_ik{model_};
   robot_state::RobotState seed_robot_state_ik{model_};
-  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "" << default_robot_state.joint_state.name.size() << " "
-                                                 << default_robot_state.joint_state.position.size());
   auto const success = moveit::core::robotStateMsgToRobotState(default_robot_state, robot_state_ik) and
                        moveit::core::robotStateMsgToRobotState(default_robot_state, seed_robot_state_ik);
   if (not success) {
@@ -623,6 +620,7 @@ collision_detection::CollisionResult JacobianFollower::checkCollision(planning_s
   collisionRequest.max_contacts_per_pair = 1;
   collision_detection::CollisionResult collisionResult;
   planning_scene->checkCollision(collisionRequest, collisionResult, state);
+  ROS_DEBUG_STREAM_ONCE_NAMED(LOGGER_NAME + ".check_collision", "Checking collision...");
   if (collisionResult.collision) {
     ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".check_collision", "Collision Result: " << collisionResult);
     std::stringstream ss;
