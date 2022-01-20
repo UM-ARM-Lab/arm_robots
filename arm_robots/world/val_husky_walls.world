@@ -30,8 +30,8 @@
     </model>
 
     <include>
-      <pose>0 0 -0.42 0 0 0</pose>
-      <uri>model://ground_plane</uri>
+      <pose>0 0 -0.15 0 0 0</pose>
+      <uri>model://box_floor</uri>
     </include>
 
     <include>
@@ -55,7 +55,7 @@
     <include>
       <name>engine4</name>
       <uri>model://car_engine4</uri>
-      <pose>1.2584 -0.14 0.15 0.017 0 -1.5377</pose>
+      <pose>1.22 -0.14 0.10 0.017 0 -1.5377</pose>
     </include>
 
   </world>
