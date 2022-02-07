@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+from colorama import Fore
 import argparse
 import logging
 
@@ -53,7 +55,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('camera_tf_name', help='name of the camera in mocap according to TF')
 
-    args = parser.parse_args()
+    args = parser.parse_args(rospy.myargv()[1:])
 
     tf = TF2Wrapper()
 
@@ -63,6 +65,7 @@ def main():
     fiducial_center_to_marker_corner = np.sqrt(0.118 ** 2 / 2)
     i = 0
     camera2fiducial_last = None
+    input(Fore.CYAN + "Press enter to begin calibration" + Fore.RESET)
     for t in trange(10):
         fiducial_center_to_fiducial_mocap = transformations.compose_matrix(
             translate=[-fiducial_center_to_marker_corner, fiducial_center_to_marker_corner, 0])
@@ -75,13 +78,12 @@ def main():
             # get the aruco transform once it is stable, and ensure it's different enough from the previous one
             camera2fiducial = get_transform_stable(tf, args.camera_tf_name, f"fiducial_{i}", 0.01)
             if camera2fiducial_last is None:
-                camera2fiducial_last = camera2fiducial
                 break
             dist = np.linalg.norm(camera2fiducial_last - camera2fiducial, ord='fro')
-            close = dist < 0.5
-            camera2fiducial_last = camera2fiducial
+            close = dist < 0.1
             if not close:
                 break
+        camera2fiducial_last = camera2fiducial
 
         fiducial2camera = transformations.inverse_matrix(camera2fiducial)
         mocap2camera_sensor_detected = mocap2fiducial @ fiducial2camera
@@ -91,12 +93,17 @@ def main():
         offsets.append(mocap2camera_sensor_offset)
 
     average_offset = average_transformation_matrices(offsets)
+    error = sum([np.linalg.norm(average_offset - t, ord='fro') for t in offsets])
     trans = transformations.translation_from_matrix(average_offset)
     rot = transformations.euler_from_matrix(average_offset)
     roll, pitch, yaw = rot
+    print(Fore.GREEN)
+    print(f"Error: {error:.4f}")
+    print(f"Re-run the calibration if the above error is >1")
     print('Copy This into the static_transform_publisher')
     print(f'{trans[0]:.5f} {trans[1]:.5f} {trans[2]:.5f} {yaw:.5f} {pitch:.5f} {roll:.5f}')
     print("NOTE: tf2_ros static_transform_publisher uses Yaw, Pitch, Roll so that's what is printed above")
+    print(Fore.RESET)
 
 
 if __name__ == '__main__':
