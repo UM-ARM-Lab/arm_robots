@@ -1,4 +1,6 @@
 <launch>
+  <arg name="m" default="10"/>
+
   <include file="$(find realsense2_camera)/launch/rs_camera.launch">
     <arg name="output" value="log" />
   </include>
@@ -20,5 +22,5 @@
   <node pkg="arm_robots" type="calibrate_camera_to_mocap.py" name="calibration_camera_to_mocap"
     required="true"
     output="screen"
-    args="mocap_big_realsense_1_big_realsense_1 camera_link"/>
+    args="mocap_big_realsense_1_big_realsense_1 camera_link $(arg m)"/>
 </launch>

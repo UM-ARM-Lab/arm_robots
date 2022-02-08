@@ -55,6 +55,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('camera_tf_name', help='TF name of the camera in mocap')
     parser.add_argument('camera_link_name', help='TF name of the camera link')
+    parser.add_argument('m', type=int, help='number of distinct data points (poses) to use in calibration')
 
     args = parser.parse_args(rospy.myargv()[1:])
 
@@ -66,8 +67,7 @@ def main():
     fiducial_center_to_marker_corner = np.sqrt(0.118 ** 2 / 2)
     i = 0
     camera2fiducial_last = None
-    input(Fore.CYAN + "Press enter to begin calibration" + Fore.RESET)
-    for t in trange(10):
+    for t in trange(args.m):
         fiducial_center_to_fiducial_mocap = transformations.compose_matrix(
             translate=[-fiducial_center_to_marker_corner, fiducial_center_to_marker_corner, 0])
         # send TF from fiducial to mocap markers on the fiducial board
@@ -96,7 +96,8 @@ def main():
         offsets.append(mocap2camera_sensor_offset)
 
     average_offset = average_transformation_matrices(offsets)
-    error = sum([np.linalg.norm(average_offset - t, ord='fro') for t in offsets])
+    np.save('offsets.npy', offsets)
+    error = np.mean([np.linalg.norm(average_offset - t, ord='fro') for t in offsets])
     trans = transformations.translation_from_matrix(average_offset)
     rot = transformations.euler_from_matrix(average_offset)
     roll, pitch, yaw = rot
