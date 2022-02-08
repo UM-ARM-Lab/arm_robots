@@ -66,8 +66,8 @@ def main():
     fiducial_center_to_marker_corner = np.sqrt(0.118 ** 2 / 2)
     i = 0
     camera2fiducial_last = None
-    # input(Fore.CYAN + "Press enter to begin calibration" + Fore.RESET)
-    for t in trange(2):
+    input(Fore.CYAN + "Press enter to begin calibration" + Fore.RESET)
+    for t in trange(10):
         fiducial_center_to_fiducial_mocap = transformations.compose_matrix(
             translate=[-fiducial_center_to_marker_corner, fiducial_center_to_marker_corner, 0])
         # send TF from fiducial to mocap markers on the fiducial board
