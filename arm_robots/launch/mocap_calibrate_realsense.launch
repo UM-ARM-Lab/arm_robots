@@ -20,5 +20,5 @@
   <node pkg="arm_robots" type="calibrate_camera_to_mocap.py" name="calibration_camera_to_mocap"
     required="true"
     output="screen"
-    args="mocap_big_realsense_1_big_realsense_1"/>
+    args="mocap_big_realsense_1_big_realsense_1 camera_link"/>
 </launch>

@@ -53,9 +53,8 @@ def main():
     np.set_printoptions(suppress=True, precision=4, linewidth=200)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('camera_tf_name', help='name of the camera in mocap according to TF')
-    parser.add_argument('camera_link', help='TF name of the camera link')
-    parser.add_argument('camera_color_optical_frame', help='TF name of the rgb optical frame of the camera')
+    parser.add_argument('camera_tf_name', help='TF name of the camera in mocap')
+    parser.add_argument('camera_link_name', help='TF name of the camera link')
 
     args = parser.parse_args(rospy.myargv()[1:])
 
@@ -68,7 +67,7 @@ def main():
     i = 0
     camera2fiducial_last = None
     input(Fore.CYAN + "Press enter to begin calibration" + Fore.RESET)
-    for t in trange(1):
+    for t in trange(2):
         fiducial_center_to_fiducial_mocap = transformations.compose_matrix(
             translate=[-fiducial_center_to_marker_corner, fiducial_center_to_marker_corner, 0])
         # send TF from fiducial to mocap markers on the fiducial board
@@ -78,7 +77,7 @@ def main():
         mocap2fiducial = mocap2fiducial_markers @ transformations.inverse_matrix(fiducial_center_to_fiducial_mocap)
         while True:
             # get the aruco transform once it is stable, and ensure it's different enough from the previous one
-            camera2fiducial = get_transform_stable(tf, args.camera_tf_name, f"fiducial_{i}", 0.01)
+            camera2fiducial = get_transform_stable(tf, args.camera_link_name, f"fiducial_{i}", 0.01)
             if camera2fiducial_last is None:
                 break
             dist = np.linalg.norm(camera2fiducial_last - camera2fiducial, ord='fro')
@@ -88,8 +87,7 @@ def main():
         camera2fiducial_last = camera2fiducial
 
         fiducial2camera = transformations.inverse_matrix(camera2fiducial)
-        camera2optical = tf.get_transform(args.camera_link_frame, args.camera_rgb_optical_frame)
-        mocap2camera_sensor_detected = mocap2fiducial @ fiducial2camera @ camera2optical
+        mocap2camera_sensor_detected = mocap2fiducial @ fiducial2camera
         mocap2camera_markers = tf.get_transform(mocap_world_frame, args.camera_tf_name)
         mocap2camera_sensor_offset = np.linalg.solve(mocap2camera_markers, mocap2camera_sensor_detected)
 
