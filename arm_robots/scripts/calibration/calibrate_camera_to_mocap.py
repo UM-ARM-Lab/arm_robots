@@ -54,6 +54,8 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('camera_tf_name', help='name of the camera in mocap according to TF')
+    parser.add_argument('camera_link', help='TF name of the camera link')
+    parser.add_argument('camera_color_optical_frame', help='TF name of the rgb optical frame of the camera')
 
     args = parser.parse_args(rospy.myargv()[1:])
 
@@ -86,7 +88,8 @@ def main():
         camera2fiducial_last = camera2fiducial
 
         fiducial2camera = transformations.inverse_matrix(camera2fiducial)
-        mocap2camera_sensor_detected = mocap2fiducial @ fiducial2camera
+        camera2optical = tf.get_transform(args.camera_link_frame, args.camera_rgb_optical_frame)
+        mocap2camera_sensor_detected = mocap2fiducial @ fiducial2camera @ camera2optical
         mocap2camera_markers = tf.get_transform(mocap_world_frame, args.camera_tf_name)
         mocap2camera_sensor_offset = np.linalg.solve(mocap2camera_markers, mocap2camera_sensor_detected)
 
