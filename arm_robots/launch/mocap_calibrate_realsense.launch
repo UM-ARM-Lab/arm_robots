@@ -1,0 +1,26 @@
+<launch>
+  <arg name="m" default="10"/>
+
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+    <arg name="output" value="log" />
+  </include>
+
+  <include file="$(find lightweight_vicon_bridge)/launch/vicon_bridge.launch"/>
+
+  <!-- always start with this transform as 0 when calibrating -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="calibr_mocap_to_camera_zero" required="true"
+        args="0 0 0 0 0 0 mocap_big_realsense_1_big_realsense_1 camera_link"/>
+
+  <node pkg="aruco_detect" type="aruco_detect" name="aruco_detect" args="">
+    <param name="fiducial_len" value="0.128"/>
+    <param name="publish_images" value="true"/>
+    <param name="dictionary" value="7"/>
+    <remap from="/camera" to="/camera/color/image_raw"/>
+    <remap from="/camera_info" to="/camera/color/camera_info"/>
+  </node>
+
+  <node pkg="arm_robots" type="calibrate_camera_to_mocap.py" name="calibration_camera_to_mocap"
+    required="true"
+    output="screen"
+    args="mocap_big_realsense_1_big_realsense_1 camera_link $(arg m)"/>
+</launch>
