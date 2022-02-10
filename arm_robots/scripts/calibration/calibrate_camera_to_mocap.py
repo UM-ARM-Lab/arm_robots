@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import argparse
-import logging
 
 import numpy as np
 import transformations
@@ -11,8 +10,6 @@ from tqdm import trange
 import rospy
 from arc_utilities import ros_init
 from arc_utilities.tf2wrapper import TF2Wrapper
-
-logger = logging.getLogger(__file__)
 
 
 def average_transformation_matrices(offsets):
