@@ -1,18 +1,15 @@
 #!/usr/bin/env python
-from colorama import Fore
 import argparse
-import logging
 
 import numpy as np
 import transformations
+from colorama import Fore
 from scipy.spatial.transform import Rotation as R
 from tqdm import trange
 
 import rospy
 from arc_utilities import ros_init
 from arc_utilities.tf2wrapper import TF2Wrapper
-
-logger = logging.getLogger(__file__)
 
 
 def average_transformation_matrices(offsets):
@@ -29,6 +26,7 @@ def get_transform_stable(tf,
                          close_threshold,
                          n_close_poses_threshold=10,
                          sleep_duration=0.05):
+    """ returns the requested TF transform once it stops changing by a certain amount for a certain amount of time """
     n_close_poses = 0
     last_transform = tf.get_transform(camera_tf_name, fiducial_name)
     while True:
@@ -59,23 +57,36 @@ def main():
 
     args = parser.parse_args(rospy.myargv()[1:])
 
+    offsets = collect_calibration_data(args.camera_tf_name,
+                                       args.camera_link_name,
+                                       args.m)
+    print_calibration_results(offsets)
+
+
+def collect_calibration_data(camera_tf_name, camera_link_name, m):
+    """
+    takes a few measurements about where the camera is in mocap, where the calib board is in mocap, and where the
+    calib board is in the camera frame
+    """
+
     tf = TF2Wrapper()
-
     mocap_world_frame = 'mocap_world'
-
     offsets = []
+    # NOTE: this is hard coded for the mocap+aruco calibration boards
     fiducial_center_to_marker_corner = np.sqrt(0.118 ** 2 / 2)
-    i = 0
+    fiducial_center_to_fiducial_mocap = transformations.compose_matrix(
+        translate=[-fiducial_center_to_marker_corner, fiducial_center_to_marker_corner, 0])
+    tag_idx = 0
     camera2fiducial_last = None
-    for t in trange(args.m):
-        fiducial_center_to_fiducial_mocap = transformations.compose_matrix(
-            translate=[-fiducial_center_to_marker_corner, fiducial_center_to_marker_corner, 0])
+    for _ in trange(m):
         # send TF from fiducial to mocap markers on the fiducial board
-        tf.send_transform_matrix(fiducial_center_to_fiducial_mocap, f"fiducial_{i}", f"fiducial_{i}_mocap_markers")
+        tf.send_transform_matrix(fiducial_center_to_fiducial_mocap,
+                                 parent=f"fiducial_{tag_idx}",
+                                 child=f"fiducial_{tag_idx}_mocap_markers")
 
         while True:
             # get the aruco transform once it is stable, and ensure it's different enough from the previous one
-            camera2fiducial = get_transform_stable(tf, args.camera_link_name, f"fiducial_{i}", 0.01)
+            camera2fiducial = get_transform_stable(tf, camera_link_name, f"fiducial_{tag_idx}", 0.01)
             if camera2fiducial_last is None:
                 break
             dist = np.linalg.norm(camera2fiducial_last - camera2fiducial, ord='fro')
@@ -86,17 +97,19 @@ def main():
 
         fiducial2camera = transformations.inverse_matrix(camera2fiducial)
 
-        mocap2fiducial_markers = tf.get_transform(mocap_world_frame, f"mocap_calib{i}_calib{i}")
+        mocap2fiducial_markers = tf.get_transform(mocap_world_frame, f"mocap_calib{tag_idx}_calib{tag_idx}")
         mocap2fiducial = mocap2fiducial_markers @ transformations.inverse_matrix(fiducial_center_to_fiducial_mocap)
 
         mocap2camera_sensor_detected = mocap2fiducial @ fiducial2camera
-        mocap2camera_markers = tf.get_transform(mocap_world_frame, args.camera_tf_name)
+        mocap2camera_markers = tf.get_transform(mocap_world_frame, camera_tf_name)
         mocap2camera_sensor_offset = np.linalg.solve(mocap2camera_markers, mocap2camera_sensor_detected)
 
         offsets.append(mocap2camera_sensor_offset)
+    return offsets
 
+
+def print_calibration_results(offsets):
     average_offset = average_transformation_matrices(offsets)
-    np.save('offsets.npy', offsets)
     error = np.mean([np.linalg.norm(average_offset - t, ord='fro') for t in offsets])
     trans = transformations.translation_from_matrix(average_offset)
     rot = transformations.euler_from_matrix(average_offset)

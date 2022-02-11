@@ -1,8 +1,8 @@
 <launch>
   <arg name="fps_limit" default="10"/>
     <include file="$(find kinect2_calibration_files)/launch/kinect2_respawn_hack_step1.launch">
-        <arg name="base_name"       value="kinect2_victor_head"/>
-        <arg name="sensor"          value="000792364047"/>
+        <arg name="base_name"       value="kinect2_tripodA"/>
+        <arg name="sensor"          value="001252464047"/>
         <arg name="publish_tf"      value="true"/>
         <arg name="fps_limit"       value="$(arg fps_limit)"/>
     </include>
@@ -13,12 +13,12 @@
     <param name="fiducial_len" value="0.128"/>
     <param name="publish_images" value="true"/>
     <param name="dictionary" value="7"/>
-    <remap from="/camera" to="/kinect2_victor_head/qhd/image_color_rect"/>
-    <remap from="/camera_info" to="/kinect2_victor_head/qhd/camera_info"/>
+    <remap from="/camera" to="/kinect2_tripodA/qhd/image_color_rect"/>
+    <remap from="/camera_info" to="/kinect2_tripodA/qhd/camera_info"/>
   </node>
 
   <node pkg="arm_robots" type="calibrate_camera_to_mocap.py" name="calibration_camera_to_mocap"
     required="true"
     output="screen"
-    args="mocap_Kinect2VictorHead_Kinect2VictorHead kinect2_victor_head_link 5"/>
+    args="mocap_Kinect2TripodA_Kinect2TripodA kinect2_tripodA_link 5"/>
 </launch>
