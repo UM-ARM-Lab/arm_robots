@@ -15,7 +15,10 @@
       <real_time_update_rate>10</real_time_update_rate>
     </physics>
 
-    <plugin name="stepping_plugin" filename="libstepping_plugin.so"/>
+    <plugin name="collision_map_plugin" filename="libcollision_map_plugin.so">
+      <frameId>base_link</frameId>
+    </plugin>
+    <plugin name="arm_gazebo_ros" filename="libarm_gazebo_ros_plugin.so"/>
 
     <model name="moveit_plugin_model">
       <plugin name="gazebo_ros_moveit_planning_scene" filename="libgazebo_ros_moveit_planning_scene.so">
@@ -27,32 +30,26 @@
     </model>
 
     <include>
-      <pose>0 0 -0.42 0 0 0</pose>
-      <uri>model://ground_plane</uri>
+      <pose>0 0 -0.15 0 0 0</pose>
+      <uri>model://box_floor</uri>
     </include>
 
     <include>
-      <name>fake_wall1</name>
+      <name>right_wall</name>
       <uri>model://fake_wall</uri>
-      <pose>0 -1.0 0.4 0 0 0</pose>
+      <pose>0.5 -0.7 0.4 0 0 0</pose>
     </include>
 
     <include>
-      <name>fake_wall2</name>
+      <name>back_wall</name>
       <uri>model://fake_wall</uri>
-      <pose>0 1.0 0.4 0 0 0</pose>
+      <pose>-0.65 0 0.4 0 0 1.5707</pose>
     </include>
 
     <include>
-      <name>fake_wall3</name>
+      <name>front_wall</name>
       <uri>model://fake_wall</uri>
-      <pose>-0.6 0 0.4 0 0 1.5707</pose>
-    </include>
-
-    <include>
-      <name>fake_wall4</name>
-      <uri>model://fake_wall</uri>
-      <pose>1.1 0 0.4 0 0 1.5707</pose>
+      <pose>1.6 0 0.4 0 0 1.5707</pose>
     </include>
 
   </world>

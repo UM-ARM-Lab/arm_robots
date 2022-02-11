@@ -250,7 +250,6 @@ bool isStateValid(planning_scene::PlanningScenePtr planning_scene, moveit::core:
                   moveit::core::JointModelGroup const *jmg, double const *joint_positions) {
   robot_state->setJointGroupPositions(jmg, joint_positions);
   robot_state->update();  // This updates the internally stored transforms, needed before collision checking
-  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "checking state validity");
   return planning_scene->isStateValid(*robot_state);
 }
 
@@ -280,6 +279,7 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
   robot_state::RobotState seed_robot_state_ik{model_};
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "" << default_robot_state.joint_state.name.size() << " "
                                                  << default_robot_state.joint_state.position.size());
+
   auto const success = moveit::core::robotStateMsgToRobotState(default_robot_state, robot_state_ik) and
                        moveit::core::robotStateMsgToRobotState(default_robot_state, seed_robot_state_ik);
   if (not success) {
@@ -306,7 +306,7 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePoi
                                   opts  // mostly empty
     );
   }
-  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "ok? " << ok << " attempts " << attempts);
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "ok: " << ok << ", attempts: " << attempts);
 
   if (ok) {
     moveit_msgs::RobotState solution_msg;
@@ -391,8 +391,8 @@ std::vector<std::vector<double>> JacobianFollower::compute_IK_solutions(geometry
   return solutions;
 }
 
-geometry_msgs::Pose JacobianFollower::computeGroupFK(const moveit_msgs::RobotState &robot_state_msg,
-                                                     const std::string &group_name) const {
+geometry_msgs::PoseStamped JacobianFollower::computeGroupFK(const moveit_msgs::RobotState &robot_state_msg,
+                                                            const std::string &group_name) const {
   robot_state::RobotState state(model_);
   robotStateMsgToRobotState(robot_state_msg, state);
 
@@ -404,22 +404,24 @@ geometry_msgs::Pose JacobianFollower::computeGroupFK(const moveit_msgs::RobotSta
   const auto &ee_name = jmg->getLinkModelNames().back();
   const auto &end_effector_state = state.getGlobalLinkTransform(ee_name);
 
-  geometry_msgs::Pose pose;
-  tf::poseEigenToMsg(end_effector_state, pose);
-  return pose;
+  geometry_msgs::PoseStamped pose_stamped;
+  pose_stamped.header.frame_id = robot_frame_;
+  pose_stamped.header.stamp = ros::Time::now();
+  tf::poseEigenToMsg(end_effector_state, pose_stamped.pose);
+  return pose_stamped;
 }
 
-geometry_msgs::Pose JacobianFollower::computeGroupFK(const std::vector<double> &joint_positions,
-                                                     const std::vector<std::string> &joint_names,
-                                                     const std::string &group_name) const {
+geometry_msgs::PoseStamped JacobianFollower::computeGroupFK(const std::vector<double> &joint_positions,
+                                                            const std::vector<std::string> &joint_names,
+                                                            const std::string &group_name) const {
   moveit_msgs::RobotState robot_state_msg;
   robot_state_msg.joint_state.position = joint_positions;
   robot_state_msg.joint_state.name = joint_names;
   return computeGroupFK(robot_state_msg, group_name);
 }
 
-geometry_msgs::Pose JacobianFollower::computeFK(const moveit_msgs::RobotState &robot_state_msg,
-                                                const std::string &link_name) const {
+geometry_msgs::PoseStamped JacobianFollower::computeFK(const moveit_msgs::RobotState &robot_state_msg,
+                                                       const std::string &link_name) const {
   robot_state::RobotState state(model_);
   robotStateMsgToRobotState(robot_state_msg, state);
 
@@ -429,14 +431,16 @@ geometry_msgs::Pose JacobianFollower::computeFK(const moveit_msgs::RobotState &r
 
   const auto &end_effector_state = state.getGlobalLinkTransform(link_name);
 
-  geometry_msgs::Pose pose;
-  tf::poseEigenToMsg(end_effector_state, pose);
-  return pose;
+  geometry_msgs::PoseStamped pose_stamped;
+  pose_stamped.header.frame_id = robot_frame_;
+  pose_stamped.header.stamp = ros::Time::now();
+  tf::poseEigenToMsg(end_effector_state, pose_stamped.pose);
+  return pose_stamped;
 }
 
-geometry_msgs::Pose JacobianFollower::computeFK(const std::vector<double> &joint_positions,
-                                                const std::vector<std::string> &joint_names,
-                                                const std::string &link_name) const {
+geometry_msgs::PoseStamped JacobianFollower::computeFK(const std::vector<double> &joint_positions,
+                                                       const std::vector<std::string> &joint_names,
+                                                       const std::string &link_name) const {
   moveit_msgs::RobotState robot_state_msg;
   robot_state_msg.joint_state.position = joint_positions;
   robot_state_msg.joint_state.name = joint_names;
@@ -619,6 +623,7 @@ collision_detection::CollisionResult JacobianFollower::checkCollision(planning_s
   collisionRequest.max_contacts_per_pair = 1;
   collision_detection::CollisionResult collisionResult;
   planning_scene->checkCollision(collisionRequest, collisionResult, state);
+  ROS_DEBUG_STREAM_ONCE_NAMED(LOGGER_NAME + ".check_collision", "Checking collision...");
   if (collisionResult.collision) {
     ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".check_collision", "Collision Result: " << collisionResult);
     std::stringstream ss;

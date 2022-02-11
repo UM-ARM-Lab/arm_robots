@@ -5,7 +5,12 @@ import numpy as np
 import pyjacobian_follower
 from matplotlib import colors
 
-import moveit_commander
+import warnings
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+    import moveit_commander
+
 import ros_numpy
 import rospy
 import urdf_parser_py.xml_reflection.core
@@ -17,7 +22,7 @@ from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningRe
     ExecutionResult, is_empty_trajectory, merge_joint_state_and_scene_msg
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
-from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PoseStamped
+from geometry_msgs.msg import Point, Pose, Quaternion, Vector3
 from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor, RobotState, PlanningScene, \
     DisplayTrajectory
 from rosgraph.names import ns_join
@@ -58,6 +63,7 @@ class MoveitEnabledRobot(BaseRobot):
                  force_trigger: float = 9.0,
                  jacobian_follower: Optional[pyjacobian_follower.JacobianFollower] = None):
         super().__init__(robot_namespace, robot_description)
+        self.jacobian_not_reached_is_failure = True
         self._max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
@@ -416,7 +422,11 @@ class MoveitEnabledRobot(BaseRobot):
             max_velocity_scaling_factor=vel_scaling,
             max_acceleration_scaling_factor=0.1,
         )
-        planning_success = reached
+        if self.jacobian_not_reached_is_failure:
+            planning_success = reached
+        else:
+            planning_success = True
+
         planning_result = PlanningResult(success=planning_success, plan=robot_trajectory_msg)
         if self.raise_on_failure and not planning_success:
             raise RobotPlanningError(f"Jacobian planning failed")

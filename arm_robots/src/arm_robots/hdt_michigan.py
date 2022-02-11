@@ -18,6 +18,8 @@ from rosgraph.names import ns_join
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
+MAX_JOINT_ANGLE_DELTA_RAD = 1.0
+
 
 class BaseVal(BaseRobot):
 
@@ -27,7 +29,6 @@ class BaseVal(BaseRobot):
         BaseRobot.__init__(self, robot_namespace=robot_namespace, robot_description=robot_description)
         self.first_valid_command = False
         self.should_disconnect = False
-        self.min_velocity = 0.05
         self.command_thread = Thread(target=BaseVal.command_thread_func, args=(weakref.proxy(self),))
 
         self.command_pub = rospy.Publisher("/hdt_adroit_coms/joint_cmd", JointState, queue_size=10)
@@ -37,6 +38,8 @@ class BaseVal(BaseRobot):
         self.ready = 0
         self.has_started_command_thread = False
         self._max_velocity_scale_factor = 1.0
+        joint_limits_param = rospy.get_param(self.robot_description + '_planning/joint_limits')
+        self.min_velocities = {k: v['min_nonzero_velocity'] for k, v in joint_limits_param.items()}
 
     def __del__(self):
         self.disconnect()
@@ -84,11 +87,11 @@ class BaseVal(BaseRobot):
         fixed_velocities = []
         for j, v in zip(joint_names, velocities):
             if v > 0:
-                fixed_velocity = max(self.min_velocity, v)
+                fixed_velocity = max(self.min_velocities[j], v)
             else:
                 # the HDT robot only uses positive velocities (absolute value)
                 # because the HDT driver code determines direction
-                fixed_velocity = -min(-self.min_velocity, v)
+                fixed_velocity = -min(-self.min_velocities[j], v)
 
             fixed_velocities.append(fixed_velocity)
 
@@ -97,8 +100,8 @@ class BaseVal(BaseRobot):
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint):
         current_joint_command = self.get_joint_positions(joint_names)
         distance = np.linalg.norm(np.array(current_joint_command) - np.array(trajectory_point.positions))
-        if distance > 1:
-            rospy.logerr("Sending a huge joint command! I'm forcing velocities to zero to prevent this.")
+        if distance > MAX_JOINT_ANGLE_DELTA_RAD:
+            rospy.logerr("Sending a huge joint command! Forcing velocities to zero to prevent this.")
             trajectory_point.velocities = [0] * len(joint_names)
         elif not self.first_valid_command:
             self.first_valid_command = True
@@ -120,26 +123,8 @@ class BaseVal(BaseRobot):
     def get_left_gripper_links(self):
         return self.robot_commander.get_link_names("left_gripper")
 
-
-left_arm_joints = [
-    'joint_1',
-    'joint_2',
-    'joint_3',
-    'joint_4',
-    'joint_5',
-    'joint_6',
-    'joint_7',
-]
-
-right_arm_joints = [
-    'joint_41',
-    'joint_42',
-    'joint_43',
-    'joint_44',
-    'joint_45',
-    'joint_46',
-    'joint_47',
-]
+    def speak(self, message: str):
+        pass
 
 
 class Val(BaseVal, MoveitEnabledRobot):
@@ -154,7 +139,6 @@ class Val(BaseVal, MoveitEnabledRobot):
                                     **kwargs)
         BaseVal.__init__(self, robot_namespace=robot_namespace,
                          robot_description=ns_join(robot_namespace, 'robot_description'))
-        self.max_velocity_scale_factor = 1.0
         self.left_arm_group = 'left_arm'
         self.right_arm_group = 'right_arm'
         self.left_tool_name = 'left_tool'
@@ -196,10 +180,10 @@ class Val(BaseVal, MoveitEnabledRobot):
         return self.get_left_arm_joints() + self.get_right_arm_joints()
 
     def get_right_arm_joints(self):
-        return right_arm_joints
+        return self.robot_commander.get_active_joint_names('right_arm')
 
     def get_left_arm_joints(self):
-        return left_arm_joints
+        return self.robot_commander.get_active_joint_names('left_arm')
 
     def get_gripper_positions(self):
         # NOTE: this function requires that gazebo be playing
@@ -216,8 +200,8 @@ class Val(BaseVal, MoveitEnabledRobot):
             move_group = self.get_move_group_commander('right_gripper')
         else:
             raise NotImplementedError(f"invalid gripper {gripper}")
-        current_joint_values = move_group.get_current_joint_values()
-        return np.allclose(current_joint_values, self.gripper_closed_position, atol=0.01)
+        current_joint_values = np.array(move_group.get_current_joint_values())
+        return np.all(current_joint_values < self.gripper_closed_position)
 
     def is_left_gripper_closed(self):
         return self.is_gripper_closed('left')
