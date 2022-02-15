@@ -61,9 +61,10 @@ class MoveitEnabledRobot(BaseRobot):
                  raise_on_failure: bool = False,
                  display_goals: bool = True,
                  force_trigger: float = 9.0,
-                 jacobian_follower: Optional[pyjacobian_follower.JacobianFollower] = None):
+                 jacobian_follower: Optional[pyjacobian_follower.JacobianFollower] = None,
+                 jacobian_not_reached_is_failure: Optional[bool] = True):
         super().__init__(robot_namespace, robot_description)
-        self.jacobian_not_reached_is_failure = True
+        self.jacobian_not_reached_is_failure = jacobian_not_reached_is_failure
         self._max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
