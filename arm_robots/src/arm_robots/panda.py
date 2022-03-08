@@ -9,6 +9,7 @@ from franka_msgs.srv import SetJointImpedance, SetLoad
 from controller_manager_msgs.srv import LoadController, SwitchController
 
 DEFAULT_JOINT_IMPEDANCE = [3000.0, 3000.0, 3000.0, 2500.0, 2500.0, 2000.0, 2000.0]
+SOFT_JOINT_IMPEDANCE = [100.0, 100.0, 100.0, 100.0, 50.0, 50.0, 10.0]
 POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME = 'position_joint_trajectory_controller'
 
 
