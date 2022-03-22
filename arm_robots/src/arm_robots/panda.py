@@ -1,6 +1,11 @@
 #! /usr/bin/env python
+from typing import Optional, Callable, List, Tuple
+
 import actionlib
 import rospy
+from moveit_msgs.msg import RobotTrajectory
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+
 from arm_robots.robot import MoveitEnabledRobot
 from franka_gripper.msg import GraspAction, GraspGoal, MoveAction, MoveGoal, HomingAction, HomingGoal, StopAction, \
     StopGoal
@@ -11,73 +16,45 @@ from sensor_msgs.msg import JointState
 
 class Panda(MoveitEnabledRobot):
 
-    def __init__(self, robot_namespace: str = 'combined_panda', force_trigger: float = -0.0, **kwargs):
+    def __init__(self, robot_namespace: str = '', force_trigger: float = -0.0, **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
                                     robot_description=ns_join(robot_namespace, 'robot_description'),
-                                    arms_controller_name='position_joint_trajectory_controller',
+                                    arms_controller_name=None,
                                     force_trigger=force_trigger,
                                     **kwargs)
-        self.nebula_arm = "nebula_arm"
-        self.nebula_id = "panda_1"
-        self.rocket_arm = "rocket_arm"
-        self.rocket_id = "panda_2"
-        self.nebula_wrist = "panda_1_link8"
-        self.rocket_wrist = "panda_2_link8"
-        self.nebula_gripper = PandaGripper(self.robot_namespace, self.nebula_id)
-        self.rocket_gripper = PandaGripper(self.robot_namespace, self.rocket_id)
-        rospy.Subscriber(ns_join(self.robot_namespace, f'{self.nebula_id}_state_controller/franka_states'), FrankaState,
-                         self.nebula_error_cb)
-        rospy.Subscriber(ns_join(self.robot_namespace, f'{self.rocket_id}_state_controller/franka_states'), FrankaState,
-                         self.rocket_error_cb)
-        self.error_client = actionlib.SimpleActionClient(ns_join(self.robot_namespace, "error_recovery"),
-                                                         ErrorRecoveryAction)
-        self.error_client.wait_for_server()
+        self.panda_1 = 'panda_1'
+        self.panda_2 = 'panda_2'
+        self.display_goals = False
+        # self.panda_1.gripper = PandaGripper(self.robot_namespace, self.panda_1)
+        # self.panda_2.gripper = PandaGripper(self.robot_namespace, self.panda_2)
 
-    def open_nebula_gripper(self):
-        self.nebula_gripper.move(self.nebula_gripper.MAX_WIDTH)
+    def follow_arms_joint_trajectory(self, trajectory: JointTrajectory, stop_condition: Optional[Callable] = None,
+                                     group_name: Optional[str] = None):
+        move_group = self.get_move_group_commander(group_name)
+        plan_msg = RobotTrajectory()
+        plan_msg.joint_trajectory = trajectory
+        move_group.execute(plan_msg)
+        pass
 
-    def close_nebula_gripper(self):
-        self.nebula_gripper.move(self.nebula_gripper.MIN_WIDTH)
-
-    def open_rocket_gripper(self):
-        self.rocket_gripper.move(self.rocket_gripper.MAX_WIDTH)
-
-    def close_rocket_gripper(self):
-        self.rocket_gripper.move(self.rocket_gripper.MIN_WIDTH)
-
-    def nebula_error_cb(self, data):
-        if data.current_errors.communication_constraints_violation or data.last_motion_errors.communication_constraints_violation:
-            self.clear_errors(wait_for_result=True)
-
-    def rocket_error_cb(self, data):
-        if data.current_errors.communication_constraints_violation or data.last_motion_errors.communication_constraints_violation:
-            self.clear_errors(wait_for_result=True)
-
-    def clear_errors(self, wait_for_result=False):
-        goal = ErrorRecoveryGoal()
-        self.error_client.send_goal(goal)
-        if wait_for_result:
-            result = self.error_client.wait_for_result(rospy.Duration(10))
-            return result
-        return True
-
+    def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
+        pass
     # TODO: Add control mode setter/getter.
 
 
 class PandaGripper:
     def __init__(self, robot_ns, arm_id):
-        self.gripper_ns = "/" + robot_ns + "/" + arm_id + "/franka_gripper/"
-        self.grasp_client = actionlib.SimpleActionClient(self.gripper_ns + "grasp", GraspAction)
-        self.move_client = actionlib.SimpleActionClient(self.gripper_ns + "move", MoveAction)
-        self.homing_client = actionlib.SimpleActionClient(self.gripper_ns + "homing", HomingAction)
-        self.stop_client = actionlib.SimpleActionClient(self.gripper_ns + "stop", StopAction)
+        self.gripper_ns = ns_join(robot_ns, f'{arm_id}/franka_gripper')
+        self.grasp_client = actionlib.SimpleActionClient(ns_join(self.gripper_ns, 'grasp'), GraspAction)
+        self.move_client = actionlib.SimpleActionClient(ns_join(self.gripper_ns, 'move'), MoveAction)
+        self.homing_client = actionlib.SimpleActionClient(ns_join(self.gripper_ns, 'homing'), HomingAction)
+        self.stop_client = actionlib.SimpleActionClient(ns_join(self.gripper_ns, 'stop'), StopAction)
         self.grasp_client.wait_for_server()
         self.move_client.wait_for_server()
         self.homing_client.wait_for_server()
         self.stop_client.wait_for_server()
         self.gripper_width = None
-        rospy.Subscriber(self.gripper_ns + "joint_states", JointState, self.gripper_cb)
+        rospy.Subscriber(ns_join(self.gripper_ns, 'joint_states'), JointState, self.gripper_cb)
         self.MIN_FORCE = 0.05
         self.MAX_FORCE = 50  # documentation says up to 70N is possible as continuous force
         self.MIN_WIDTH = 0.0
@@ -85,7 +62,6 @@ class PandaGripper:
         self.DEFAULT_EPSILON = 0.005
         self.DEFAULT_SPEED = 0.02
         self.DEFAULT_FORCE = 10
-        # TODO: add to cfg file
 
     def gripper_cb(self, data):
         self.gripper_width = data.position[0] + data.position[1]
@@ -130,3 +106,9 @@ class PandaGripper:
             result = self.stop_client.wait_for_result(rospy.Duration(10))
             return result
         return True
+
+    def open(self):
+        self.move(self.MAX_WIDTH)
+
+    def close(self):
+        self.move(self.MIN_WIDTH)

@@ -105,14 +105,16 @@ class MoveitEnabledRobot(BaseRobot):
                 self.get_move_group_commander(group_name)
 
     def setup_joint_trajectory_controller_client(self, controller_name):
-        action_name = ns_join(self.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
-        client = SimpleActionClient(action_name, FollowJointTrajectoryAction)
-        resolved_action_name = rospy.resolve_name(action_name)
-        wait_msg = f"Waiting for joint trajectory follower server {resolved_action_name}..."
-        rospy.loginfo(wait_msg)
-        client.wait_for_server()
-        rospy.loginfo(f"Connected.")
-        return client
+        if controller_name is not None:
+            action_name = ns_join(self.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
+            client = SimpleActionClient(action_name, FollowJointTrajectoryAction)
+            resolved_action_name = rospy.resolve_name(action_name)
+            wait_msg = f"Waiting for joint trajectory follower server {resolved_action_name}..."
+            rospy.loginfo(wait_msg)
+            client.wait_for_server()
+            rospy.loginfo(f"Connected.")
+            return client
+        return None
 
     def set_execute(self, execute: bool):
         self.execute = execute
@@ -148,7 +150,7 @@ class MoveitEnabledRobot(BaseRobot):
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to position failed {planning_result.planning_error_code}")
 
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition, group_name)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def plan_to_position_cartesian(self,
@@ -176,7 +178,7 @@ class MoveitEnabledRobot(BaseRobot):
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Cartesian path is only {fraction * 100}% complete")
 
-        execution_result = self.follow_arms_joint_trajectory(plan.joint_trajectory, stop_condition)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition, group_name)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root',
@@ -197,7 +199,7 @@ class MoveitEnabledRobot(BaseRobot):
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to pose failed {planning_result.planning_error_code}")
 
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition, group_name)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def get_link_pose(self, link_name: str):
@@ -243,7 +245,7 @@ class MoveitEnabledRobot(BaseRobot):
         planning_result = PlanningResult(move_group.plan())
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to position failed {planning_result.planning_error_code}")
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition, group_name)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
@@ -297,7 +299,7 @@ class MoveitEnabledRobot(BaseRobot):
         trajectory.points.append(point)
         return self.follow_joint_trajectory(trajectory, client)
 
-    def follow_arms_joint_trajectory(self, trajectory: JointTrajectory, stop_condition: Optional[Callable] = None):
+    def follow_arms_joint_trajectory(self, trajectory: JointTrajectory, stop_condition: Optional[Callable] = None, group_name: Optional[str] = None):
         return self.follow_joint_trajectory(trajectory, self.arms_client, stop_condition=stop_condition)
 
     def distance(self, ee_link_name: str, target_position):
