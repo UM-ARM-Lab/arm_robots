@@ -1,20 +1,26 @@
 #! /usr/bin/env python
 import pdb
 
-import rospy
-from geometry_msgs.msg import PoseStamped
-from rosgraph.names import ns_join
-from typing import List, Tuple
+import numpy as np
 
-from arm_robots.robot import MoveitEnabledRobot
+import rospy
+from arc_utilities.listener import Listener
+from arm_robots.robot_utils import PlanningResult, PlanningAndExecutionResult
+from franka_msgs.msg import FrankaState
+from geometry_msgs.msg import PoseStamped, Point
+from rosgraph.names import ns_join
+from typing import List, Tuple, Union, Optional, Callable
+
+from arm_robots.robot import MoveitEnabledRobot, RobotPlanningError
 from trajectory_msgs.msg import JointTrajectoryPoint
-from franka_msgs.srv import SetJointImpedance, SetLoad
+from franka_msgs.srv import SetJointImpedance, SetLoad, SetCartesianImpedance
 from controller_manager_msgs.srv import LoadController, SwitchController
 from moveit_msgs.srv import GetPositionIK
-from moveit_msgs.msg import PositionIKRequest, RobotState, MoveItErrorCodes
+from moveit_msgs.msg import PositionIKRequest, RobotState, MoveItErrorCodes, RobotTrajectory, DisplayTrajectory
 
 DEFAULT_JOINT_IMPEDANCE = [3000.0, 3000.0, 3000.0, 2500.0, 2500.0, 2000.0, 2000.0]
 SOFT_JOINT_IMPEDANCE = [100.0, 100.0, 100.0, 100.0, 50.0, 50.0, 10.0]
+DEFAULT_CARTESIAN_IMPEDANCE = [3000.0, 3000.0, 3000.0, 300.0, 300.0, 300.0]
 POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME = 'position_joint_trajectory_controller'
 
 
@@ -30,6 +36,8 @@ class Panda(MoveitEnabledRobot):
 
         # Panda HW Services - for setting internal controller parameters.
         self.joint_impedance_srv = rospy.ServiceProxy(self.ns('franka_control/set_joint_impedance'), SetJointImpedance)
+        self.cartesian_impedance_srv = rospy.ServiceProxy(self.ns('franka_control/set_cartesian_impedance'),
+                                                          SetCartesianImpedance)
         self.set_load_srv = rospy.ServiceProxy(self.ns('franka_control/set_load'), SetLoad)
 
         # Controller Manager Services - for loading/unloading/switching controllers.
@@ -42,6 +50,9 @@ class Panda(MoveitEnabledRobot):
 
         # Default position joint trajectory controller.
         self.active_controller_name = POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME
+
+        # Franka state listener.
+        self.franka_state_listener = Listener(self.ns('franka_state_controller/franka_states'), FrankaState)
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         # TODO: Fill in to send set point to controller.
@@ -91,6 +102,26 @@ class Panda(MoveitEnabledRobot):
         self.active_controller_name = POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME
 
         return set_joint_imped_resp.success
+
+    def set_cartesian_impedance(self, cartesian_impedance: List[float]) -> bool:
+        # Start by switching off the current controller, if active.
+        if self.active_controller_name is not None:
+            self.switch_controller(stop_controllers=[self.active_controller_name])
+
+        # Change joint impedance.
+        try:
+            set_cartesian_imp_res = self.cartesian_impedance_srv(cartesian_impedance)
+        except rospy.ServiceException as e:
+            raise Exception("Failed to set impedance: %s" % e)
+
+        if not set_cartesian_imp_res.success:
+            raise Exception("Failed to set impedance: %s" % set_cartesian_imp_res.error)
+
+        # Switch to joint position controller.
+        self.switch_controller(start_controllers=[POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME])
+        self.active_controller_name = POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME
+
+        return set_cartesian_imp_res.success
 
     def set_load(self, mass: float, load_com: List[float], load_inertia: List[float]) -> bool:
         """
@@ -143,3 +174,56 @@ class Panda(MoveitEnabledRobot):
             return None
 
         return ik_response.solution.joint_state.position[:7]
+
+    def plan_to_position_cartesian(self,
+                                   group_name: str,
+                                   ee_link_name: str,
+                                   target_position: Union[Point, List, np.array],
+                                   step_size: float = 0.02,
+                                   stop_condition: Optional[Callable] = None,
+                                   velocity_scaling_factor=0.1,
+                                   acceleration_scaling_factor=0.1
+                                   ):
+        move_group = self.get_move_group_commander(group_name)
+        move_group.set_end_effector_link(ee_link_name)
+
+        # by starting with the current pose, we will be preserving the orientation
+        waypoint_pose = move_group.get_current_pose().pose
+        if isinstance(target_position, Point):
+            waypoint_pose.position = target_position
+        else:
+            waypoint_pose.position.x = target_position[0]
+            waypoint_pose.position.y = target_position[1]
+            waypoint_pose.position.z = target_position[2]
+        waypoints = [waypoint_pose]
+
+        plan, fraction = move_group.compute_cartesian_path(waypoints=waypoints, eef_step=step_size, jump_threshold=0.0)
+        planning_result = PlanningResult(success=(fraction == 1.0), plan=plan)
+        if self.raise_on_failure and not planning_result.success:
+            raise RobotPlanningError(f"Cartesian path is only {fraction * 100}% complete")
+
+        # Retime plan.
+        retimed_plan = move_group.retime_trajectory(move_group.get_current_state(), plan,
+                                                    velocity_scaling_factor=velocity_scaling_factor,
+                                                    acceleration_scaling_factor=acceleration_scaling_factor)
+        planning_result.plan = retimed_plan
+
+        # path_pub = rospy.Publisher("/retimed_path", DisplayTrajectory, queue_size=5)
+        # display_traj = DisplayTrajectory()
+        # display_traj.trajectory = [retimed_plan]
+        # display_traj.trajectory_start = move_group.get_current_state()
+        # for _ in range(10):
+        #     path_pub.publish(display_traj)
+        #     rospy.sleep(0.1)
+
+        execution_result = self.follow_arms_joint_trajectory(retimed_plan.joint_trajectory, stop_condition)
+        return PlanningAndExecutionResult(planning_result, execution_result)
+
+    def is_panda_up(self):
+        panda_up = True
+        franka_state: FrankaState = self.franka_state_listener.get()
+
+        panda_up = panda_up and (franka_state.robot_mode != FrankaState.ROBOT_MODE_REFLEX)
+        panda_up = panda_up and (franka_state.robot_mode != FrankaState.ROBOT_MODE_USER_STOPPED)
+
+        return panda_up
