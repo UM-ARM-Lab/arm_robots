@@ -6,7 +6,7 @@ import numpy as np
 import rospy
 from arc_utilities.listener import Listener
 from arm_robots.robot_utils import PlanningResult, PlanningAndExecutionResult
-from franka_msgs.msg import FrankaState
+from franka_msgs.msg import FrankaState, ErrorRecoveryActionGoal
 from geometry_msgs.msg import PoseStamped, Point
 from rosgraph.names import ns_join
 from typing import List, Tuple, Union, Optional, Callable
@@ -53,6 +53,10 @@ class Panda(MoveitEnabledRobot):
 
         # Franka state listener.
         self.franka_state_listener = Listener(self.ns('franka_state_controller/franka_states'), FrankaState)
+
+        # Error recovery publisher.
+        self.error_recovery_pub = rospy.Publisher(self.ns('franka_control/error_recovery/goal'),
+                                                  ErrorRecoveryActionGoal, queue_size=10)
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         # TODO: Fill in to send set point to controller.
@@ -181,8 +185,8 @@ class Panda(MoveitEnabledRobot):
                                    target_position: Union[Point, List, np.array],
                                    step_size: float = 0.02,
                                    stop_condition: Optional[Callable] = None,
-                                   velocity_scaling_factor=0.1,
-                                   acceleration_scaling_factor=0.1
+                                   velocity_scaling_factor=0.05,
+                                   acceleration_scaling_factor=0.05
                                    ):
         move_group = self.get_move_group_commander(group_name)
         move_group.set_end_effector_link(ee_link_name)
@@ -219,6 +223,10 @@ class Panda(MoveitEnabledRobot):
         execution_result = self.follow_arms_joint_trajectory(retimed_plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
+    def get_franka_state(self):
+        franka_state: FrankaState = self.franka_state_listener.get()
+        return franka_state
+
     def is_panda_up(self):
         panda_up = True
         franka_state: FrankaState = self.franka_state_listener.get()
@@ -227,3 +235,8 @@ class Panda(MoveitEnabledRobot):
         panda_up = panda_up and (franka_state.robot_mode != FrankaState.ROBOT_MODE_USER_STOPPED)
 
         return panda_up
+
+    def clear_error(self):
+        for _ in range(100):
+            self.error_recovery_pub.publish(ErrorRecoveryActionGoal())
+            rospy.sleep(0.01)
