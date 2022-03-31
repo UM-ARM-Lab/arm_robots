@@ -1,4 +1,6 @@
 #! /usr/bin/env python
+import pdb
+import rosnode
 from typing import Optional, Callable, List, Tuple
 
 import actionlib
@@ -25,9 +27,15 @@ class Panda(MoveitEnabledRobot):
                                     **kwargs)
         self.panda_1 = 'panda_1'
         self.panda_2 = 'panda_2'
+        self.panda_1_EE = 'panda_1_link_planning_EE'
+        self.panda_2_EE = 'panda_2_link_planning_EE'
         self.display_goals = False
-        # self.panda_1.gripper = PandaGripper(self.robot_namespace, self.panda_1)
-        # self.panda_2.gripper = PandaGripper(self.robot_namespace, self.panda_2)
+
+        active_nodes = rosnode.get_node_names()
+        if ns_join('/', f'{self.panda_1}/franka_gripper') in active_nodes:
+            self.gripper_1 = PandaGripper(self.robot_namespace, self.panda_1)
+        if ns_join('/', f'{self.panda_2}/franka_gripper') in active_nodes:
+            self.gripper_2 = PandaGripper(self.robot_namespace, self.panda_2)
 
     def follow_arms_joint_trajectory(self, trajectory: JointTrajectory, stop_condition: Optional[Callable] = None,
                                      group_name: Optional[str] = None):
@@ -66,7 +74,7 @@ class PandaGripper:
     def gripper_cb(self, data):
         self.gripper_width = data.position[0] + data.position[1]
 
-    def grasp(self, width, speed=None, epsilon_outer=None, epsilon_inner=None, force=None, wait_for_result=False):
+    def grasp(self, width, speed=None, epsilon_outer=None, epsilon_inner=None, force=None, wait_for_result=True):
         if width > self.gripper_width:
             self.move(self.MAX_WIDTH, wait_for_result=True)
         goal = GraspGoal()
@@ -81,7 +89,7 @@ class PandaGripper:
             return result
         return True
 
-    def move(self, width, speed=None, wait_for_result=False):
+    def move(self, width, speed=None, wait_for_result=True):
         goal = MoveGoal()
         goal.width = width
         goal.speed = self.DEFAULT_SPEED if not speed else speed
@@ -99,7 +107,7 @@ class PandaGripper:
             return result
         return True
 
-    def stop(self, wait_for_result=False):
+    def stop(self, wait_for_result=True):
         goal = StopGoal()
         self.stop_client.send_goal(goal)
         if wait_for_result:
