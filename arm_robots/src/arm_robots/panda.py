@@ -39,11 +39,11 @@ class Panda(MoveitEnabledRobot):
 
     def follow_arms_joint_trajectory(self, trajectory: JointTrajectory, stop_condition: Optional[Callable] = None,
                                      group_name: Optional[str] = None):
-        move_group = self.get_move_group_commander(group_name)
-        plan_msg = RobotTrajectory()
-        plan_msg.joint_trajectory = trajectory
-        move_group.execute(plan_msg)
-        pass
+        if self.execute:
+            move_group = self.get_move_group_commander(group_name)
+            plan_msg = RobotTrajectory()
+            plan_msg.joint_trajectory = trajectory
+            move_group.execute(plan_msg)
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         pass
