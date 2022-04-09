@@ -167,6 +167,7 @@ class Panda(MoveitEnabledRobot):
         ik_request.ik_link_name = frame
         ik_request.pose_stamped = pose
         ik_request.timeout.secs = 10
+        ik_request.avoid_collisions = True
 
         try:
             ik_response = self.ik_srv(ik_request=ik_request)
