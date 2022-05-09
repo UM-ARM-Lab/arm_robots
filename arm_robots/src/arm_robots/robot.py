@@ -5,6 +5,7 @@ import numpy as np
 import pyjacobian_follower
 from matplotlib import colors
 
+from pykdl_utils.kdl_kinematics import KDLKinematics
 import moveit_commander
 import ros_numpy
 import rospy
@@ -189,6 +190,7 @@ class MoveitEnabledRobot(BaseRobot):
         move_group.set_pose_target(target_pose_stamped)
         move_group.set_goal_position_tolerance(position_tol)
         move_group.set_goal_orientation_tolerance(orientation_tol)
+        import pdb; pdb.set_trace()
 
         if self.display_goals:
             self.display_goal_pose(target_pose_stamped.pose)
@@ -299,6 +301,12 @@ class MoveitEnabledRobot(BaseRobot):
 
     def follow_arms_joint_trajectory(self, trajectory: JointTrajectory, stop_condition: Optional[Callable] = None):
         return self.follow_joint_trajectory(trajectory, self.arms_client, stop_condition=stop_condition)
+
+    def forward_kinematics(self, point: JointTrajectoryPoint, robot_urdf, base_link, end_link):
+        kdl_kin = KDLKinematics(robot_urdf, base_link, end_link)
+        jt_angles = point.positions
+        pose = kdl_kin.forward(jt_angles)
+        return pose
 
     def distance(self, ee_link_name: str, target_position):
         current_pose = self.get_link_pose(ee_link_name)

@@ -21,6 +21,8 @@ from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, G
     GetControlModeResponse, SetControlModeResponse
 from wsg_50_utils.wsg_50_gripper import WSG50Gripper
 
+from urdf_parser_py.urdf import URDF
+
 
 # TODO: Since we have only one set of arms, this really just makes sure everythings in the right order. Could probably simplify but I'll keep it for now.
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
@@ -189,5 +191,13 @@ class Med(BaseMed, MoveitEnabledRobot):
 
     def release(self, width=110.0, speed=50.0):
         self.gripper.release(width=width, speed=speed)
+
+    def forward_kinematics(self, point: JointTrajectoryPoint, frame_id='grasp_frame'):
+        base_link = 'med_base'
+        urdf_str = rospy.get_param('/robot_description')
+        robot_urdf = URDF.from_xml_string(urdf_str)
+        tf = super().forward_kinematics(point=point, robot_urdf=robot_urdf, base_link=base_link, end_link=frame_id)
+        return tf
+
 
 
