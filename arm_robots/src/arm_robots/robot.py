@@ -290,7 +290,9 @@ class MoveitEnabledRobot(BaseRobot):
                 result = client.get_result()
             failure = (result is None or result.error_code != FollowJointTrajectoryResult.SUCCESSFUL)
             if self.raise_on_failure and failure:
-                raise RuntimeError(f"Follow Joint Trajectory Failed: ({result.error_code}) {result.error_string}")
+                if result is not None:
+                    raise RuntimeError(f"Follow Joint Trajectory Failed: ({result.error_code}) {result.error_string}")
+                raise RuntimeError(f"Follow Joint Trajectory Failed: (???)")
 
         success = result is not None and result.error_code == FollowJointTrajectoryResult.SUCCESSFUL
         return ExecutionResult(trajectory=trajectory,
