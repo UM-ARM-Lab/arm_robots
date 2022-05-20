@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+import pdb
 from typing import Optional, Callable, List, Tuple, Union
 
 import numpy as np
@@ -215,7 +216,7 @@ class Panda(MoveitEnabledRobot):
         return set_load_resp.success
 
     def get_ik(self, panda_id: str, pose: PoseStamped, frame: str = "panda_1_link8"):
-        ik_srv = rospy.ServiceProxy(ns_join(panda_id, 'compute_ik'), GetPositionIK)
+        ik_srv = rospy.ServiceProxy('/compute_ik', GetPositionIK)
 
         ik_request = PositionIKRequest()
         ik_request.group_name = panda_id
@@ -234,7 +235,14 @@ class Panda(MoveitEnabledRobot):
             rospy.loginfo("IK call failed with code: %d" % ik_response.error_code.val)
             return None
 
-        return ik_response.solution.joint_state.position[:7]
+        # Pull out solution only for the requested move group.
+        joint_names = self.get_joint_names(group_name=panda_id)
+        joint_positions = []
+        for joint_name in joint_names:
+            joint_idx = ik_response.solution.joint_state.name.index(joint_name)
+            joint_positions.append(ik_response.solution.joint_state.position[joint_idx])
+
+        return joint_positions
 
     def get_franka_state(self, panda_id: str):
         franka_state_listener = Listener(ns_join(panda_id, '%s_state_controller/franka_states' % panda_id), FrankaState)
