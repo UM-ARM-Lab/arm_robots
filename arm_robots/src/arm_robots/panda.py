@@ -1,17 +1,20 @@
 #! /usr/bin/env python
-from typing import Optional, Callable, List, Tuple
+from typing import Optional, Callable, List, Tuple, Union
+
+import numpy as np
 
 import actionlib
 import rospy
 from arc_utilities.listener import Listener
+from arm_robots.robot_utils import PlanningResult, PlanningAndExecutionResult
 from controller_manager_msgs.srv import LoadController, SwitchController
 from franka_msgs.srv import SetJointImpedance, SetCartesianImpedance, SetLoad
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Point
 from moveit_msgs.msg import RobotTrajectory, PositionIKRequest, MoveItErrorCodes
 from moveit_msgs.srv import GetPositionIK
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
-from arm_robots.robot import MoveitEnabledRobot
+from arm_robots.robot import MoveitEnabledRobot, RobotPlanningError
 from franka_gripper.msg import GraspAction, GraspGoal, MoveAction, MoveGoal, HomingAction, HomingGoal, StopAction, \
     StopGoal
 from franka_msgs.msg import ErrorRecoveryAction, ErrorRecoveryGoal, FrankaState, ErrorRecoveryActionGoal
@@ -57,6 +60,50 @@ class Panda(MoveitEnabledRobot):
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         pass
+
+    def plan_to_position_cartesian(self,
+                                   group_name: str,
+                                   ee_link_name: str,
+                                   target_position: Union[Point, List, np.array],
+                                   step_size: float = 0.02,
+                                   stop_condition: Optional[Callable] = None,
+                                   velocity_scaling_factor=0.05,
+                                   acceleration_scaling_factor=0.05
+                                   ):
+        move_group = self.get_move_group_commander(group_name)
+        move_group.set_end_effector_link(ee_link_name)
+
+        # by starting with the current pose, we will be preserving the orientation
+        waypoint_pose = move_group.get_current_pose().pose
+        if isinstance(target_position, Point):
+            waypoint_pose.position = target_position
+        else:
+            waypoint_pose.position.x = target_position[0]
+            waypoint_pose.position.y = target_position[1]
+            waypoint_pose.position.z = target_position[2]
+        waypoints = [waypoint_pose]
+
+        plan, fraction = move_group.compute_cartesian_path(waypoints=waypoints, eef_step=step_size, jump_threshold=0.0)
+        planning_result = PlanningResult(success=(fraction == 1.0), plan=plan)
+        if self.raise_on_failure and not planning_result.success:
+            raise RobotPlanningError(f"Cartesian path is only {fraction * 100}% complete")
+
+        # Retime plan.
+        retimed_plan = move_group.retime_trajectory(move_group.get_current_state(), plan,
+                                                    velocity_scaling_factor=velocity_scaling_factor,
+                                                    acceleration_scaling_factor=acceleration_scaling_factor)
+        planning_result.plan = retimed_plan
+
+        # path_pub = rospy.Publisher("/retimed_path", DisplayTrajectory, queue_size=5)
+        # display_traj = DisplayTrajectory()
+        # display_traj.trajectory = [retimed_plan]
+        # display_traj.trajectory_start = move_group.get_current_state()
+        # for _ in range(10):
+        #     path_pub.publish(display_traj)
+        #     rospy.sleep(0.1)
+
+        execution_result = self.follow_arms_joint_trajectory(retimed_plan.joint_trajectory, stop_condition)
+        return PlanningAndExecutionResult(planning_result, execution_result)
 
     # TODO: Add control mode setter/getter.
 
