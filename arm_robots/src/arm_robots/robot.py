@@ -43,6 +43,10 @@ class RobotPlanningError(Exception):
     pass
 
 
+class FollowJointTrajectoryError(Exception):
+    pass
+
+
 def on_error(message):
     rospy.logdebug(message, logger_name='urdf_parser_py')
 
@@ -291,8 +295,9 @@ class MoveitEnabledRobot(BaseRobot):
             failure = (result is None or result.error_code != FollowJointTrajectoryResult.SUCCESSFUL)
             if self.raise_on_failure and failure:
                 if result is not None:
-                    raise RuntimeError(f"Follow Joint Trajectory Failed: ({result.error_code}) {result.error_string}")
-                raise RuntimeError(f"Follow Joint Trajectory Failed: (???)")
+                    raise FollowJointTrajectoryError(
+                        f"Follow Joint Trajectory Failed: ({result.error_code}) {result.error_string}")
+                raise FollowJointTrajectoryError(f"Follow Joint Trajectory Failed: (???)")
 
         success = result is not None and result.error_code == FollowJointTrajectoryResult.SUCCESSFUL
         return ExecutionResult(trajectory=trajectory,
