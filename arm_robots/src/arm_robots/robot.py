@@ -242,10 +242,10 @@ class MoveitEnabledRobot(BaseRobot):
 
         move_group.set_joint_value_target(joint_config)
 
-        if self.display_goals:
-            robot_state = RobotState(joint_state=JointState(name=list(joint_config.keys()),
-                                                            position=list(joint_config.values())))
-            self.display_robot_state(robot_state, label='joint_config_goal')
+        # if self.display_goals:
+        #     robot_state = RobotState(joint_state=JointState(name=list(joint_config.keys()),
+        #                                                     position=list(joint_config.values())))
+        #     self.display_robot_state(robot_state, label='joint_config_goal')
 
         planning_result = PlanningResult(move_group.plan())
         if self.raise_on_failure and not planning_result.success:
