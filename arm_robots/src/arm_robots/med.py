@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import collections
-from typing import List, Dict, Tuple, Sequence
+from typing import List, Dict, Tuple, Sequence, Optional, Callable
 
 import numpy as np
 from colorama import Fore
@@ -13,10 +13,12 @@ from arc_utilities.listener import Listener
 from arm_robots.base_robot import BaseRobot
 from arm_robots.config.med_config import ARM_JOINT_NAMES
 from arm_robots.robot import MoveitEnabledRobot
-from moveit_msgs.msg import DisplayRobotState
+from moveit_msgs.msg import DisplayRobotState, PositionIKRequest
+from moveit_msgs.srv import GetPositionIK
 from trajectory_msgs.msg import JointTrajectoryPoint
 from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list
 from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, MotionCommand
+from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningResult, PlanningAndExecutionResult
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
     GetControlModeResponse, SetControlModeResponse
 from wsg_50_utils.wsg_50_gripper import WSG50Gripper
@@ -191,5 +193,54 @@ class Med(BaseMed, MoveitEnabledRobot):
 
     def release(self, width=110.0, speed=50.0):
         self.gripper.release(width=width, speed=speed)
+
+    def compute_ik(self, target_pose, group_name=None, ee_link_name='grasp_frame', frame_id='med_base'):
+        if group_name is None:
+            group_name = self.arm_group
+        # call the ik service:
+        move_group = self.get_move_group_commander(group_name=group_name)
+        ik_request = PositionIKRequest()
+        ik_request.group_name = group_name# string
+        ik_request.robot_state = move_group.get_current_state()
+        target_pose_stamped = convert_to_pose_msg(target_pose)
+        target_pose_stamped.header.frame_id = frame_id
+        ik_request.pose_stamped = target_pose_stamped
+        ik_request.avoid_collisions = True
+        ik_request.ik_link_name = ee_link_name
+        ik_out = self._call_ik_solver(ik_request)
+        ik_solution = ik_out.solution
+        error_code = ik_out.error_code
+        robot_state_solution = np.asarray(ik_solution.joint_state.position)[:7] # TODO: make this more general to get rid of the non-robot joints
+        # import pdb; pdb.set_trace()
+        return robot_state_solution, error_code
+
+    def _call_ik_solver(self, srv_input):
+        service_name = 'med/compute_ik'
+        rospy.wait_for_service(service_name)
+        try:
+            ik_proxy = rospy.ServiceProxy(service_name, GetPositionIK)
+            ik_resp = ik_proxy(srv_input)
+            return ik_resp
+        except rospy.ServiceException as e:
+            print("Service call failed: %s" % e)
+
+    def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root',
+                     stop_condition: Optional[Callable] = None, position_tol=0.002, orientation_tol=0.02):
+        # Try plan as a joint configuration:
+        # import pdb; pdb.set_trace()
+        plan_failed = True
+        plan_and_execution_result = None
+        goal_joints, error_code = self.compute_ik(target_pose=target_pose, ee_link_name=ee_link_name, frame_id=frame_id)
+        if error_code.val != error_code.SUCCESS:
+            print('IK Failed with code {}. check them here: http://docs.ros.org/en/api/moveit_msgs/html/msg/MoveItErrorCodes.html'.format(error_code))
+        else:
+            plan_and_execution_result = self.plan_to_joint_config(group_name=group_name, joint_config=list(goal_joints), stop_condition=stop_condition)
+            plan_failed = False # TODO: Replace with the plan result
+
+        if plan_failed:
+            print('Joint IK planning failed! Planning back the normal way.')
+            # If it fails, try the 'normal' way.
+            plan_and_execution_result = super().plan_to_pose(group_name, ee_link_name, target_pose, frame_id=frame_id, stop_condition=stop_condition, position_tol=0.002, orientation_tol=0.02)
+        return plan_and_execution_result
 
 
