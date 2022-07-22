@@ -34,15 +34,6 @@ Panels:
     Name: Time
     SyncMode: 0
     SyncSource: ""
-  - Class: merrrt_visualization/AnimationController
-    Name: AnimationController
-    auto_play: false
-    loop: false
-    period: 0.1
-  - Class: merrrt_visualization/Merrrt
-    Name: Merrrt
-  - Class: merrrt_visualization/ColorFilterWidget
-    Name: ColorFilterWidget
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -1074,17 +1065,11 @@ Visualization Manager:
         Target Frame: <Fixed Frame>
         Yaw: 0.3113710284233093
 Window Geometry:
-  AnimationController:
-    collapsed: false
-  ColorFilterWidget:
-    collapsed: false
   Displays:
     collapsed: false
   Height: 1044
   Hide Left Dock: false
   Hide Right Dock: true
-  Merrrt:
-    collapsed: false
   MotionPlanning:
     collapsed: false
   MotionPlanning - Trajectory Slider:
