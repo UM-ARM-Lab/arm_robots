@@ -255,6 +255,11 @@ class JacobianFollower {
 
   moveit_msgs::PlanningScene get_scene() const;
 
+  std::tuple<Eigen::MatrixXd, bool> getJacobian(std::string const &group_name, std::string const &link_name,
+                                                std::vector<double> const &joint_positions);
+
+  std::string getBaseLink(std::string const& group_name) const;
+
   template <typename A, typename B>
   void validateNamesAndPositions(const std::vector<A> &joint_names, const std::vector<B> &joint_positions) const {
     if (joint_names.size() != joint_positions.size()) {

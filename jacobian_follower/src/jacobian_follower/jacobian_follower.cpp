@@ -1054,3 +1054,21 @@ moveit_msgs::PlanningScene JacobianFollower::get_scene() const {
   scene_monitor_->getPlanningScene()->getPlanningSceneMsg(msg);
   return msg;
 }
+
+std::tuple<Eigen::MatrixXd, bool> JacobianFollower::getJacobian(std::string const &group_name,
+                                                                std::string const &link_name,
+                                                                std::vector<double> const &joint_positions) {
+  auto const jmg = model_->getJointModelGroup(group_name);
+  robot_state::RobotState state(model_);
+  state.setVariablePositions(jmg->getActiveJointModelNames(), joint_positions);
+
+  Eigen::Vector3d reference_point_position(0.0, 0.0, 0.0);
+  Eigen::MatrixXd jacobian;
+  auto const success = state.getJacobian(jmg, state.getLinkModel(link_name), reference_point_position, jacobian);
+  return std::tuple{jacobian, success};
+}
+
+std::string JacobianFollower::getBaseLink(std::string const &group_name) const {
+  auto const jmg = model_->getJointModelGroup(group_name);
+  return jmg->getCommonRoot()->getParentLinkModel()->getParentLinkModel()->getName();
+}

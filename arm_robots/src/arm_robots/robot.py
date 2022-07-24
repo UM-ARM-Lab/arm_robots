@@ -1,11 +1,10 @@
 #! /usr/bin/env python
+import warnings
 from typing import List, Union, Tuple, Callable, Optional, Dict
 
 import numpy as np
 import pyjacobian_follower
 from matplotlib import colors
-
-import warnings
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -22,7 +21,7 @@ from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningRe
     ExecutionResult, is_empty_trajectory, merge_joint_state_and_scene_msg
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
     FollowJointTrajectoryGoal
-from geometry_msgs.msg import Point, Pose, Quaternion, Vector3
+from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PointStamped
 from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor, RobotState, PlanningScene, \
     DisplayTrajectory
 from rosgraph.names import ns_join
@@ -66,9 +65,9 @@ class MoveitEnabledRobot(BaseRobot):
                  display_goals: bool = True,
                  force_trigger: float = 9.0,
                  jacobian_follower: Optional[pyjacobian_follower.JacobianFollower] = None,
-                 jacobian_not_reached_is_failure: Optional[bool] = True):
+                 jacobian_target_not_reached_is_failure: Optional[bool] = True):
         super().__init__(robot_namespace, robot_description)
-        self.jacobian_not_reached_is_failure = jacobian_not_reached_is_failure
+        self.jacobian_target_not_reached_is_failure = jacobian_target_not_reached_is_failure
         self._max_velocity_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
@@ -390,7 +389,11 @@ class MoveitEnabledRobot(BaseRobot):
             max_acceleration_scaling_factor=0.1,
         )
 
-        planning_success = reached
+        if self.jacobian_target_not_reached_is_failure:
+            planning_success = reached
+        else:
+            planning_success = True
+
         planning_result = PlanningResult(success=planning_success, plan=robot_trajectory_msg)
         if self.raise_on_failure and not planning_success:
             raise RobotPlanningError(f"Tried to execute a jacobian action which could not be reached")
@@ -430,7 +433,7 @@ class MoveitEnabledRobot(BaseRobot):
             max_velocity_scaling_factor=vel_scaling,
             max_acceleration_scaling_factor=0.1,
         )
-        if self.jacobian_not_reached_is_failure:
+        if self.jacobian_target_not_reached_is_failure:
             planning_success = reached
         else:
             planning_success = True
@@ -520,16 +523,17 @@ class MoveitEnabledRobot(BaseRobot):
 
         display_robot_state_pub.publish(display_robot_state_msg)
 
-    def display_goal_position(self, point: Point):
+    def display_goal_position(self, point: PointStamped):
         m = Marker()
         m.header.stamp = rospy.Time.now()
+        m.header.frame_id = point.header.frame_id
         m.id = 0
         m.action = Marker.ADD
         m.action = Marker.SPHERE
         m.color = ColorRGBA(r=0, g=1, b=0, a=1)
         s = 0.02
         m.scale = Vector3(x=s, y=s, z=s)
-        m.pose.position = point
+        m.pose.position = point.point
         m.pose.orientation.w = 1
         self.display_goal_position_pub.publish(m)
 
@@ -550,3 +554,13 @@ class MoveitEnabledRobot(BaseRobot):
 
     def estimated_torques(self, robot_state: RobotState, group, wrenches=None):
         return self.jacobian_follower.estimated_torques(robot_state, group, wrenches)
+
+    def get_current_jacobian(self, group_name: str, link_name: str):
+        current_joint_positions = self.get_joint_positions(self.get_joint_names(group_name))
+        return self.jacobian_follower.get_jacobian(group_name, link_name, current_joint_positions)
+
+    def get_jacobian(self, group_name: str, joint_positions):
+        return self.jacobian_follower.get_jacobian(group_name, joint_positions)
+
+    def get_base_link(self, group_name: str):
+        return self.jacobian_follower.get_base_link(group_name)

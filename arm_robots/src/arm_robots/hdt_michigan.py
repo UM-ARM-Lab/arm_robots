@@ -97,6 +97,15 @@ class BaseVal(BaseRobot):
 
         return fixed_velocities
 
+    def send_velocity_joint_command(self, joint_names: List[str], velocities):
+        trajectory_point = JointTrajectoryPoint()
+        trajectory_point.velocities = velocities
+        # set the target position to be just ahead of the current position, in the direction based on sign of velocity
+        offset = np.sign(velocities) * MAX_JOINT_ANGLE_DELTA_RAD * 0.9
+        current_joint_command = self.get_joint_positions(joint_names)
+        trajectory_point.positions = np.array(current_joint_command) + offset
+        return self.send_joint_command(joint_names, trajectory_point)
+
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint):
         current_joint_command = self.get_joint_positions(joint_names)
         distance = np.linalg.norm(np.array(current_joint_command) - np.array(trajectory_point.positions))
@@ -208,6 +217,12 @@ class Val(BaseVal, MoveitEnabledRobot):
 
     def is_right_gripper_closed(self):
         return self.is_gripper_closed('right')
+
+    def get_current_right_tool_jacobian(self):
+        return self.get_current_jacobian(self.right_arm_group, self.right_tool_name)
+
+    def get_current_left_tool_jacobian(self):
+        return self.get_current_jacobian(self.left_arm_group, self.left_tool_name)
 
 
 def estimated_torques(joint_state: JointState, robot: Val):

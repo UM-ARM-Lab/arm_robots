@@ -75,6 +75,8 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
       .def("is_collision_checking", &JacobianFollower::isCollisionChecking)
       .def("estimated_torques", &JacobianFollower::estimatedTorques)
       .def("get_scene", &JacobianFollower::get_scene)
+      .def("get_jacobian", &JacobianFollower::getJacobian)
+      .def("get_base_link", &JacobianFollower::getBaseLink)
       //
       ;
 }
