@@ -1,0 +1,59 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="default">
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <physics name="ode" type="ode">
+      <ode>
+        <constraints>
+          <contact_max_correcting_vel>0</contact_max_correcting_vel>
+        </constraints>
+      </ode>
+      <max_step_size>0.001</max_step_size>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <plugin name="stepping_plugin" filename="libstepping_plugin.so"/>
+
+    <model name="moveit_plugin_model">
+      <plugin name="gazebo_ros_moveit_planning_scene" filename="libgazebo_ros_moveit_planning_scene.so">
+        <robotName>hdt_michigan</robotName>
+        <robotNamespace>hdt_michigan</robotNamespace>
+        <!--  This must be the same as the root frame of the robot you're using, as defined by the URDF -->
+        <frameId>hdt_michigan_root</frameId>
+      </plugin>
+    </model>
+
+    <include>
+      <pose>0 0 -0.42 0 0 0</pose>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <include>
+      <name>fake_wall1</name>
+      <uri>model://fake_wall</uri>
+      <pose>0 -1.0 0.4 0 0 0</pose>
+    </include>
+
+    <include>
+      <name>fake_wall2</name>
+      <uri>model://fake_wall</uri>
+      <pose>0 1.0 0.4 0 0 0</pose>
+    </include>
+
+    <include>
+      <name>fake_wall3</name>
+      <uri>model://fake_wall</uri>
+      <pose>-0.6 0 0.4 0 0 1.5707</pose>
+    </include>
+
+    <include>
+      <name>fake_wall4</name>
+      <uri>model://fake_wall</uri>
+      <pose>0.6 0 0.4 0 0 1.5707</pose>
+    </include>
+
+  </world>
+</sdf>

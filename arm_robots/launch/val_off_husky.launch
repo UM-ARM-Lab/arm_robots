@@ -39,5 +39,5 @@
         <arg name="moveit_controller_manager" value="real"/>
     </include>
 
-    <include file="$(find hdt_michigan_control)/launch/joint_control_filter.launch"/>
+    <include file="$(find hdt_michigan_control)/launch/joint_control_filter_off_husky.launch"/>
 </launch>
