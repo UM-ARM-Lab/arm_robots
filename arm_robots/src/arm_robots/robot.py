@@ -6,6 +6,8 @@ import numpy as np
 import pyjacobian_follower
 from matplotlib import colors
 
+from moveit_msgs.srv import GetPlanningSceneRequest, GetPlanningScene
+
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", category=RuntimeWarning)
     import moveit_commander
@@ -96,6 +98,9 @@ class MoveitEnabledRobot(BaseRobot):
 
         self.feedback_callbacks = []
         self._move_groups = {}
+        self.get_planning_scene_req = GetPlanningSceneRequest()
+        self.get_planning_scene_srv = None
+        self.planning_scene_service_name = ns_join(self.robot_namespace, 'get_planning_scene')
 
     def connect(self, preload_move_groups=True):
         """
@@ -107,6 +112,11 @@ class MoveitEnabledRobot(BaseRobot):
         super().connect()
 
         self.jacobian_follower.connect_to_psm()
+
+        # connect to planning scene service
+        # all 1's in binary, see http://docs.ros.org/en/noetic/api/moveit_msgs/html/msg/PlanningSceneComponents.html
+        self.get_planning_scene_req.components.components = 2 ** 10 - 1
+        self.get_planning_scene_srv = rospy.ServiceProxy(self.planning_scene_service_name, GetPlanningScene)
 
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
@@ -136,7 +146,7 @@ class MoveitEnabledRobot(BaseRobot):
                                                                                 robot_description=self.robot_description)
         move_group: moveit_commander.MoveGroupCommander = self._move_groups[group_name]
         move_group.clear_pose_targets()
-        move_group.set_planning_time(30.0)
+        move_group.set_planning_time(10.0)
 
         # TODO Make this a settable param or at least make the hardcoded param more obvious
         # The purpose of this safety factor is to make sure we never send victor a velocity
@@ -189,10 +199,40 @@ class MoveitEnabledRobot(BaseRobot):
         execution_result = self.follow_arms_joint_trajectory(plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
+    def plan_to_poses(self, group_name, ee_links, target_poses):
+        current_scene_response = self.get_planning_scene_srv(self.get_planning_scene_req)
+        current_scene = current_scene_response.scene
+        ik_solution = self.jacobian_follower.compute_collision_free_pose_ik(current_scene.robot_state, target_poses,
+                                                                            group_name, ee_links, current_scene)
+
+        for ee_link, target_pose_i in zip(ee_links, target_poses):
+            self.display_goal_pose(target_pose_i, ee_link)
+
+        if ik_solution is None:
+            raise RobotPlanningError("No IK Solution found!")
+
+        self.display_robot_state(ik_solution, 'ik_solution')
+
+        group_joint_names = self.get_joint_names(group_name)
+        target_joint_config = {}
+        for n in group_joint_names:
+            i = ik_solution.joint_state.name.index(n)
+            p = ik_solution.joint_state.position[i]
+            target_joint_config[n] = p
+        self.plan_to_joint_config(group_name, target_joint_config)
+
     def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root',
-                     stop_condition: Optional[Callable] = None, position_tol=0.002, orientation_tol=0.02):
+                     start_state: Optional[RobotState] = None, stop_condition: Optional[Callable] = None,
+                     position_tol=0.002, orientation_tol=0.02, timeout=None):
         self.check_inputs(group_name, ee_link_name)
         move_group = self.get_move_group_commander(group_name)
+
+        if start_state is not None:
+            move_group.set_start_state(start_state)
+
+        if timeout is not None:
+            move_group.set_planning_time(timeout)
+
         move_group.set_end_effector_link(ee_link_name)
         target_pose_stamped = convert_to_pose_msg(target_pose)
         target_pose_stamped.header.frame_id = frame_id
@@ -221,7 +261,8 @@ class MoveitEnabledRobot(BaseRobot):
         return pose
 
     def plan_to_joint_config(self, group_name: str, joint_config: Union[List, Dict, str],
-                             stop_condition: Optional[Callable] = None):
+                             start_state: Optional[RobotState] = None,
+                             stop_condition: Optional[Callable] = None, timeout=None):
         """
         Args:
             group_name: group name, defined in the SRDF
@@ -229,12 +270,20 @@ class MoveitEnabledRobot(BaseRobot):
              or a string for the group_state defined in the SRDF. You can technically use a list
              here instead of a dict but you need to provide all joints in the right order,
              which is hard to get right and gives bad error messages
+            start_state: robot start state. If None, uses the current robot state
             stop_condition: optional stop condition function to halt execution early.
 
         Returns:
             The result message of following the trajectory
         """
         move_group = self.get_move_group_commander(group_name)
+
+        if start_state is not None:
+            move_group.set_start_state(start_state)
+
+        if timeout is not None:
+            move_group.set_planning_time(timeout)
+
         if isinstance(joint_config, str):
             joint_config_name = joint_config
             joint_config = move_group.get_named_target_values(joint_config_name)
@@ -252,7 +301,7 @@ class MoveitEnabledRobot(BaseRobot):
 
         planning_result = PlanningResult(move_group.plan())
         if self.raise_on_failure and not planning_result.success:
-            raise RobotPlanningError(f"Plan to position failed {planning_result.planning_error_code}")
+            raise RobotPlanningError(f"Plan to joint config failed {planning_result.planning_error_code}")
         execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
@@ -267,9 +316,15 @@ class MoveitEnabledRobot(BaseRobot):
             rospy.logdebug(f"ignoring empty trajectory")
             result = FollowJointTrajectoryResult()
             result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
+
+            if client is None:
+                action_client_state = None
+            else:
+                action_client_state = client.get_state()
+
             return ExecutionResult(trajectory=trajectory,
                                    execution_result=result,
-                                   action_client_state=client.get_state(),
+                                   action_client_state=action_client_state,
                                    success=True)
 
         rospy.logdebug(f"sending trajectory goal with f{len(trajectory.points)} points")
@@ -299,9 +354,15 @@ class MoveitEnabledRobot(BaseRobot):
                 raise FollowJointTrajectoryError(f"Follow Joint Trajectory Failed: (???)")
 
         success = result is not None and result.error_code == FollowJointTrajectoryResult.SUCCESSFUL
+
+        if client is None:
+            action_client_state = None
+        else:
+            action_client_state = client.get_state()
+
         return ExecutionResult(trajectory=trajectory,
                                execution_result=result,
-                               action_client_state=client.get_state(),
+                               action_client_state=action_client_state,
                                success=success)
 
     def follow_joint_config(self, joint_names: List[str], joint_positions, client: SimpleActionClient):
@@ -537,8 +598,8 @@ class MoveitEnabledRobot(BaseRobot):
         m.pose.orientation.w = 1
         self.display_goal_position_pub.publish(m)
 
-    def display_goal_pose(self, pose: Pose):
-        self.tf_wrapper.send_transform_from_pose_msg(pose, 'robot_root', 'arm_robots_goal')
+    def display_goal_pose(self, pose: Pose, label: Optional[str] = ''):
+        self.tf_wrapper.send_transform_from_pose_msg(pose, 'robot_root', f'arm_robots_goal-{label}')
 
     def get_state(self, group_name: str = None):
         robot_state = RobotState()
