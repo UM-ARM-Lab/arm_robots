@@ -272,7 +272,4 @@ class JacobianFollower {
       throw std::range_error(ss.str());
     }
   }
-
-  moveit_msgs::MotionPlanResponse planToPoses(std::string const &group_name, std::vector<std::string> const &ee_links,
-                                              std::vector<geometry_msgs::Pose> const &target_poses);
 };

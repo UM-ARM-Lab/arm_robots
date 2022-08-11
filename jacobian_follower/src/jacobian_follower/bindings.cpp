@@ -77,7 +77,6 @@ PYBIND11_MODULE(pyjacobian_follower, m) {
       .def("get_scene", &JacobianFollower::get_scene)
       .def("get_jacobian", &JacobianFollower::getJacobian)
       .def("get_base_link", &JacobianFollower::getBaseLink)
-      .def("plan_to_poses", &JacobianFollower::planToPoses)
       //
       ;
 }
