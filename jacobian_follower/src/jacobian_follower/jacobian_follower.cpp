@@ -1,6 +1,7 @@
 #include <arc_utilities/enumerate.h>
 #include <bio_ik/bio_ik.h>
 #include <moveit/dynamics_solver/dynamics_solver.h>
+#include <moveit/kinematic_constraints/utils.h>
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/DisplayTrajectory.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
@@ -116,6 +117,10 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, std::strin
                                << "If you're calling this from python, use arc_utilities.ros_init.rospy_and_cpp_init");
   }
   nh_ = std::make_shared<ros::NodeHandle>();
+
+  planning_pipeline_ = std::make_unique<planning_pipeline::PlanningPipeline>(
+      model_, *nh_, "/hdt_michigan/move_group/planning_plugin", "/hdt_michigan/move_group/request_adapters");
+
   auto const interpolated_points_topic = ros::names::append(robot_namespace, "jacobian_waypoint_interpolated");
   vis_pub_ = std::make_shared<ros::Publisher>(
       nh_->advertise<visualization_msgs::MarkerArray>(interpolated_points_topic, 10, true));
@@ -1071,4 +1076,43 @@ std::tuple<Eigen::MatrixXd, bool> JacobianFollower::getJacobian(std::string cons
 std::string JacobianFollower::getBaseLink(std::string const &group_name) const {
   auto const jmg = model_->getJointModelGroup(group_name);
   return jmg->getCommonRoot()->getParentLinkModel()->getParentLinkModel()->getName();
+}
+
+moveit_msgs::MotionPlanResponse JacobianFollower::planToPoses(std::string const &group_name,
+                                                              std::vector<std::string> const &ee_links,
+                                                              std::vector<geometry_msgs::Pose> const &target_poses) {
+  scene_monitor_->lockSceneRead();
+  auto const &planning_scene = planning_scene::PlanningScene::clone(scene_monitor_->getPlanningScene());
+  scene_monitor_->unlockSceneRead();
+
+  std::vector<double> tolerance_pose(3, 0.01);
+  std::vector<double> tolerance_angle(3, 0.01);
+
+  planning_interface::MotionPlanRequest req;
+  planning_interface::MotionPlanResponse res;
+  req.group_name = group_name;
+  for (auto i{0u}; i <= ee_links.size(); ++i) {
+    auto const &ee_link = ee_links[i];
+    auto const &target_pose = target_poses[i];
+    geometry_msgs::PoseStamped pose;
+    pose.header.frame_id = ee_link;
+    pose.pose = target_pose;
+    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".plan_to_poses", "ee " << ee_link);
+    auto const pose_goal =
+        kinematic_constraints::constructGoalConstraints(ee_link, pose, tolerance_pose, tolerance_angle);
+    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".plan_to_poses", pose_goal);
+    req.goal_constraints.push_back(pose_goal);
+  }
+
+
+  ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".plan_to_poses", "planning" << std::endl);
+  {
+    planning_scene_monitor::LockedPlanningSceneRO lscene(scene_monitor_);
+    planning_pipeline_->generatePlan(lscene, req, res);
+  }
+
+  moveit_msgs::MotionPlanResponse response_msg;
+  res.getMessage(response_msg);
+
+  return response_msg;
 }

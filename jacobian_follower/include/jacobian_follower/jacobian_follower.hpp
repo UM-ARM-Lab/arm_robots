@@ -2,6 +2,7 @@
 
 #include <arm_robots_msgs/Points.h>
 #include <eigen_conversions/eigen_msg.h>
+#include <moveit/planning_pipeline/planning_pipeline.h>
 #include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
@@ -9,6 +10,7 @@
 #include <moveit/robot_trajectory/robot_trajectory.h>
 #include <moveit/trajectory_processing/iterative_time_parameterization.h>
 #include <moveit_msgs/DisplayRobotState.h>
+#include <moveit_msgs/MotionPlanResponse.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
@@ -103,6 +105,7 @@ class JacobianFollower {
   robot_model_loader::RobotModelLoaderPtr model_loader_;
   moveit::core::RobotModelConstPtr const model_;
   planning_scene_monitor::PlanningSceneMonitorPtr scene_monitor_;
+  planning_pipeline::PlanningPipelineConstUniquePtr planning_pipeline_;
 
   // Debugging
   mutable moveit_visual_tools::MoveItVisualTools visual_tools_;
@@ -258,7 +261,7 @@ class JacobianFollower {
   std::tuple<Eigen::MatrixXd, bool> getJacobian(std::string const &group_name, std::string const &link_name,
                                                 std::vector<double> const &joint_positions);
 
-  std::string getBaseLink(std::string const& group_name) const;
+  std::string getBaseLink(std::string const &group_name) const;
 
   template <typename A, typename B>
   void validateNamesAndPositions(const std::vector<A> &joint_names, const std::vector<B> &joint_positions) const {
@@ -269,4 +272,7 @@ class JacobianFollower {
       throw std::range_error(ss.str());
     }
   }
+
+  moveit_msgs::MotionPlanResponse planToPoses(std::string const &group_name, std::vector<std::string> const &ee_links,
+                                              std::vector<geometry_msgs::Pose> const &target_poses);
 };
