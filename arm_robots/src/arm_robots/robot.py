@@ -40,6 +40,15 @@ store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
 
 
+def yaw_diff(a, b):
+    diff = a - b
+    greater_indices = np.argwhere(diff > np.pi)
+    diff[greater_indices] = diff[greater_indices] - 2 * np.pi
+    less_indices = np.argwhere(diff < -np.pi)
+    diff[less_indices] = diff[less_indices] + 2 * np.pi
+    return diff
+
+
 class RobotPlanningError(Exception):
     pass
 
@@ -146,7 +155,7 @@ class MoveitEnabledRobot(BaseRobot):
                                                                                 robot_description=self.robot_description)
         move_group: moveit_commander.MoveGroupCommander = self._move_groups[group_name]
         move_group.clear_pose_targets()
-        move_group.set_planning_time(10.0)
+        move_group.set_planning_time(30.0)
 
         # TODO Make this a settable param or at least make the hardcoded param more obvious
         # The purpose of this safety factor is to make sure we never send victor a velocity
@@ -199,25 +208,47 @@ class MoveitEnabledRobot(BaseRobot):
         execution_result = self.follow_arms_joint_trajectory(plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
-    def plan_to_poses(self, group_name, ee_links, target_poses):
-        current_scene_response = self.get_planning_scene_srv(self.get_planning_scene_req)
-        current_scene = current_scene_response.scene
-        ik_solution = self.jacobian_follower.compute_collision_free_pose_ik(current_scene.robot_state, target_poses,
-                                                                            group_name, ee_links, current_scene)
-
+    def plan_to_poses(self, group_name, ee_links, target_poses: List[Pose]):
         for ee_link, target_pose_i in zip(ee_links, target_poses):
             self.display_goal_pose(target_pose_i, ee_link)
 
-        if ik_solution is None:
-            raise RobotPlanningError("No IK Solution found!")
+        joint_limits_param = rospy.get_param(self.robot_description + '_planning/joint_limits')
+        distance_weights = {k: v['distance_weight'] for k, v in joint_limits_param.items()}
+        current_scene_response = self.get_planning_scene_srv(self.get_planning_scene_req)
+        current_scene = current_scene_response.scene
+        current_positions = np.array(current_scene.robot_state.joint_state.position)
+        exp_joint_weights = [distance_weights.get(n, 0) for n in current_scene.robot_state.joint_state.name]
+        min_d = 1e9
+        nearest_ik_solution = None  # TODO: seed the IK solver with the best solution so far? or decay rng_dist?
+        min_ds = []
+        for i in range(500):
+            ik_solution = self.jacobian_follower.compute_collision_free_pose_ik(current_scene.robot_state, target_poses,
+                                                                                group_name, ee_links, current_scene)
+            if ik_solution is None:
+                continue
+            ik_positions = np.array(ik_solution.joint_state.position)
+            joint_distance = abs(ik_positions - current_positions)
+            weighted_joint_distance = (exp_joint_weights * joint_distance).sum()
+            if weighted_joint_distance < min_d:
+                self.display_robot_state(ik_solution, 'ik_solution')
+                min_d = weighted_joint_distance
+                # print(i, min_d)
+                nearest_ik_solution = ik_solution
+            min_ds.append(min_d)
+        # import matplotlib.pyplot as plt
+        # plt.plot(min_ds, label='min w.j.d.')
+        # plt.ylabel("weighted joint distance")
+        # plt.xlabel("IK samples")
+        # plt.show()
 
-        self.display_robot_state(ik_solution, 'ik_solution')
+        if nearest_ik_solution is None:
+            raise RobotPlanningError("No IK Solution found!")
 
         group_joint_names = self.get_joint_names(group_name)
         target_joint_config = {}
         for n in group_joint_names:
-            i = ik_solution.joint_state.name.index(n)
-            p = ik_solution.joint_state.position[i]
+            i = nearest_ik_solution.joint_state.name.index(n)
+            p = nearest_ik_solution.joint_state.position[i]
             target_joint_config[n] = p
         self.plan_to_joint_config(group_name, target_joint_config)
 
