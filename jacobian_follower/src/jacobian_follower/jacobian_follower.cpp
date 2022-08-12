@@ -1,7 +1,6 @@
 #include <arc_utilities/enumerate.h>
 #include <bio_ik/bio_ik.h>
 #include <moveit/dynamics_solver/dynamics_solver.h>
-#include <moveit/kinematic_constraints/utils.h>
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/DisplayTrajectory.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
@@ -117,7 +116,6 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, std::strin
                                << "If you're calling this from python, use arc_utilities.ros_init.rospy_and_cpp_init");
   }
   nh_ = std::make_shared<ros::NodeHandle>();
-
   auto const interpolated_points_topic = ros::names::append(robot_namespace, "jacobian_waypoint_interpolated");
   vis_pub_ = std::make_shared<ros::Publisher>(
       nh_->advertise<visualization_msgs::MarkerArray>(interpolated_points_topic, 10, true));
