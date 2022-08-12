@@ -9,7 +9,6 @@
 #include <moveit/robot_trajectory/robot_trajectory.h>
 #include <moveit/trajectory_processing/iterative_time_parameterization.h>
 #include <moveit_msgs/DisplayRobotState.h>
-#include <moveit_msgs/MotionPlanResponse.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
@@ -259,7 +258,7 @@ class JacobianFollower {
   std::tuple<Eigen::MatrixXd, bool> getJacobian(std::string const &group_name, std::string const &link_name,
                                                 std::vector<double> const &joint_positions);
 
-  std::string getBaseLink(std::string const &group_name) const;
+  std::string getBaseLink(std::string const& group_name) const;
 
   template <typename A, typename B>
   void validateNamesAndPositions(const std::vector<A> &joint_names, const std::vector<B> &joint_positions) const {

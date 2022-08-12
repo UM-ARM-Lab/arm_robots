@@ -132,7 +132,7 @@ class PlanningResult:
                  success: Optional[bool] = None,
                  plan: Optional[RobotTrajectory] = None,
                  planning_time: Optional[float] = None,
-                 planning_error_code: Optional[int] = None,
+                 planning_error_code: Optional[MoveItErrorCodes] = None,
                  ):
         if move_group_plan_tuple is not None:
             self.success = move_group_plan_tuple[0]

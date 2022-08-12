@@ -40,15 +40,6 @@ store_error_msg = ("No stored tool orientations! "
                    "You have to call store_tool_orientations or store_current_tool_orientations first")
 
 
-def yaw_diff(a, b):
-    diff = a - b
-    greater_indices = np.argwhere(diff > np.pi)
-    diff[greater_indices] = diff[greater_indices] - 2 * np.pi
-    less_indices = np.argwhere(diff < -np.pi)
-    diff[less_indices] = diff[less_indices] + 2 * np.pi
-    return diff
-
-
 class RobotPlanningError(Exception):
     pass
 
@@ -208,7 +199,7 @@ class MoveitEnabledRobot(BaseRobot):
         execution_result = self.follow_arms_joint_trajectory(plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
-    def plan_to_poses(self, group_name, ee_links, target_poses: List[Pose]) -> PlanningAndExecutionResult:
+    def plan_to_poses(self, group_name, ee_links, target_poses: List[Pose]):
         for ee_link, target_pose_i in zip(ee_links, target_poses):
             self.display_goal_pose(target_pose_i, ee_link)
 
@@ -253,7 +244,7 @@ class MoveitEnabledRobot(BaseRobot):
             i = nearest_ik_solution.joint_state.name.index(n)
             p = nearest_ik_solution.joint_state.position[i]
             target_joint_config[n] = p
-        self.plan_to_joint_config(group_name, target_joint_config)
+        return self.plan_to_joint_config(group_name, target_joint_config)
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root',
                      start_state: Optional[RobotState] = None, stop_condition: Optional[Callable] = None,
@@ -636,8 +627,11 @@ class MoveitEnabledRobot(BaseRobot):
         m.pose.orientation.w = 1
         self.display_goal_position_pub.publish(m)
 
-    def display_goal_pose(self, pose: Pose, label: Optional[str] = ''):
-        self.tf_wrapper.send_transform_from_pose_msg(pose, 'robot_root', f'arm_robots_goal-{label}')
+    def display_goal_pose(self, pose: Pose, label: Optional[str] = None):
+        name = 'arm_robots_goal'
+        if label is not None and label != '':
+            name = f'{name}-{label}'
+        self.tf_wrapper.send_transform_from_pose_msg(pose, 'robot_root', name)
 
     def get_state(self, group_name: str = None):
         robot_state = RobotState()
