@@ -118,9 +118,6 @@ JacobianFollower::JacobianFollower(std::string const robot_namespace, std::strin
   }
   nh_ = std::make_shared<ros::NodeHandle>();
 
-  planning_pipeline_ = std::make_unique<planning_pipeline::PlanningPipeline>(
-      model_, *nh_, "/hdt_michigan/move_group/planning_plugin", "/hdt_michigan/move_group/request_adapters");
-
   auto const interpolated_points_topic = ros::names::append(robot_namespace, "jacobian_waypoint_interpolated");
   vis_pub_ = std::make_shared<ros::Publisher>(
       nh_->advertise<visualization_msgs::MarkerArray>(interpolated_points_topic, 10, true));
