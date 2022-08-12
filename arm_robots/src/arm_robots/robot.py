@@ -203,12 +203,23 @@ class MoveitEnabledRobot(BaseRobot):
         for ee_link, target_pose_i in zip(ee_links, target_poses):
             self.display_goal_pose(target_pose_i, ee_link)
 
+        nearest_ik_solution, _ = self.nearby_ik(ee_links, group_name, target_poses)
+
+        group_joint_names = self.get_joint_names(group_name)
+        target_joint_config = {}
+        for n in group_joint_names:
+            i = nearest_ik_solution.joint_state.name.index(n)
+            p = nearest_ik_solution.joint_state.position[i]
+            target_joint_config[n] = p
+        return self.plan_to_joint_config(group_name, target_joint_config)
+
+    def nearby_ik(self, ee_links, group_name, target_poses):
         joint_limits_param = rospy.get_param(self.robot_description + '_planning/joint_limits')
         distance_weights = {k: v['distance_weight'] for k, v in joint_limits_param.items()}
         current_scene_response = self.get_planning_scene_srv(self.get_planning_scene_req)
         current_scene = current_scene_response.scene
         current_positions = np.array(current_scene.robot_state.joint_state.position)
-        exp_joint_weights = [distance_weights.get(n, 0) for n in current_scene.robot_state.joint_state.name]
+        exp_joint_weights = [distance_weights.get(n, 1) for n in current_scene.robot_state.joint_state.name]
         min_d = 1e9
         nearest_ik_solution = None  # TODO: seed the IK solver with the best solution so far? or decay rng_dist?
         min_ds = []
@@ -223,28 +234,12 @@ class MoveitEnabledRobot(BaseRobot):
             if weighted_joint_distance < min_d:
                 self.display_robot_state(ik_solution, 'ik_solution')
                 min_d = weighted_joint_distance
-                # print(i, min_d)
                 nearest_ik_solution = ik_solution
             min_ds.append(min_d)
-
-        # import matplotlib.pyplot as plt
-        # plt.plot(min_ds, label='min w.j.d.')
-        # plt.ylabel("weighted joint distance")
-        # plt.xlabel("IK samples")
-        # plt.show()
-
         if nearest_ik_solution is None:
             raise RobotPlanningError("No IK Solution found!")
-
         self.display_robot_state(nearest_ik_solution, 'nearest_ik_solution')
-
-        group_joint_names = self.get_joint_names(group_name)
-        target_joint_config = {}
-        for n in group_joint_names:
-            i = nearest_ik_solution.joint_state.name.index(n)
-            p = nearest_ik_solution.joint_state.position[i]
-            target_joint_config[n] = p
-        return self.plan_to_joint_config(group_name, target_joint_config)
+        return nearest_ik_solution, min_ds
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root',
                      start_state: Optional[RobotState] = None, stop_condition: Optional[Callable] = None,
