@@ -25,7 +25,7 @@ from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryF
     FollowJointTrajectoryGoal
 from geometry_msgs.msg import Point, Pose, Quaternion, Vector3, PointStamped
 from moveit_msgs.msg import RobotTrajectory, DisplayRobotState, ObjectColor, RobotState, PlanningScene, \
-    DisplayTrajectory
+    DisplayTrajectory, MoveItErrorCodes
 from rosgraph.names import ns_join
 from rospy import logfatal
 from sensor_msgs.msg import JointState
@@ -208,7 +208,7 @@ class MoveitEnabledRobot(BaseRobot):
         execution_result = self.follow_arms_joint_trajectory(plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
-    def plan_to_poses(self, group_name, ee_links, target_poses: List[Pose]):
+    def plan_to_poses(self, group_name, ee_links, target_poses: List[Pose]) -> PlanningAndExecutionResult:
         for ee_link, target_pose_i in zip(ee_links, target_poses):
             self.display_goal_pose(target_pose_i, ee_link)
 
@@ -235,6 +235,7 @@ class MoveitEnabledRobot(BaseRobot):
                 # print(i, min_d)
                 nearest_ik_solution = ik_solution
             min_ds.append(min_d)
+
         # import matplotlib.pyplot as plt
         # plt.plot(min_ds, label='min w.j.d.')
         # plt.ylabel("weighted joint distance")
@@ -243,6 +244,8 @@ class MoveitEnabledRobot(BaseRobot):
 
         if nearest_ik_solution is None:
             raise RobotPlanningError("No IK Solution found!")
+
+        self.display_robot_state(nearest_ik_solution, 'nearest_ik_solution')
 
         group_joint_names = self.get_joint_names(group_name)
         target_joint_config = {}
@@ -331,6 +334,10 @@ class MoveitEnabledRobot(BaseRobot):
             self.display_robot_state(robot_state, label='joint_config_goal')
 
         planning_result = PlanningResult(move_group.plan())
+        if planning_result.planning_error_code.val == MoveItErrorCodes.INVALID_MOTION_PLAN:
+            print("Invalid plan, trying to replan.")
+            planning_result = PlanningResult(move_group.plan())
+
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to joint config failed {planning_result.planning_error_code}")
         execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition)

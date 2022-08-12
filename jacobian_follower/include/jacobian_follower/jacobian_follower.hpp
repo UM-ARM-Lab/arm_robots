@@ -2,7 +2,6 @@
 
 #include <arm_robots_msgs/Points.h>
 #include <eigen_conversions/eigen_msg.h>
-#include <moveit/planning_pipeline/planning_pipeline.h>
 #include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
@@ -105,7 +104,6 @@ class JacobianFollower {
   robot_model_loader::RobotModelLoaderPtr model_loader_;
   moveit::core::RobotModelConstPtr const model_;
   planning_scene_monitor::PlanningSceneMonitorPtr scene_monitor_;
-  planning_pipeline::PlanningPipelineConstUniquePtr planning_pipeline_;
 
   // Debugging
   mutable moveit_visual_tools::MoveItVisualTools visual_tools_;
