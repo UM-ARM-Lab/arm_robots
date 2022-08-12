@@ -221,11 +221,13 @@ class MoveitEnabledRobot(BaseRobot):
         current_positions = np.array(current_scene.robot_state.joint_state.position)
         exp_joint_weights = [distance_weights.get(n, 1) for n in current_scene.robot_state.joint_state.name]
         min_d = 1e9
-        nearest_ik_solution = None  # TODO: seed the IK solver with the best solution so far? or decay rng_dist?
+        nearest_ik_solution = None
         min_ds = []
-        for i in range(500):
-            ik_solution = self.jacobian_follower.compute_collision_free_pose_ik(current_scene.robot_state, target_poses,
-                                                                                group_name, ee_links, current_scene)
+        for i in range(100):
+            ik_solution: RobotState = self.jacobian_follower.compute_collision_free_pose_ik(current_scene.robot_state,
+                                                                                            target_poses,
+                                                                                            group_name, ee_links,
+                                                                                            current_scene)
             if ik_solution is None:
                 continue
             ik_positions = np.array(ik_solution.joint_state.position)
