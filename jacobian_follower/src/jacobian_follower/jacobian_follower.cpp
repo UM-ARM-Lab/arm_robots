@@ -628,7 +628,7 @@ collision_detection::CollisionResult JacobianFollower::checkCollision(planning_s
     ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".check_collision", "Collision Result: " << collisionResult);
     std::stringstream ss;
     planning_scene->getAllowedCollisionMatrix().print(ss);
-    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".check_collision", "\n" << ss.str());
+    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".acm", "\n" << ss.str());
 
     std::vector<moveit_msgs::AttachedCollisionObject> msgs;
     planning_scene->getAttachedCollisionObjectMsgs(msgs);

@@ -6,6 +6,7 @@ import numpy as np
 import pyjacobian_follower
 from matplotlib import colors
 
+from arm_robots.cartesian import pose_distance
 from moveit_msgs.srv import GetPlanningSceneRequest, GetPlanningScene
 
 with warnings.catch_warnings():
@@ -200,6 +201,15 @@ class MoveitEnabledRobot(BaseRobot):
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def plan_to_poses(self, group_name, ee_links, target_poses: List[Pose]):
+        already_close = True
+        for ee_link, target_pose_i in zip(ee_links, target_poses):
+            d = pose_distance(self.get_link_pose(ee_link), target_pose_i, rot_weight=1)
+            if d > 0.01:
+                already_close = False
+        if already_close:
+            print("Already close!")
+            return
+
         for ee_link, target_pose_i in zip(ee_links, target_poses):
             self.display_goal_pose(target_pose_i, ee_link)
 
@@ -272,7 +282,7 @@ class MoveitEnabledRobot(BaseRobot):
         execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
-    def get_link_pose(self, link_name: str):
+    def get_link_pose(self, link_name: str) -> Pose:
         # FIXME: there's a bug where link.pose() returns the wrong joint state and prints a warning.
         #  and I don't know how to wait for the right state
         # link: moveit_commander.RobotCommander.Link = self.robot_commander.get_link(link_name)

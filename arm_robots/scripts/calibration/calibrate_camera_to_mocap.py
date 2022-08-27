@@ -57,6 +57,8 @@ def main():
 
     args = parser.parse_args(rospy.myargv()[1:])
 
+    print("You need to set the mocap to kinect transform to 0 before running this!")
+
     offsets = collect_calibration_data(args.camera_tf_name,
                                        args.camera_link_name,
                                        args.m)
@@ -91,7 +93,7 @@ def collect_calibration_data(camera_tf_name, camera_link_name, m):
                 break
             dist = np.linalg.norm(camera2fiducial_last - camera2fiducial, ord='fro')
             close = dist < 0.1
-            if not close:
+            if close:
                 break
         camera2fiducial_last = camera2fiducial
 
