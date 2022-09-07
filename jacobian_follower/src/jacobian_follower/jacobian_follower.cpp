@@ -633,7 +633,7 @@ collision_detection::CollisionResult JacobianFollower::checkCollision(planning_s
     std::vector<moveit_msgs::AttachedCollisionObject> msgs;
     planning_scene->getAttachedCollisionObjectMsgs(msgs);
     for (auto const &m : msgs) {
-      ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".check_collision", "Touch Links: " << m.link_name << " " << m.touch_links);
+      ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".touch_links", "Touch Links: " << m.link_name << " " << m.touch_links);
     }
 
     if (visualize_) {
@@ -954,7 +954,7 @@ bool JacobianFollower::check_collision(moveit_msgs::PlanningScene const &scene_m
   planning_scene->getAttachedCollisionObjectMsgs(msgs);
   ROS_WARN_STREAM_COND_NAMED(msgs.empty(), LOGGER_NAME, "No attached collision objects!");
   for (auto const &m : msgs) {
-    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".check_collision", "Touch Links: " << m.link_name << " " << m.touch_links);
+    ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".touch_links", "Touch Links: " << m.link_name << " " << m.touch_links);
   }
 
   auto const &collision_result = checkCollision(planning_scene, state);
