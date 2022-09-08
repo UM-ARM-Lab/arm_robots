@@ -147,6 +147,11 @@ void JacobianFollower::debugLogState(const std::string prefix, robot_state::Robo
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".joint_state", prefix << ss.str());
 }
 
+void JacobianFollower::store_scene(const moveit_msgs::PlanningScene &msg) {
+  stored_planning_scene_ = std::make_shared<planning_scene::PlanningScene>(model_);
+  stored_planning_scene_->usePlanningSceneMsg(msg);
+}
+
 PlanResultMsg JacobianFollower::plan(std::string const &group_name, std::vector<std::string> const &tool_names,
                                      std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                                      std::vector<PointSequence> const &grippers,
@@ -184,6 +189,30 @@ PlanResultMsg JacobianFollower::plan(std::string const &group_name, std::vector<
 
   auto traj_command = make_traj_command_from_python_inputs(
       planning_scene, group_name, tool_names, grippers, robot_start_state, preferred_tool_orientations,
+      max_velocity_scaling_factor, max_acceleration_scaling_factor);
+  auto const plan_result = plan(traj_command);
+  moveit_msgs::RobotTrajectory plan_msg;
+  plan_result.first.getRobotTrajectoryMsg(plan_msg);
+  plan_msg.joint_trajectory.header.frame_id = "robot_root";
+  return std::make_pair(plan_msg, plan_result.second);
+}
+
+PlanResultMsg JacobianFollower::plan_with_stored_scene(const std::string &group_name,
+                                                       const std::vector<std::string> &tool_names,
+                                                       const std::vector<Eigen::Vector4d> &preferred_tool_orientations,
+                                                       const moveit_msgs::RobotState &start_state_msg,
+                                                       const std::vector<PointSequence> &grippers,
+                                                       double max_velocity_scaling_factor,
+                                                       double max_acceleration_scaling_factor) {
+  if (!stored_planning_scene_) {
+    throw std::runtime_error("no stored scene!");
+  }
+
+  robot_state::RobotState robot_start_state(model_);
+  robotStateMsgToRobotState(start_state_msg, robot_start_state);
+
+  auto traj_command = make_traj_command_from_python_inputs(
+      stored_planning_scene_, group_name, tool_names, grippers, robot_start_state, preferred_tool_orientations,
       max_velocity_scaling_factor, max_acceleration_scaling_factor);
   auto const plan_result = plan(traj_command);
   moveit_msgs::RobotTrajectory plan_msg;
@@ -617,13 +646,24 @@ robot_trajectory::RobotTrajectory JacobianFollower::jacobianPath3d(
 
 collision_detection::CollisionResult JacobianFollower::checkCollision(planning_scene::PlanningScenePtr planning_scene,
                                                                       robot_state::RobotState const &state) const {
+  ROS_DEBUG_STREAM_ONCE_NAMED(LOGGER_NAME + ".check_collision", "Checking collision...");
+
   collision_detection::CollisionRequest collisionRequest;
   collisionRequest.contacts = true;
   collisionRequest.max_contacts = 1;
   collisionRequest.max_contacts_per_pair = 1;
   collision_detection::CollisionResult collisionResult;
-  planning_scene->checkCollision(collisionRequest, collisionResult, state);
-  ROS_DEBUG_STREAM_ONCE_NAMED(LOGGER_NAME + ".check_collision", "Checking collision...");
+
+  // we don't use planning_scene->checkCollision because that does not consider padding for self-collision
+  auto const &c = planning_scene->getCollisionEnv();
+  auto const &acm = planning_scene->getAllowedCollisionMatrix();
+  // check collision with the world using the padded version
+  c->checkRobotCollision(collisionRequest, collisionResult, state, acm);
+  // do self-collision checking with the unpadded version of the robot
+  if (!collisionResult.collision || (collisionRequest.contacts && collisionResult.contacts.size() < collisionRequest.max_contacts)) {
+    c->checkSelfCollision(collisionRequest, collisionResult, state, acm);
+  }
+
   if (collisionResult.collision) {
     ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".check_collision", "Collision Result: " << collisionResult);
     std::stringstream ss;
@@ -650,8 +690,6 @@ bool JacobianFollower::jacobianIK(planning_scene::PlanningScenePtr planning_scen
                                   moveit::core::JointModelGroup const *const jmg,
                                   std::vector<std::string> const &tool_names, PoseSequence const &robotTtargets,
                                   ConstraintFn const &constraint_fn) {
-  constexpr bool bPRINT = false;
-
   auto const robot_to_world = world_to_robot.inverse(Eigen::Isometry);
 
   auto const num_ees = static_cast<long>(tool_names.size());
@@ -685,11 +723,6 @@ bool JacobianFollower::jacobianIK(planning_scene::PlanningScenePtr planning_scen
         ++nextDofIdx;
       }
     }
-    if (bPRINT) {
-      std::cerr << "lowerLimit:  " << lowerLimit.transpose() << "\n"
-                << "upperLimit:  " << upperLimit.transpose() << "\n"
-                << "startConfig: " << startConfig.transpose() << "\n\n";
-    }
   }
 
   // Configuration variables (eventually input parameters)
@@ -713,36 +746,8 @@ bool JacobianFollower::jacobianIK(planning_scene::PlanningScenePtr planning_scen
     auto const [posErrorVec, rotErrorVec] = calcVecError(poseError);
     auto currPositionError = posErrorVec.norm();
     auto currRotationError = rotErrorVec.norm();
-    if (bPRINT) {
-      std::cerr << std::endl << "----------- Start of for loop ---------------\n";
-      std::cerr << "config = [" << currConfig.transpose() << "]';\n";
-
-      Eigen::MatrixXd matrix_output =
-          std::numeric_limits<double>::infinity() * Eigen::MatrixXd::Ones(14, 5 * num_ees - 1);
-      for (auto idx = 0l; idx < num_ees; ++idx) {
-        matrix_output.block<4, 4>(0, 5 * idx) = robotTcurr[static_cast<unsigned long>(idx)].matrix();
-      }
-      for (auto idx = 0l; idx < num_ees; ++idx) {
-        matrix_output.block<4, 4>(5, 5 * idx) = robotTtargets[static_cast<unsigned long>(idx)].matrix();
-      }
-      for (auto idx = 0l; idx < num_ees; ++idx) {
-        matrix_output.block<4, 4>(10, 5 * idx) = poseError[static_cast<unsigned long>(idx)].matrix();
-      }
-      std::cerr << "         ee idx ----->\n"
-                << " current \n"
-                << " target  \n"
-                << " error   \n";
-      std::cerr << "matrix_ouptut = [\n" << matrix_output << "\n];\n";
-      std::cerr << "posErrorVec = [" << posErrorVec.transpose() << "]';\n"
-                << "rotErrorVec = [" << rotErrorVec.transpose() << "]';\n"
-                << "currPositionError: " << currPositionError << std::endl
-                << "currRotationError: " << currRotationError << std::endl;
-    }
     // Check if we've reached our target
     if (currPositionError < accuracyThreshold) {
-      if (bPRINT) {
-        std::cerr << "Projection successful itr: " << itr << ": currPositionError: " << currPositionError << "\n";
-      }
       return true;
     }
 
@@ -751,10 +756,6 @@ bool JacobianFollower::jacobianIK(planning_scene::PlanningScenePtr planning_scen
       // Take smaller steps if error increases
       // if ((currPositionError >= prevError) || (prevError - currPositionError < accuracyThreshold / 10))
       if (currPositionError >= prevError) {
-        if (bPRINT) {
-          std::cerr << "No progress, reducing stepSize: "
-                    << "prevError: " << prevError << " currErrror: " << currPositionError << std::endl;
-        }
         stepSize = stepSize / 2;
         currPositionError = prevError;
         currConfig = prevConfig;
@@ -767,10 +768,6 @@ bool JacobianFollower::jacobianIK(planning_scene::PlanningScenePtr planning_scen
           return false;
         }
       } else {
-        if (bPRINT) {
-          std::cerr << "Progress, resetting stepSize to max\n";
-          std::cerr << "stepSize: " << stepSize << std::endl;
-        }
         stepSize = maxStepSize;
       }
     }
@@ -795,11 +792,6 @@ bool JacobianFollower::jacobianIK(planning_scene::PlanningScenePtr planning_scen
     for (auto idx = 0l; idx < num_ees; ++idx) {
       positionJacobian.block(3 * idx, 0, 3, ndof) = fullJacobian.block(6 * idx, 0, 3, ndof);
       rotationJacobian.block(3 * idx, 0, 3, ndof) = fullJacobian.block(6 * idx + 3, 0, 3, ndof);
-    }
-    if (bPRINT) {
-      std::cerr << "fullJacobian = [\n" << fullJacobian << "];\n";
-      std::cerr << "positionJacobian = [\n" << positionJacobian << "];\n";
-      std::cerr << "rotationJacobian = [\n" << rotationJacobian << "];\n";
     }
 
     bool newJointAtLimit = false;
@@ -847,22 +839,6 @@ bool JacobianFollower::jacobianIK(planning_scene::PlanningScenePtr planning_scen
       Eigen::VectorXd const step =
           projectRotationIntoNullspace(positionCorrectionStep, rotationCorrectionStep, nullspaceConstraintMatrix, ndof);
 
-      // if (bPRINT)
-      // {
-      //   std::cerr << "\n\n";
-      //   std::cerr << "fullJacobian                  = [\n" << fullJacobian << "];\n";
-      //   std::cerr << "nullspaceConstraintMatrix     = [\n" << nullspaceConstraintMatrix << "];\n";
-      //   std::cerr << "nullspaceConstraintMatrixPinv = [\n" << nullspaceConstraintMatrixPinv << "];\n";
-      //   std::cerr << "posErrorVec        = [" << posErrorVec.transpose() << "]';\n";
-      //   std::cerr << "rotErrorVec        = [" << rotErrorVec.transpose() << "]';\n";
-      //   std::cerr << "drotTransEffect    = [" << drotTransEffect.transpose() << "]';\n";
-      //   std::cerr << "drotEffective      = [" << drotEffective.transpose() << "]';\n";
-      //   std::cerr << "positionCorrectionStep = [" << positionCorrectionStep.transpose() << "]';\n";
-      //   std::cerr << "rotationCorrectionStep = [" << rotationCorrectionStep.transpose() << "]';\n";
-      //   std::cerr << "nullspaceRotationStep  = [" << nullspaceRotationStep.transpose() << "]';\n";
-      //   std::cerr << "step                   = [" << step.transpose() << "]';\n\n";
-      // }
-
       // add step and check for joint limits
       newJointAtLimit = false;
       currConfig += step;
@@ -870,15 +846,6 @@ bool JacobianFollower::jacobianIK(planning_scene::PlanningScenePtr planning_scen
           ((currConfig.array() < lowerLimit.array()) || (currConfig.array() > upperLimit.array())) && goodJoints;
       newJointAtLimit = newBadJoints.any();
       goodJoints = goodJoints && !newBadJoints;
-
-      if (bPRINT) {
-        std::cerr << "lowerLimit      = [" << lowerLimit.transpose() << "]';\n";
-        std::cerr << "upperLimit      = [" << upperLimit.transpose() << "]';\n";
-        std::cerr << "currConfig      = [" << currConfig.transpose() << "]';\n";
-        std::cerr << "newBadJoints    = [" << newBadJoints.transpose() << "]';\n";
-        std::cerr << "goodJoints      = [" << goodJoints.transpose() << "]';\n";
-        std::cerr << "newJointAtLimit = [" << newJointAtLimit << "]';\n";
-      }
 
       // move back to previous point if any joint limits
       if (newJointAtLimit) {
@@ -901,7 +868,6 @@ bool JacobianFollower::jacobianIK(planning_scene::PlanningScenePtr planning_scen
       }
     }
   }
-
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME, "Iteration limit reached");
   return false;
 }

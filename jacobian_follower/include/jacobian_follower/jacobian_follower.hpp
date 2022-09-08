@@ -103,6 +103,7 @@ class JacobianFollower {
   robot_model_loader::RobotModelLoaderPtr model_loader_;
   moveit::core::RobotModelConstPtr const model_;
   planning_scene_monitor::PlanningSceneMonitorPtr scene_monitor_;
+  planning_scene::PlanningScenePtr stored_planning_scene_;
 
   // Debugging
   mutable moveit_visual_tools::MoveItVisualTools visual_tools_;
@@ -126,6 +127,8 @@ class JacobianFollower {
   explicit JacobianFollower(std::string robot_namespace, std::string robot_description, double translation_step_size,
                             bool minimize_rotation = true, bool collision_check = true, bool visualize = true);
 
+  void store_scene(moveit_msgs::PlanningScene const &msg);
+
   bool connect_to_psm();
 
   [[nodiscard]] bool isRequestValid(JacobianWaypointsCommand waypoints_command) const;
@@ -139,6 +142,12 @@ class JacobianFollower {
                      std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
                      moveit_msgs::RobotState const &start_state_msg, std::vector<PointSequence> const &grippers,
                      double max_velocity_scaling_factor, double max_acceleration_scaling_factor);
+
+  PlanResultMsg plan_with_stored_scene(std::string const &group_name, std::vector<std::string> const &tool_names,
+                                       std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
+                                       moveit_msgs::RobotState const &start_state_msg,
+                                       std::vector<PointSequence> const &grippers, double max_velocity_scaling_factor,
+                                       double max_acceleration_scaling_factor);
 
   PlanResultMsg plan(std::string const &group_name, std::vector<std::string> const &tool_names,
                      std::vector<Eigen::Vector4d> const &preferred_tool_orientations,
@@ -258,7 +267,7 @@ class JacobianFollower {
   std::tuple<Eigen::MatrixXd, bool> getJacobian(std::string const &group_name, std::string const &link_name,
                                                 std::vector<double> const &joint_positions);
 
-  std::string getBaseLink(std::string const& group_name) const;
+  std::string getBaseLink(std::string const &group_name) const;
 
   template <typename A, typename B>
   void validateNamesAndPositions(const std::vector<A> &joint_names, const std::vector<B> &joint_positions) const {
