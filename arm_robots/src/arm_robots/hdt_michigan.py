@@ -101,7 +101,8 @@ class BaseVal(BaseRobot):
         trajectory_point = JointTrajectoryPoint()
         trajectory_point.velocities = velocities
         # set the target position to be just ahead of the current position, in the direction based on sign of velocity
-        offset = np.sign(velocities) * MAX_JOINT_ANGLE_DELTA_RAD * 0.9
+        offset_dir = np.sign(velocities)
+        offset = offset_dir / np.linalg.norm(offset_dir) * MAX_JOINT_ANGLE_DELTA_RAD * 0.9
         current_joint_command = self.get_joint_positions(joint_names)
         trajectory_point.positions = np.array(current_joint_command) + offset
         return self.send_joint_command(joint_names, trajectory_point)
