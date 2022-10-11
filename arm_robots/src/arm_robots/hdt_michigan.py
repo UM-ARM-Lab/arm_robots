@@ -104,7 +104,11 @@ class BaseVal(BaseRobot):
         offset_dir = np.sign(velocities)
         offset = offset_dir / np.linalg.norm(offset_dir) * MAX_JOINT_ANGLE_DELTA_RAD * 0.9
         current_joint_command = self.get_joint_positions(joint_names)
-        trajectory_point.positions = np.array(current_joint_command) + offset
+        # special case for zero so that the robot stops moving as expected
+        if(np.linalg.norm(velocities) == 0):
+            trajectory_point.positions = np.array(current_joint_command)
+        else:
+            trajectory_point.positions = np.array(current_joint_command) + offset
         return self.send_joint_command(joint_names, trajectory_point)
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint):
