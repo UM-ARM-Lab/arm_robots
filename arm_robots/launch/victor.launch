@@ -2,6 +2,9 @@
     <env name="ROSCONSOLE_CONFIG_FILE"
          value="$(find arm_robots)/config/victor_rosconsole.conf"/>
 
+    <arg name="pipeline" default="ompl"/>
+
+
     <arg name="sim" default="false"/>
     <arg name="gui" default="true"/>
     <arg name="update_description" default="true"/>
@@ -50,6 +53,7 @@
         <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
             <arg name="allow_trajectory_execution" value="true"/>
             <arg name="moveit_controller_manager" value="gazebo"/>
+            <arg name="pipeline" value="$(arg pipeline)"/>
         </include>
     </group>
     <group unless="$(arg sim)">
