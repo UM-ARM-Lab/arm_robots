@@ -349,7 +349,6 @@ std::optional<moveit_msgs::RobotState> JacobianFollower::computeCollisionFreePos
   auto attempts{0};
   for (; attempts < ik_params.max_collision_check_attempts and not ok; ++attempts) {
     robot_state_ik.setToRandomPositionsNearBy(joint_model_group, seed_robot_state_ik, ik_params.rng_dist);
-    // robot_state_ik.setToRandomPositions(joint_model_group);
     ok = robot_state_ik.setFromIK(joint_model_group, tip_transforms, tip_names, 0.0, constraint_fn_boost, opts);
   }
   ROS_DEBUG_STREAM_NAMED(LOGGER_NAME + ".ik", "ok? " << ok << " attempts " << attempts);
