@@ -35,7 +35,23 @@
 
         <!-- Spawn the robot in gazebo -->
         <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
-              args="-urdf -model victor -param robot_description"/>
+              args="-param robot_description
+              -urdf
+              -J victor_left_arm_joint_1 0.1
+              -J victor_left_arm_joint_2 0.1
+              -J victor_left_arm_joint_3 0.1
+              -J victor_left_arm_joint_4 0.1
+              -J victor_left_arm_joint_5 0.1
+              -J victor_left_arm_joint_6 0.1
+              -J victor_left_arm_joint_7 0.1
+              -J victor_right_arm_joint_1 0.1
+              -J victor_right_arm_joint_2 0.1
+              -J victor_right_arm_joint_3 0.1
+              -J victor_right_arm_joint_4 0.1
+              -J victor_right_arm_joint_5 0.1
+              -J victor_right_arm_joint_6 0.1
+              -J victor_right_arm_joint_7 0.1
+              -model victor "/>
 
         <!-- start the ROS controllers, only used in gazebo. This merges gripper and arm joint states -->
         <include file="$(find victor_control)/launch/victor_control_gazebo.launch">
