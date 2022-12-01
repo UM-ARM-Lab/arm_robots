@@ -37,25 +37,30 @@
         <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
               args="-param robot_description
               -urdf
-              -J victor_left_arm_joint_1 0.1
-              -J victor_left_arm_joint_2 0.1
-              -J victor_left_arm_joint_3 0.1
-              -J victor_left_arm_joint_4 0.1
-              -J victor_left_arm_joint_5 0.1
-              -J victor_left_arm_joint_6 0.1
-              -J victor_left_arm_joint_7 0.1
-              -J victor_right_arm_joint_1 0.1
-              -J victor_right_arm_joint_2 0.1
-              -J victor_right_arm_joint_3 0.1
-              -J victor_right_arm_joint_4 0.1
-              -J victor_right_arm_joint_5 0.1
-              -J victor_right_arm_joint_6 0.1
-              -J victor_right_arm_joint_7 0.1
+              -J victor_left_arm_joint_1 -1.05
+              -J victor_left_arm_joint_2 -1.57
+              -J victor_left_arm_joint_3 0.0
+              -J victor_left_arm_joint_4 0.0
+              -J victor_left_arm_joint_5 0.0
+              -J victor_left_arm_joint_6 0.0
+              -J victor_left_arm_joint_7 0.0
+              -J victor_right_arm_joint_1 -0.12
+              -J victor_right_arm_joint_2 0.61
+              -J victor_right_arm_joint_3 -0.19
+              -J victor_right_arm_joint_4 -0.37
+              -J victor_right_arm_joint_5 -1.37
+              -J victor_right_arm_joint_6 1.43
+              -J victor_right_arm_joint_7 -0.82
               -model victor "/>
 
         <!-- start the ROS controllers, only used in gazebo. This merges gripper and arm joint states -->
         <include file="$(find victor_control)/launch/victor_control_gazebo.launch">
             <arg name="robot_namespace" value="victor"/>
+            <arg name="controllers_to_start"
+                 value="
+                 both_arms_trajectory_controller
+                 joint_state_controller
+                 "/>
         </include>
 
         <!-- start the fake control mode servics -->
