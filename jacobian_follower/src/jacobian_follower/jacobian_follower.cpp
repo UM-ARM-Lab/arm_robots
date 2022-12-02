@@ -660,7 +660,8 @@ collision_detection::CollisionResult JacobianFollower::checkCollision(planning_s
   // check collision with the world using the padded version
   c->checkRobotCollision(collisionRequest, collisionResult, state, acm);
   // do self-collision checking with the unpadded version of the robot
-  if (!collisionResult.collision || (collisionRequest.contacts && collisionResult.contacts.size() < collisionRequest.max_contacts)) {
+  if (!collisionResult.collision ||
+      (collisionRequest.contacts && collisionResult.contacts.size() < collisionRequest.max_contacts)) {
     c->checkSelfCollision(collisionRequest, collisionResult, state, acm);
   }
 
@@ -714,8 +715,9 @@ bool JacobianFollower::jacobianIK(planning_scene::PlanningScenePtr planning_scen
 
       for (size_t var_idx = 0; var_idx < names.size(); ++var_idx) {
         if (bounds[var_idx].position_bounded_) {
-          lowerLimit[nextDofIdx] = bounds[var_idx].min_position_;
-          upperLimit[nextDofIdx] = bounds[var_idx].max_position_;
+          // add small values (2deg) to make sure we don't go right up to a joint limit
+          lowerLimit[nextDofIdx] = bounds[var_idx].min_position_ + 0.03;
+          upperLimit[nextDofIdx] = bounds[var_idx].max_position_ - 0.03;
         } else {
           lowerLimit[nextDofIdx] = std::numeric_limits<double>::lowest() / 4.0;
           upperLimit[nextDofIdx] = std::numeric_limits<double>::max() / 4.0;
