@@ -15,7 +15,7 @@ from arm_robots.robot import MoveitEnabledRobot, RobotPlanningError
 from trajectory_msgs.msg import JointTrajectoryPoint
 from franka_msgs.srv import SetJointImpedance, SetLoad, SetCartesianImpedance
 from controller_manager_msgs.srv import LoadController, SwitchController
-from moveit_msgs.srv import GetPositionIK
+from moveit_msgs.srv import GetPositionIK, GetPositionFK, GetPositionFKRequest
 from moveit_msgs.msg import PositionIKRequest, RobotState, MoveItErrorCodes, RobotTrajectory, DisplayTrajectory
 
 DEFAULT_JOINT_IMPEDANCE = [3000.0, 3000.0, 3000.0, 2500.0, 2500.0, 2000.0, 2000.0]
@@ -47,6 +47,7 @@ class Panda(MoveitEnabledRobot):
 
         # IK Service.
         self.ik_srv = rospy.ServiceProxy(self.ns('compute_ik'), GetPositionIK)
+        self.fk_srv = rospy.ServiceProxy(self.ns('compute_fk'), GetPositionFK)
 
         # Default position joint trajectory controller.
         self.active_controller_name = POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME
@@ -159,10 +160,9 @@ class Panda(MoveitEnabledRobot):
 
         return set_load_resp.success
 
-    def get_ik(self, pose: PoseStamped, frame: str = "panda_link8"):
+    def get_ik(self, group_name: str, pose: PoseStamped, frame: str = "panda_link8"):
         ik_request = PositionIKRequest()
-        # TODO: Select move group.
-        ik_request.group_name = "panda_arm"
+        ik_request.group_name = group_name
         ik_request.robot_state = self.get_state(group_name="panda_arm")
         ik_request.ik_link_name = frame
         ik_request.pose_stamped = pose
