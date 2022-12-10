@@ -44,13 +44,13 @@
               -J victor_left_arm_joint_5 0.0
               -J victor_left_arm_joint_6 0.0
               -J victor_left_arm_joint_7 0.0
-              -J victor_right_arm_joint_1 -0.12
-              -J victor_right_arm_joint_2 0.61
-              -J victor_right_arm_joint_3 -0.19
-              -J victor_right_arm_joint_4 -0.37
-              -J victor_right_arm_joint_5 -1.37
-              -J victor_right_arm_joint_6 1.43
-              -J victor_right_arm_joint_7 -0.82
+              -J victor_right_arm_joint_1 0.1
+              -J victor_right_arm_joint_2 0.1
+              -J victor_right_arm_joint_3 0.1
+              -J victor_right_arm_joint_4 0.1
+              -J victor_right_arm_joint_5 0.1
+              -J victor_right_arm_joint_6 0.1
+              -J victor_right_arm_joint_7 0.1
               -model victor "/>
 
         <!-- start the ROS controllers, only used in gazebo. This merges gripper and arm joint states -->
@@ -58,7 +58,7 @@
             <arg name="robot_namespace" value="victor"/>
             <arg name="controllers_to_start"
                  value="
-                 both_arms_trajectory_controller
+                 both_arms_effort_trajectory_controller
                  joint_state_controller
                  "/>
         </include>
