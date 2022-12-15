@@ -2,6 +2,8 @@
     <env name="ROSCONSOLE_CONFIG_FILE"
          value="$(find arm_robots)/config/val_rosconsole.conf"/>
 
+    <arg name="pipeline" default="ompl"/>
+
     <arg name="sim" default="false"/>
     <arg name="gui" default="true"/>
     <arg name="update_description" default="true"/>
@@ -31,7 +33,7 @@
 
         <!-- Spawn the robot in gazebo -->
         <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
-              args="-urdf -model hdt_michigan -param robot_description"/>
+              args="-urdf -model hdt_michigan -param hdt_michigan/robot_description"/>
 
         <!-- start the ROS controllers, only used in gazebo. This merges gripper and arm joint states -->
         <include file="$(find hdt_michigan_control)/launch/hdt_michigan_control_gazebo.launch">
@@ -44,6 +46,7 @@
             <arg name="with_husky" value="false"/>
             <arg name="allow_trajectory_execution" value="true"/>
             <arg name="moveit_controller_manager" value="gazebo"/>
+            <arg name="pipeline" value="$(arg pipeline)"/>
         </include>
     </group>
     <group unless="$(arg sim)">
