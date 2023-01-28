@@ -48,6 +48,7 @@ class CartesianImpedanceController:
         self.target_pose = None
         # for users to read after reaching goal
         self.reached_joint_limit = False
+        self.reached_force_threshold = False
         self.timed_out = False
         # joint limits, store as radians
         self.joint_lim_low = np.array(joint_lim_low)
@@ -110,7 +111,7 @@ class CartesianImpedanceController:
     def current_pose_in_frame(self, arm, reference_frame=None):
         # clear potentially stale messages
         self.motion_status_listeners[arm].data = None
-        current_pose = self.motion_status_listeners[arm].get(True).measured_cartesian_pose
+        current_pose = self.motion_status_listeners[arm].get().measured_cartesian_pose
 
         if current_pose is None:
             return None
@@ -181,6 +182,7 @@ class CartesianImpedanceController:
         self._start_violation = self.joint_boundary_violation_amount()
         self._goal_start_time = rospy.get_time()
         self.timed_out = False
+        self.reached_force_threshold = False
         self.reached_joint_limit = False
         rospy.logdebug("Target\n{}".format(str(self.target_pose.pose).replace('\n', ' ')))
 
@@ -193,7 +195,7 @@ class CartesianImpedanceController:
         high_violation = high[high > 0].sum()
         return low_violation + high_violation
 
-    def step(self, step_size=0.005):
+    def step(self, step_size=0.005, stop_on_force_threshold=None):
         """Take a non-blocking step and return whether false if we timed out; otherwise true"""
         if self.target_pose is None:
             return True
@@ -249,6 +251,19 @@ class CartesianImpedanceController:
             self.timed_out = True
             self.abort_goal()
             return False
+
+        # abort if there is a set wrench threshold and we reached it
+        if stop_on_force_threshold is not None:
+            status = self.motion_status_listeners[self.active_arm].get()
+            w = status.estimated_external_wrench
+            f = np.array([w.x, w.y, w.z])
+            f_mag = np.linalg.norm(f)
+            if f_mag > stop_on_force_threshold:
+                rospy.loginfo("Goal aborted due to exceeding force threshold (%f) with measured %f",
+                              stop_on_force_threshold, f_mag)
+                self.reached_force_threshold = True
+                self.abort_goal()
+                return False
 
         self.command_cartesian_pose(self._intermediate_target)
         return True
