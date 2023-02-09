@@ -22,6 +22,20 @@ def pose_distance(a: Pose, b: Pose, rot_weight=0):
     return pos_distance + rot_distance
 
 
+class ControllerStatus:
+    # for users to read after reaching goal
+    def __init__(self):
+        self.reached_joint_limit = False
+        self.reached_force_threshold = False
+        self.callback_stopped = False
+        self.timed_out = False
+
+    def reset(self):
+        self.reached_joint_limit = False
+        self.reached_force_threshold = False
+        self.callback_stopped = False
+        self.timed_out = False
+
 class CartesianImpedanceController:
     def __init__(self, tf_buffer, motion_status_listeners, motion_command_publisher, joint_lim_low, joint_lim_high,
                  world_frame_name, sensor_frame_names=None,
@@ -47,9 +61,7 @@ class CartesianImpedanceController:
             self.pose_distance = pose_distance
         self.target_pose = None
         # for users to read after reaching goal
-        self.reached_joint_limit = False
-        self.reached_force_threshold = False
-        self.timed_out = False
+        self.status = ControllerStatus()
         # joint limits, store as radians
         self.joint_lim_low = np.array(joint_lim_low)
         self.joint_lim_high = np.array(joint_lim_high)
@@ -181,9 +193,7 @@ class CartesianImpedanceController:
         self._init_goal_dist = self.pose_distance(current_pose.pose, self.target_pose.pose)
         self._start_violation = self.joint_boundary_violation_amount()
         self._goal_start_time = rospy.get_time()
-        self.timed_out = False
-        self.reached_force_threshold = False
-        self.reached_joint_limit = False
+        self.status.reset()
         rospy.logdebug("Target\n{}".format(str(self.target_pose.pose).replace('\n', ' ')))
 
     def joint_boundary_violation_amount(self):
@@ -195,7 +205,7 @@ class CartesianImpedanceController:
         high_violation = high[high > 0].sum()
         return low_violation + high_violation
 
-    def step(self, step_size=0.005, stop_on_force_threshold=None):
+    def step(self, step_size=0.005, stop_on_force_threshold=None, stop_callback=None):
         """Take a non-blocking step and return whether false if we timed out; otherwise true"""
         if self.target_pose is None:
             return True
@@ -240,7 +250,7 @@ class CartesianImpedanceController:
                 self._this_target_start_time = rospy.get_time()
                 # don't check joint limits while moving out of joint boundary (otherwise we'll get stuck here)
                 self._check_joint_limits = False
-                self.reached_joint_limit = True
+                self.status.reached_joint_limit = True
 
         # abort if we take too long
         if (now - self._this_target_start_time) > self._timeout_per_m * step_size or \
@@ -248,7 +258,7 @@ class CartesianImpedanceController:
             rospy.loginfo("Goal aborted due to timeout: \ngoal    {} \ncurrent {}\ndist {}".format(
                 str(self._intermediate_target.pose.position).replace('\n', ' '),
                 str(cp.pose.position).replace('\n', ' '), dist_to_goal))
-            self.timed_out = True
+            self.status.timed_out = True
             self.abort_goal()
             return False
 
@@ -261,7 +271,14 @@ class CartesianImpedanceController:
             if f_mag > stop_on_force_threshold:
                 rospy.loginfo("Goal aborted due to exceeding force threshold (%f) with measured %f",
                               stop_on_force_threshold, f_mag)
-                self.reached_force_threshold = True
+                self.status.reached_force_threshold = True
+                self.abort_goal()
+                return False
+        if stop_callback is not None:
+            to_stop = stop_callback()
+            if to_stop:
+                rospy.loginfo("Goal aborted due to stop callback activating")
+                self.status.callback_stopped = True
                 self.abort_goal()
                 return False
 
