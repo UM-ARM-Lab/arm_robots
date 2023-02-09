@@ -129,7 +129,7 @@ class BaseRobot:
                                                       lower, upper, world_frame_name, **kwargs)
 
     def move_delta_cartesian_impedance(self, arm, dx=0, dy=0, dz=0, target_z=None, target_orientation=None,
-                                       step_size=0.01, stop_on_force_threshold=None, blocking=True, **kwargs):
+                                       step_size=0.01, stop_on_force_threshold=None, stop_callback=None, blocking=True, **kwargs):
         if self.cartesian is None:
             return False
 
@@ -143,5 +143,5 @@ class BaseRobot:
         succeeded = True
         # TODO add a rospy.Rate and sleep here?
         while self.cartesian.target_pose is not None:
-            succeeded = self.cartesian.step(step_size, stop_on_force_threshold=stop_on_force_threshold)
+            succeeded = self.cartesian.step(step_size, stop_on_force_threshold=stop_on_force_threshold, stop_callback=stop_callback)
         return succeeded
