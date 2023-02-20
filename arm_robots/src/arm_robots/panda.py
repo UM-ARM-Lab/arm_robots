@@ -26,19 +26,22 @@ POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME = 'position_joint_trajectory_controlle
 
 class Panda(MoveitEnabledRobot):
 
-    def __init__(self, robot_namespace: str = 'combined_panda', force_trigger: float = -0.0, **kwargs):
+    def __init__(self, robot_namespace: str = 'combined_panda', force_trigger: float = -0.0,
+                 arms_controller_name='position_joint_trajectory_controller', panda_name: str = "panda_1", **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
                                     robot_description=ns_join(robot_namespace, 'robot_description'),
-                                    arms_controller_name='position_joint_trajectory_controller',
+                                    arms_controller_name=arms_controller_name,
                                     force_trigger=force_trigger,
                                     **kwargs)
+        self.panda_name = panda_name
 
         # Panda HW Services - for setting internal controller parameters.
-        self.joint_impedance_srv = rospy.ServiceProxy(self.ns('franka_control/set_joint_impedance'), SetJointImpedance)
-        self.cartesian_impedance_srv = rospy.ServiceProxy(self.ns('franka_control/set_cartesian_impedance'),
+        self.joint_impedance_srv = rospy.ServiceProxy(self.ns('%s/set_joint_impedance' % self.panda_name),
+                                                      SetJointImpedance)
+        self.cartesian_impedance_srv = rospy.ServiceProxy(self.ns('%s/set_cartesian_impedance' % self.panda_name),
                                                           SetCartesianImpedance)
-        self.set_load_srv = rospy.ServiceProxy(self.ns('franka_control/set_load'), SetLoad)
+        self.set_load_srv = rospy.ServiceProxy(self.ns('%s/set_load' % self.panda_name), SetLoad)
 
         # Controller Manager Services - for loading/unloading/switching controllers.
         self.load_controller_srv = rospy.ServiceProxy(self.ns('controller_manager/load_controller'), LoadController)
@@ -56,7 +59,7 @@ class Panda(MoveitEnabledRobot):
         self.franka_state_listener = Listener(self.ns('franka_state_controller/franka_states'), FrankaState)
 
         # Error recovery publisher.
-        self.error_recovery_pub = rospy.Publisher(self.ns('franka_control/error_recovery/goal'),
+        self.error_recovery_pub = rospy.Publisher(self.ns('%s/error_recovery/goal' % self.panda_name),
                                                   ErrorRecoveryActionGoal, queue_size=10)
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
