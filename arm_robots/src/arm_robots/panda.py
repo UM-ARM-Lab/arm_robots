@@ -3,15 +3,19 @@ import pdb
 
 import numpy as np
 
+import actionlib
 import rospy
 from arc_utilities.listener import Listener
 from arm_robots.robot_utils import PlanningResult, PlanningAndExecutionResult
+from franka_gripper.msg import GraspAction, MoveAction, HomingAction, StopAction, GraspGoal, MoveGoal, HomingGoal, \
+    StopGoal
 from franka_msgs.msg import FrankaState, ErrorRecoveryActionGoal
 from geometry_msgs.msg import PoseStamped, Point
 from rosgraph.names import ns_join
 from typing import List, Tuple, Union, Optional, Callable
 
 from arm_robots.robot import MoveitEnabledRobot, RobotPlanningError
+from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 from franka_msgs.srv import SetJointImpedance, SetLoad, SetCartesianImpedance
 from controller_manager_msgs.srv import LoadController, SwitchController
@@ -27,7 +31,8 @@ POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME = 'position_joint_trajectory_controlle
 class Panda(MoveitEnabledRobot):
 
     def __init__(self, robot_namespace: str = 'combined_panda', force_trigger: float = -0.0,
-                 arms_controller_name='position_joint_trajectory_controller', panda_name: str = "panda_1", **kwargs):
+                 arms_controller_name='position_joint_trajectory_controller', panda_name: str = "panda_1",
+                 has_gripper: bool = False, **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
                                     robot_description=ns_join(robot_namespace, 'robot_description'),
@@ -35,6 +40,7 @@ class Panda(MoveitEnabledRobot):
                                     force_trigger=force_trigger,
                                     **kwargs)
         self.panda_name = panda_name
+        self.has_gripper = has_gripper
 
         # Panda HW Services - for setting internal controller parameters.
         self.joint_impedance_srv = rospy.ServiceProxy(self.ns('%s/set_joint_impedance' % self.panda_name),
@@ -61,6 +67,11 @@ class Panda(MoveitEnabledRobot):
         # Error recovery publisher.
         self.error_recovery_pub = rospy.Publisher(self.ns('%s/error_recovery/goal' % self.panda_name),
                                                   ErrorRecoveryActionGoal, queue_size=10)
+
+        if self.has_gripper:
+            self.gripper = PandaGripper(self.robot_namespace, self.panda_name)
+        else:
+            self.gripper = None
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         # TODO: Fill in to send set point to controller.
@@ -166,7 +177,7 @@ class Panda(MoveitEnabledRobot):
     def get_ik(self, group_name: str, pose: PoseStamped, frame: str = "panda_link8"):
         ik_request = PositionIKRequest()
         ik_request.group_name = group_name
-        ik_request.robot_state = self.get_state(group_name="panda_arm")
+        ik_request.robot_state = self.get_state(group_name=group_name)
         ik_request.ik_link_name = frame
         ik_request.pose_stamped = pose
         ik_request.timeout.secs = 10
@@ -244,3 +255,75 @@ class Panda(MoveitEnabledRobot):
         for _ in range(100):
             self.error_recovery_pub.publish(ErrorRecoveryActionGoal())
             rospy.sleep(0.01)
+
+
+class PandaGripper:
+    def __init__(self, robot_ns, arm_id):
+        self.gripper_ns = ns_join(robot_ns, f'{arm_id}/franka_gripper')
+        self.grasp_client = actionlib.SimpleActionClient(ns_join(self.gripper_ns, 'grasp'), GraspAction)
+        self.move_client = actionlib.SimpleActionClient(ns_join(self.gripper_ns, 'move'), MoveAction)
+        self.homing_client = actionlib.SimpleActionClient(ns_join(self.gripper_ns, 'homing'), HomingAction)
+        self.stop_client = actionlib.SimpleActionClient(ns_join(self.gripper_ns, 'stop'), StopAction)
+        self.grasp_client.wait_for_server()
+        self.move_client.wait_for_server()
+        self.homing_client.wait_for_server()
+        self.stop_client.wait_for_server()
+        self.gripper_width = None
+        rospy.Subscriber(ns_join(self.gripper_ns, 'joint_states'), JointState, self.gripper_cb)
+        self.MIN_FORCE = 0.05
+        self.MAX_FORCE = 50  # documentation says up to 70N is possible as continuous force
+        self.MIN_WIDTH = 0.0
+        self.MAX_WIDTH = 0.08
+        self.DEFAULT_EPSILON = 0.005
+        self.DEFAULT_SPEED = 0.02
+        self.DEFAULT_FORCE = 10
+
+    def gripper_cb(self, data):
+        self.gripper_width = data.position[0] + data.position[1]
+
+    def grasp(self, width, speed=None, epsilon_outer=None, epsilon_inner=None, force=None, wait_for_result=False):
+        if width > self.gripper_width:
+            self.move(self.MAX_WIDTH, wait_for_result=True)
+        goal = GraspGoal()
+        goal.width = width
+        goal.epsilon.outer = self.DEFAULT_EPSILON if not epsilon_outer else epsilon_outer
+        goal.epsilon.inner = self.DEFAULT_EPSILON if not epsilon_inner else epsilon_inner
+        goal.speed = self.DEFAULT_SPEED if not speed else speed
+        goal.force = self.DEFAULT_FORCE if not force else force
+        self.grasp_client.send_goal(goal)
+        if wait_for_result:
+            result = self.grasp_client.wait_for_result(rospy.Duration(10))
+            return result
+        return True
+
+    def move(self, width, speed=None, wait_for_result=False):
+        goal = MoveGoal()
+        goal.width = width
+        goal.speed = self.DEFAULT_SPEED if not speed else speed
+        self.move_client.send_goal(goal)
+        if wait_for_result:
+            result = self.move_client.wait_for_result(rospy.Duration(10))
+            return result
+        return True
+
+    def homing(self, wait_for_result=True):
+        goal = HomingGoal()
+        self.homing_client.send_goal(goal)
+        if wait_for_result:
+            result = self.homing_client.wait_for_result(rospy.Duration(10))
+            return result
+        return True
+
+    def stop(self, wait_for_result=False):
+        goal = StopGoal()
+        self.stop_client.send_goal(goal)
+        if wait_for_result:
+            result = self.stop_client.wait_for_result(rospy.Duration(10))
+            return result
+        return True
+
+    def open(self, wait_for_result=False):
+        self.move(self.MAX_WIDTH, wait_for_result=wait_for_result)
+
+    def close(self, wait_for_result=False):
+        self.move(self.MIN_WIDTH, wait_for_result=wait_for_result)
