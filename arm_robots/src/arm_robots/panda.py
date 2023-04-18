@@ -43,16 +43,16 @@ class Panda(MoveitEnabledRobot):
         self.has_gripper = has_gripper
 
         # Panda HW Services - for setting internal controller parameters.
-        self.joint_impedance_srv = rospy.ServiceProxy(self.ns('%s/set_joint_impedance' % self.panda_name),
+        self.joint_impedance_srv = rospy.ServiceProxy(self.ns('%s/%s/set_joint_impedance' % (self.robot_namespace, self.panda_name)),
                                                       SetJointImpedance)
-        self.cartesian_impedance_srv = rospy.ServiceProxy(self.ns('%s/set_cartesian_impedance' % self.panda_name),
+        self.cartesian_impedance_srv = rospy.ServiceProxy(self.ns('%s/%s/set_cartesian_impedance' % (self.robot_namespace, self.panda_name)),
                                                           SetCartesianImpedance)
         self.set_load_srv = rospy.ServiceProxy(self.ns('%s/set_load' % self.panda_name), SetLoad)
 
+
         # Controller Manager Services - for loading/unloading/switching controllers.
-        self.load_controller_srv = rospy.ServiceProxy(self.ns('controller_manager/load_controller'), LoadController)
-        self.switch_controller_srv = rospy.ServiceProxy(self.ns('controller_manager/switch_controller'),
-                                                        SwitchController)
+        self.load_controller_srv = rospy.ServiceProxy(self.ns('%s/controller_manager/load_controller' % self.robot_namespace), LoadController)
+        self.switch_controller_srv = rospy.ServiceProxy(self.ns('%s/controller_manager/switch_controller' % self.robot_namespace), SwitchController)
 
         # IK Service.
         self.ik_srv = rospy.ServiceProxy(self.ns('compute_ik'), GetPositionIK)
@@ -62,12 +62,12 @@ class Panda(MoveitEnabledRobot):
         self.active_controller_name = POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME
 
         # Franka state listener.
-        self.franka_state_listener = Listener(self.ns('franka_state_controller/franka_states'), FrankaState)
+        self.franka_state_listener = Listener(self.ns('%s/%s_state_controller/franka_states' % (self.robot_namespace, self.panda_name)), FrankaState)
 
         # Error recovery publisher.
-        self.error_recovery_pub = rospy.Publisher(self.ns('%s/error_recovery/goal' % self.panda_name),
+        self.error_recovery_pub = rospy.Publisher(self.ns('error_recovery/goal'),
                                                   ErrorRecoveryActionGoal, queue_size=10)
-
+        
         if self.has_gripper:
             self.gripper = PandaGripper(self.robot_namespace, self.panda_name)
         else:
@@ -191,8 +191,16 @@ class Panda(MoveitEnabledRobot):
         if ik_response.error_code.val != MoveItErrorCodes.SUCCESS:
             rospy.loginfo("IK call failed with code: %d" % ik_response.error_code.val)
             return None
+        print("ik solution", ik_response.solution.joint_state.position)
 
-        return ik_response.solution.joint_state.position[:7]
+        if group_name == 'panda_1':
+            return ik_response.solution.joint_state.position[:7]
+        elif group_name == 'panda_2':
+            return ik_response.solution.joint_state.position[9:16]
+        else:
+            raise Exception("Wrong group name for get_ik")
+
+
 
     def plan_to_position_cartesian(self,
                                    group_name: str,
@@ -260,6 +268,7 @@ class Panda(MoveitEnabledRobot):
 class PandaGripper:
     def __init__(self, robot_ns, arm_id):
         self.gripper_ns = ns_join(robot_ns, f'{arm_id}/franka_gripper')
+        # print(ns_join(self.gripper_ns, 'grasp'))
         self.grasp_client = actionlib.SimpleActionClient(ns_join(self.gripper_ns, 'grasp'), GraspAction)
         self.move_client = actionlib.SimpleActionClient(ns_join(self.gripper_ns, 'move'), MoveAction)
         self.homing_client = actionlib.SimpleActionClient(ns_join(self.gripper_ns, 'homing'), HomingAction)
