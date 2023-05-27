@@ -24,19 +24,17 @@ from moveit_msgs.msg import PositionIKRequest, RobotState, MoveItErrorCodes, Rob
 from arc_utilities.transformation_helper import BuildMatrix, ExtractFromMatrix
 from tf.transformations import quaternion_from_euler
 
-
-
-
 DEFAULT_JOINT_IMPEDANCE = [3000.0, 3000.0, 3000.0, 2500.0, 2500.0, 2000.0, 2000.0]
 SOFT_JOINT_IMPEDANCE = [100.0, 100.0, 100.0, 100.0, 50.0, 50.0, 10.0]
 DEFAULT_CARTESIAN_IMPEDANCE = [3000.0, 3000.0, 3000.0, 300.0, 300.0, 300.0]
-POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME = 'position_joint_trajectory_controller'
 
 
 class Panda(MoveitEnabledRobot):
 
     def __init__(self, robot_namespace: str = 'combined_panda', force_trigger: float = -0.0,
-                 arms_controller_name='position_joint_trajectory_controller', panda_name: str = "panda_1",
+                 arms_controller_name='position_joint_trajectory_controller',
+                 controller_name='position_joint_trajectory_controller',
+                 panda_name: str = "panda_1",
                  has_gripper: bool = False, **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
@@ -48,31 +46,34 @@ class Panda(MoveitEnabledRobot):
         self.has_gripper = has_gripper
 
         # Panda HW Services - for setting internal controller parameters.
-        self.joint_impedance_srv = rospy.ServiceProxy(self.ns('%s/%s/set_joint_impedance' % (self.robot_namespace, self.panda_name)),
-                                                      SetJointImpedance)
-        self.cartesian_impedance_srv = rospy.ServiceProxy(self.ns('%s/%s/set_cartesian_impedance' % (self.robot_namespace, self.panda_name)),
-                                                          SetCartesianImpedance)
+        self.joint_impedance_srv = rospy.ServiceProxy(
+            self.ns('%s/set_joint_impedance' % self.panda_name),
+            SetJointImpedance)
+        self.cartesian_impedance_srv = rospy.ServiceProxy(
+            self.ns('%s/set_cartesian_impedance' % self.panda_name),
+            SetCartesianImpedance)
         self.set_load_srv = rospy.ServiceProxy(self.ns('%s/set_load' % self.panda_name), SetLoad)
 
-
         # Controller Manager Services - for loading/unloading/switching controllers.
-        self.load_controller_srv = rospy.ServiceProxy(self.ns('%s/controller_manager/load_controller' % self.robot_namespace), LoadController)
-        self.switch_controller_srv = rospy.ServiceProxy(self.ns('%s/controller_manager/switch_controller' % self.robot_namespace), SwitchController)
+        self.load_controller_srv = rospy.ServiceProxy(self.ns('controller_manager/load_controller'), LoadController)
+        self.switch_controller_srv = rospy.ServiceProxy(self.ns('controller_manager/switch_controller'),
+                                                        SwitchController)
 
         # IK Service.
         self.ik_srv = rospy.ServiceProxy(self.ns('compute_ik'), GetPositionIK)
         self.fk_srv = rospy.ServiceProxy(self.ns('compute_fk'), GetPositionFK)
 
         # Default position joint trajectory controller.
-        self.active_controller_name = POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME
+        self.active_controller_name = controller_name
 
         # Franka state listener.
-        self.franka_state_listener = Listener(self.ns('%s/%s_state_controller/franka_states' % (self.robot_namespace, self.panda_name)), FrankaState)
+        self.franka_state_listener = Listener(
+            self.ns('%s/%s_state_controller/franka_states' % (self.robot_namespace, self.panda_name)), FrankaState)
 
         # Error recovery publisher.
         self.error_recovery_pub = rospy.Publisher(self.ns('error_recovery/goal'),
                                                   ErrorRecoveryActionGoal, queue_size=10)
-        
+
         if self.has_gripper:
             self.gripper = PandaGripper(self.robot_namespace, self.panda_name)
         else:
@@ -122,8 +123,7 @@ class Panda(MoveitEnabledRobot):
             raise Exception("Failed to set impedance: %s" % set_joint_imped_resp.error)
 
         # Switch to joint position controller.
-        self.switch_controller(start_controllers=[POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME])
-        self.active_controller_name = POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME
+        self.switch_controller(start_controllers=[self.active_controller_name])
 
         return set_joint_imped_resp.success
 
@@ -142,8 +142,7 @@ class Panda(MoveitEnabledRobot):
             raise Exception("Failed to set impedance: %s" % set_cartesian_imp_res.error)
 
         # Switch to joint position controller.
-        self.switch_controller(start_controllers=[POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME])
-        self.active_controller_name = POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME
+        self.switch_controller(start_controllers=[self.active_controller_name])
 
         return set_cartesian_imp_res.success
 
@@ -174,8 +173,7 @@ class Panda(MoveitEnabledRobot):
             raise Exception("Failed to set load info: %s" % e)
 
         # Switch to joint position controller.
-        self.switch_controller(start_controllers=[POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME])
-        self.active_controller_name = POSITION_JOINT_TRAJECTORY_CONTROLLER_NAME
+        self.switch_controller(start_controllers=[self.active_controller_name])
 
         return set_load_resp.success
 
@@ -205,19 +203,19 @@ class Panda(MoveitEnabledRobot):
             raise Exception("Wrong group name for get_ik")
 
     def move_to_world_pose(self, tf2_wrapper, pose_from_base) -> None:
+        # TODO: Clean this up.
         T_b2t = tf2_wrapper.get_transform(parent="base", child=f"{self.panda_name}_link0")
-        
+
         if len(pose_from_base) == 6:
             q = quaternion_from_euler(pose_from_base[3], pose_from_base[4], pose_from_base[5])
             pose_from_base = pose_from_base[:3] + [q[0], q[1], q[2], q[3]]
 
-        pose_from_base = np.linalg.inv(T_b2t) @ BuildMatrix(pose_from_base[:3], 
+        pose_from_base = np.linalg.inv(T_b2t) @ BuildMatrix(pose_from_base[:3],
                                                             pose_from_base[3:7])
 
         pose_from_base = ExtractFromMatrix(pose_from_base)
 
-
-        frame_id=f"{self.panda_name}_link0"
+        frame_id = f"{self.panda_name}_link0"
         p = PoseStamped()
         p.header.stamp = rospy.Time.now()
         p.header.frame_id = frame_id
@@ -231,12 +229,10 @@ class Panda(MoveitEnabledRobot):
         p.pose.orientation.z = pose_from_base[1][2]
         p.pose.orientation.w = pose_from_base[1][3]
 
-        goal_joint_state = self.get_ik(self.panda_name, p, 
-                                                frame = f"{self.panda_name}_hand_tcp")
-
+        goal_joint_state = self.get_ik(self.panda_name, p,
+                                       frame=f"{self.panda_name}_hand_tcp")
 
         plan = self.plan_to_joint_config(self.panda_name, goal_joint_state)
-
 
     def plan_to_position_cartesian(self,
                                    group_name: str,
