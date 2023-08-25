@@ -11,6 +11,7 @@
     <arg name="moveit_config_path" default="$(find med_moveit_bubbles_config)" if="$(eval arg('finger') == 'bubbles')"/>
     <arg name="moveit_config_path" default="$(find med_moveit_bubbles_flipped_config)" if="$(eval arg('finger') == 'bubbles_flipped')"/>
     <arg name="moveit_config_path" default="$(find med_moveit_gelslim_config)" if="$(eval arg('finger') == 'gelslim')"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_gamma_on_hand_bubble_config)" if="$(eval arg('finger') == 'gamma_on_hand')"/>
 
     <!-- Collision geometry -->
     <node pkg="med_hardware_interface" type="med_collision_geometry.py" name="med_collision_geometry" if="$(eval arg('med_scene') == 'thanos')"/>
