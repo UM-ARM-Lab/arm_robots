@@ -22,9 +22,9 @@
     <plugin name="stepping_plugin" filename="libstepping_plugin.so"/>
 
     <include>
-      <name>table</name>
-      <pose>0.770124 0 0.30 0 -0 0</pose>
-      <uri>model://victor_table</uri>
+      <name>table_small</name>
+      <pose>0.770124 0 0.40 0 -0 0</pose>
+      <uri>model://victor_table_small</uri>
     </include>
 
     <include>

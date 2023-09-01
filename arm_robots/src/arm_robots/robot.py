@@ -298,7 +298,13 @@ class MoveitEnabledRobot(BaseRobot):
         Returns:
             The result message of following the trajectory
         """
+
+        print("MARCO: should fix this in moveit planning pipeline")
         move_group = self.get_move_group_commander(group_name)
+        if group_name == "both_arms":
+            move_group.set_planner_id("mixed_strategy")
+        elif group_name == "whole_body":
+            move_group.set_planner_id("mixed_strategy_wholebody")
 
         if start_state is not None:
             move_group.set_start_state(start_state)

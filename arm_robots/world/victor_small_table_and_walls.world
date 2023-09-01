@@ -21,22 +21,31 @@
 
     <plugin name="stepping_plugin" filename="libstepping_plugin.so"/>
 
+    <model name="moveit_plugin_model">
+      <plugin name="gazebo_ros_moveit_planning_scene" filename="libgazebo_ros_moveit_planning_scene.so">
+        <robotName>victor</robotName>
+        <robotNamespace>victor</robotNamespace>
+        <!--  This must be the same as the root frame of the robot you're using -->
+        <frameId>victor_root</frameId>
+      </plugin>
+    </model>
+
     <include>
-      <name>table</name>
-      <pose>0.770124 0 0.30 0 -0 0</pose>
-      <uri>model://victor_table</uri>
+      <name>table_small</name>
+      <pose>0.770124 0 0.40 0 -0 0</pose>
+      <uri>model://victor_table_small</uri>
     </include>
 
     <include>
       <name>fake_wall1</name>
       <uri>model://fake_wall</uri>
-      <pose>0 -1.35 0.9 0 0 0</pose>
+      <pose>0 -1.2 0.9 0 0 0</pose>
     </include>
 
     <include>
       <name>fake_wall2</name>
       <uri>model://fake_wall</uri>
-      <pose>0 1.35 0.9 0 0 0</pose>
+      <pose>0 1.2 0.9 0 0 0</pose>
     </include>
 
     <include>

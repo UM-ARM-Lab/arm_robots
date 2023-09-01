@@ -29,7 +29,7 @@ from arm_robots.config.victor_config import default_robotiq_command, \
 from arm_robots.robot import MoveitEnabledRobot
 from arm_robots.robot_utils import make_joint_tolerance
 from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list, \
-    default_gripper_command, gripper_status_to_list, is_gripper_closed
+    default_gripper_command, gripper_status_to_list, is_gripper_closed, Stiffness
 
 
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
@@ -343,11 +343,17 @@ class Victor(BaseVictor, MoveitEnabledRobot):
         super().set_control_mode(control_mode, vel, **kwargs)
         self._max_velocity_scale_factor = vel
 
-    def move_to_impedance_switch(self, actually_switch: bool = True, new_relative_velocity=0.1):
+    def move_to_impedance_switch(self, actually_switch: bool = True, new_relative_velocity=0.1, stiffness=Stiffness.MEDIUM):
         self.plan_to_joint_config("both_arms", "impedance_switch")
         if actually_switch:
-            return self.set_control_mode(ControlMode.JOINT_IMPEDANCE, vel=new_relative_velocity)
+            print("ssitching to impedance")
+
+            return self.set_control_mode(ControlMode.JOINT_IMPEDANCE, vel=new_relative_velocity, stiffness=stiffness)
         return True
+
+    def impedance_switch(self, new_relative_velocity=0.1, stiffness=Stiffness.MEDIUM):
+        print("switching to impedance:", stiffness)
+        return self.set_control_mode(ControlMode.JOINT_IMPEDANCE, vel=new_relative_velocity, stiffness=stiffness)
 
     def move_to_config(self, joint_group, configs):
         _, res, _ = self.plan_to_joint_config(joint_group, configs)

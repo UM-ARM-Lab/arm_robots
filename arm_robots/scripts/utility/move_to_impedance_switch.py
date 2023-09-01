@@ -9,6 +9,8 @@ from colorama import Fore
 
 import rospy
 from arm_robots.victor import Victor
+from victor_hardware_interface.victor_utils import Stiffness
+
 
 if __name__ == "__main__":
     colorama.init(autoreset=True)
@@ -23,10 +25,13 @@ if __name__ == "__main__":
         victor.connect()
 
         actually_switch = rospy.get_param("~actually_switch", False)
+        actually_switch = True
         if actually_switch:
             rospy.loginfo("switching to impedance mode")
+        else:
+            rospy.loginfo("NOT switching to impedance mode because param actually_switch is false")
 
-        victor.move_to_impedance_switch(actually_switch=actually_switch)
+        victor.move_to_impedance_switch(actually_switch=actually_switch, stiffness=Stiffness.MEDIUM)
 
         rospy.loginfo("Done")
     else:

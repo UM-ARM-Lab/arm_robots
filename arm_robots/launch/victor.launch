@@ -9,7 +9,7 @@
     <arg name="gui" default="true"/>
     <arg name="update_description" default="true"/>
     <arg name="verbose" default="false"/>
-    <arg name="gazebo_world" default="victor_table_and_walls"/>
+    <arg name="gazebo_world" default="victor_small_table_and_walls"/>
 
     <group if="$(arg update_description)">
         <!-- uploads robot description and setups up other parameters -->
@@ -44,13 +44,13 @@
               -J victor_left_arm_joint_5 0.0
               -J victor_left_arm_joint_6 0.0
               -J victor_left_arm_joint_7 0.0
-              -J victor_right_arm_joint_1 0.1
-              -J victor_right_arm_joint_2 0.1
-              -J victor_right_arm_joint_3 0.1
-              -J victor_right_arm_joint_4 0.1
-              -J victor_right_arm_joint_5 0.1
-              -J victor_right_arm_joint_6 0.1
-              -J victor_right_arm_joint_7 0.1
+              -J victor_right_arm_joint_1 0.0831553
+              -J victor_right_arm_joint_2 0.5433
+              -J victor_right_arm_joint_3 -0.336653
+              -J victor_right_arm_joint_4 -0.449101
+              -J victor_right_arm_joint_5 -1.31251
+              -J victor_right_arm_joint_6 1.49521
+              -J victor_right_arm_joint_7 -0.7
               -model victor "/>
 
         <!-- start the ROS controllers, only used in gazebo. This merges gripper and arm joint states -->
@@ -58,7 +58,7 @@
             <arg name="robot_namespace" value="victor"/>
             <arg name="controllers_to_start"
                  value="
-                 both_arms_effort_trajectory_controller
+                 both_arms_trajectory_controller
                  joint_state_controller
                  "/>
         </include>
@@ -101,6 +101,7 @@
         <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
             <arg name="allow_trajectory_execution" value="true"/>
             <arg name="moveit_controller_manager" value="real"/>
+            <arg name="pipeline" value="$(arg pipeline)"/>
         </include>
     </group>
 </launch>
