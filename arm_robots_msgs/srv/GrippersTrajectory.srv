@@ -1,5 +1,0 @@
-arm_robots_msgs/Points[] grippers
-string group_name
-string[] tool_names
----
-bool merged_trajectory_empty

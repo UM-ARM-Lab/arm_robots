@@ -7,13 +7,15 @@ catkin_python_setup()
 
 add_message_files(
         FILES
+        GripperConstraint.msg
         Points.msg
         PlanningSceneNoState.msg
 )
 
 add_service_files(
         FILES
-        GrippersTrajectory.srv
+        SetCDCPDState.srv
+        SetGripperConstraints.srv
 )
 
 generate_messages(

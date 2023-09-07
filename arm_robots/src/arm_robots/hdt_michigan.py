@@ -229,7 +229,7 @@ class Val(BaseVal, MoveitEnabledRobot):
 def estimated_torques(joint_state: JointState, robot: Val):
     group_name1 = "left_side"
     group_name2 = "right_side"
-    n_links = 14
+    n_links = 16
     wrenches = [Wrench()] * n_links
 
     joint_names1 = robot.robot_commander.get_active_joint_names(group_name1)
