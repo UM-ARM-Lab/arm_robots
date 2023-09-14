@@ -4,14 +4,23 @@
     <arg name="update_description" default="true"/>
     <arg name="verbose" default="false"/>
     <arg name="finger" default="wsg50_fmf"/>
+    <arg name="gamma_on_hand" default="false"/>
     <arg name="med_scene" default="thanos"/>
 
     <!-- Finger selection -->
-    <arg name="moveit_config_path" default="$(find med_moveit_config)" if="$(eval arg('finger') == 'wsg50_fmf')"/>
-    <arg name="moveit_config_path" default="$(find med_moveit_bubbles_config)" if="$(eval arg('finger') == 'bubbles')"/>
-    <arg name="moveit_config_path" default="$(find med_moveit_bubbles_flipped_config)" if="$(eval arg('finger') == 'bubbles_flipped')"/>
-    <arg name="moveit_config_path" default="$(find med_moveit_gelslim_config)" if="$(eval arg('finger') == 'gelslim')"/>
-    <arg name="moveit_config_path" default="$(find med_moveit_gamma_on_hand_bubble_config)" if="$(eval arg('finger') == 'gamma_on_hand')"/>
+    if="$(eval arg('gamma_on_hand'))"
+
+    <!--  OPTIONS WITHOUT GAMMA ON HAND -->
+    <arg name="moveit_config_path" default="$(find med_moveit_config)" if="$(eval arg('finger') == 'wsg50_fmf' and not arg('gamma_on_hand'))"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_bubbles_config)" if="$(eval arg('finger') == 'bubbles' and not arg('gamma_on_hand'))"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_bubbles_flipped_config)" if="$(eval arg('finger') == 'bubbles_flipped' and not arg('gamma_on_hand'))"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_gelslim_config)" if="$(eval arg('finger') == 'gelslim' and not arg('gamma_on_hand'))"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_no_fingers_config)" if="$(eval arg('finger') == 'none' and not arg('gamma_on_hand'))"/>
+    <!--  OPTIONS WITH GAMMA ON HAND -->
+    <arg name="moveit_config_path" default="$(find med_moveit_gamma_on_hand_bubble_config)" if="$(eval arg('finger') == 'bubbles' and arg('gamma_on_hand'))"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_gamma_on_hand_no_fingers_config)" if="$(eval arg('finger') == 'none' and arg('gamma_on_hand'))"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_gamma_on_hand_gelslim_config)" if="$(eval arg('finger') == 'gelslim' and arg('gamma_on_hand'))"/>
+
 
     <!-- Collision geometry -->
     <node pkg="med_hardware_interface" type="med_collision_geometry.py" name="med_collision_geometry" if="$(eval arg('med_scene') == 'thanos')"/>
