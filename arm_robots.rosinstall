@@ -19,3 +19,9 @@
 - git:
     local-name: bio_ik
     uri: git@github.com:UM-ARM-Lab/bio_ik.git
+- git:
+    local-name: sdf_tools
+    uri: git@github.com:UM-ARM-Lab/sdf_tools.git
+- git:
+    local-name: arm_gazebo
+    uri: git@github.com:UM-ARM-Lab/arm_gazebo.git
