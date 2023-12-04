@@ -1,8 +1,8 @@
 #! /usr/bin/env python
+import pdb
 from typing import List, Union, Tuple, Callable, Optional, Dict
 
 import numpy as np
-import pyjacobian_follower
 from matplotlib import colors
 
 import moveit_commander
@@ -55,17 +55,16 @@ class MoveitEnabledRobot(BaseRobot):
                  block: bool = True,
                  raise_on_failure: bool = False,
                  display_goals: bool = True,
-                 force_trigger: float = 9.0,
-                 jacobian_follower: Optional[pyjacobian_follower.JacobianFollower] = None):
+                 force_trigger: float = 9.0):
         super().__init__(robot_namespace, robot_description)
         self._max_velocity_scale_factor = 0.1
+        self._max_acceleration_scale_factor = 0.1
         self.stored_tool_orientations = None
         self.raise_on_failure = raise_on_failure
         self.execute = execute
         self.block = block
         self.display_goals = display_goals
         self.force_trigger = force_trigger
-        self.jacobian_follower = jacobian_follower
 
         self.arms_controller_name = arms_controller_name
 
@@ -73,16 +72,9 @@ class MoveitEnabledRobot(BaseRobot):
         self.display_goal_position_pub = rospy.Publisher('goal_position', Marker, queue_size=10)
         self.display_robot_state_pubs = {}
         self.display_robot_traj_pubs = {}
+        self.scene = None
 
         self.arms_client = None
-
-        if jacobian_follower is None:
-            self.jacobian_follower = pyjacobian_follower.JacobianFollower(robot_namespace=self.robot_namespace,
-                                                                          robot_description=robot_description,
-                                                                          translation_step_size=0.005,
-                                                                          minimize_rotation=True,
-                                                                          collision_check=True,
-                                                                          visualize=True)
 
         self.feedback_callbacks = []
         self._move_groups = {}
@@ -96,13 +88,13 @@ class MoveitEnabledRobot(BaseRobot):
         """
         super().connect()
 
-        self.jacobian_follower.connect_to_psm()
-
         # TODO: bad api? raii? this class isn't fully usable by the time it's constructor finishes, that's bad.
         self.arms_client = self.setup_joint_trajectory_controller_client(self.arms_controller_name)
         if preload_move_groups:
             for group_name in self.robot_commander.get_group_names():
                 self.get_move_group_commander(group_name)
+
+        self.scene = moveit_commander.PlanningSceneInterface()
 
     def setup_joint_trajectory_controller_client(self, controller_name):
         if controller_name is not None:
@@ -135,6 +127,7 @@ class MoveitEnabledRobot(BaseRobot):
         # faster than the kuka controller's max velocity, otherwise the kuka controllers will error out.
         safety_factor = 0.9
         move_group.set_max_velocity_scaling_factor(self._max_velocity_scale_factor * safety_factor)
+        move_group.set_max_acceleration_scaling_factor(self._max_acceleration_scale_factor * safety_factor)
         return move_group
 
     def plan_to_position(self,
@@ -150,7 +143,8 @@ class MoveitEnabledRobot(BaseRobot):
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to position failed {planning_result.planning_error_code}")
 
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition, group_name)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition,
+                                                             group_name)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def plan_to_position_cartesian(self,
@@ -178,19 +172,22 @@ class MoveitEnabledRobot(BaseRobot):
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Cartesian path is only {fraction * 100}% complete")
 
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition, group_name)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition,
+                                                             group_name)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def plan_to_pose(self, group_name, ee_link_name, target_pose, frame_id: str = 'robot_root',
-                     stop_condition: Optional[Callable] = None):
+                     stop_condition: Optional[Callable] = None, position_tol: float = 0.0005,
+                     orientation_tol: float = 0.005, timeout: float = 5.0):
         self.check_inputs(group_name, ee_link_name)
         move_group = self.get_move_group_commander(group_name)
+        move_group.set_planning_time(timeout)
         move_group.set_end_effector_link(ee_link_name)
         target_pose_stamped = convert_to_pose_msg(target_pose)
         target_pose_stamped.header.frame_id = frame_id
         move_group.set_pose_target(target_pose_stamped)
-        move_group.set_goal_position_tolerance(0.002)
-        move_group.set_goal_orientation_tolerance(0.02)
+        move_group.set_goal_position_tolerance(position_tol)
+        move_group.set_goal_orientation_tolerance(orientation_tol)
 
         if self.display_goals:
             self.display_goal_pose(target_pose_stamped.pose, frame_id, ee_link_name)
@@ -198,8 +195,8 @@ class MoveitEnabledRobot(BaseRobot):
         planning_result = PlanningResult(move_group.plan())
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to pose failed {planning_result.planning_error_code}")
-
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition, group_name)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition,
+                                                             group_name)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def get_link_pose(self, link_name: str):
@@ -236,6 +233,8 @@ class MoveitEnabledRobot(BaseRobot):
             joint_config = {name: val for name, val in zip(move_group.get_active_joints(), joint_config)}
 
         move_group.set_joint_value_target(joint_config)
+        # move_group.set_goal_position_tolerance(0.0005)
+        # move_group.set_goal_orientation_tolerance(0.005)
 
         if self.display_goals:
             robot_state = RobotState(joint_state=JointState(name=list(joint_config.keys()),
@@ -245,7 +244,8 @@ class MoveitEnabledRobot(BaseRobot):
         planning_result = PlanningResult(move_group.plan())
         if self.raise_on_failure and not planning_result.success:
             raise RobotPlanningError(f"Plan to position failed {planning_result.planning_error_code}")
-        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition, group_name)
+        execution_result = self.follow_arms_joint_trajectory(planning_result.plan.joint_trajectory, stop_condition,
+                                                             group_name)
         return PlanningAndExecutionResult(planning_result, execution_result)
 
     def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
@@ -277,6 +277,9 @@ class MoveitEnabledRobot(BaseRobot):
                     feedback_callback(client, goal, feedback)
                 if stop_condition is not None and stop_condition(feedback):
                     client.cancel_all_goals()
+                    info_msg = "Stop condition met! Canceled all goals."
+                    rospy.loginfo(info_msg)
+
 
             # NOTE: this is where execution is actually requested in the form of a joint trajectory
             client.send_goal(goal, feedback_cb=_feedback_cb)
@@ -299,133 +302,14 @@ class MoveitEnabledRobot(BaseRobot):
         trajectory.points.append(point)
         return self.follow_joint_trajectory(trajectory, client)
 
-    def follow_arms_joint_trajectory(self, trajectory: JointTrajectory, stop_condition: Optional[Callable] = None, group_name: Optional[str] = None):
+    def follow_arms_joint_trajectory(self, trajectory: JointTrajectory, stop_condition: Optional[Callable] = None,
+                                     group_name: Optional[str] = None):
         return self.follow_joint_trajectory(trajectory, self.arms_client, stop_condition=stop_condition)
 
     def distance(self, ee_link_name: str, target_position):
         current_pose = self.get_link_pose(ee_link_name)
         error = np.linalg.norm(ros_numpy.numpify(current_pose.position) - target_position)
         return error
-
-    def get_orientation(self, name: str):
-        link = self.robot_commander.get_link(name)
-        return ros_numpy.numpify(link.pose().pose.orientation)
-
-    def store_tool_orientations(self, preferred_tool_orientations: Optional[Dict]):
-        """ dict values can be Pose, Quaternion, or just a numpy array/list """
-        self.stored_tool_orientations = {}
-        for k, v in preferred_tool_orientations.items():
-            if isinstance(v, Pose):
-                q = ros_numpy.numpify(v.orientation)
-                self.stored_tool_orientations[k] = q
-            elif isinstance(v, Quaternion):
-                q = ros_numpy.numpify(v)
-                self.stored_tool_orientations[k] = q
-            else:
-                self.stored_tool_orientations[k] = v
-
-    def store_current_tool_orientations(self, tool_names: Optional[List]):
-        self.stored_tool_orientations = {n: self.get_orientation(n) for n in tool_names}
-
-    def merge_tool_orientations_with_defaults(self, tool_names: List[str],
-                                              preferred_tool_orientations: Optional[List] = STORED_ORIENTATION):
-        # If preferred_tool_orientations is None, we use the stored ones as a fallback
-        if preferred_tool_orientations == STORED_ORIENTATION:
-            preferred_tool_orientations = []
-            if self.stored_tool_orientations is None:
-                logfatal(store_error_msg)
-            for k in tool_names:
-                if k not in self.stored_tool_orientations:
-                    rospy.logerr(f"tool {k} has no stored orientation. aborting.")
-                    return []
-                preferred_tool_orientations.append(self.stored_tool_orientations[k])
-        return preferred_tool_orientations
-
-    def follow_jacobian_to_position_from_scene_and_state(self,
-                                                         scene_msg: PlanningScene,
-                                                         joint_state: JointState,
-                                                         group_name: str,
-                                                         tool_names: List[str],
-                                                         points: List[List],
-                                                         preferred_tool_orientations: Optional = STORED_ORIENTATION,
-                                                         vel_scaling=0.1,
-                                                         stop_condition: Optional[Callable] = None,
-                                                         ):
-        if isinstance(tool_names, str):
-            err_msg = "you need to pass in a list of strings, not a single string."
-            rospy.logerr(err_msg)
-            raise ValueError(err_msg)
-
-        preferred_tool_orientations = self.merge_tool_orientations_with_defaults(tool_names,
-                                                                                 preferred_tool_orientations)
-        if len(preferred_tool_orientations) == 0:
-            return ExecutionResult(trajectory=None,
-                                   execution_result=None,
-                                   action_client_state=self.arms_client.get_state(),
-                                   success=False)
-
-        robot_trajectory_msg: RobotTrajectory
-        reached: bool
-        scene_msg, robot_state = merge_joint_state_and_scene_msg(scene_msg, joint_state)
-        robot_trajectory_msg, reached = self.jacobian_follower.plan(
-            group_name=group_name,
-            tool_names=tool_names,
-            preferred_tool_orientations=preferred_tool_orientations,
-            start_state=robot_state,
-            scene=scene_msg,
-            grippers=points,
-            max_velocity_scaling_factor=vel_scaling,
-            max_acceleration_scaling_factor=0.1,
-        )
-
-        planning_success = reached
-        planning_result = PlanningResult(success=planning_success, plan=robot_trajectory_msg)
-        if self.raise_on_failure and not planning_success:
-            raise RobotPlanningError(f"Tried to execute a jacobian action which could not be reached")
-
-        execution_result = self.follow_arms_joint_trajectory(robot_trajectory_msg.joint_trajectory,
-                                                             stop_condition=stop_condition)
-        return PlanningAndExecutionResult(planning_result, execution_result)
-
-    def follow_jacobian_to_position(self,
-                                    group_name: str,
-                                    tool_names: List[str],
-                                    points: List[List],
-                                    preferred_tool_orientations: Optional[List] = STORED_ORIENTATION,
-                                    vel_scaling=0.1,
-                                    stop_condition: Optional[Callable] = None,
-                                    ):
-        if isinstance(tool_names, str):
-            err_msg = "you need to pass in a list of strings, not a single string."
-            rospy.logerr(err_msg)
-            raise ValueError(err_msg)
-
-        preferred_tool_orientations = self.merge_tool_orientations_with_defaults(tool_names,
-                                                                                 preferred_tool_orientations)
-        if len(preferred_tool_orientations) == 0:
-            return ExecutionResult(trajectory=None,
-                                   execution_result=None,
-                                   action_client_state=self.arms_client.get_state(),
-                                   success=False)
-
-        robot_trajectory_msg: RobotTrajectory
-        reached: bool
-        robot_trajectory_msg, reached = self.jacobian_follower.plan(
-            group_name=group_name,
-            tool_names=tool_names,
-            preferred_tool_orientations=preferred_tool_orientations,
-            grippers=points,
-            max_velocity_scaling_factor=vel_scaling,
-            max_acceleration_scaling_factor=0.1,
-        )
-        planning_success = reached
-        planning_result = PlanningResult(success=planning_success, plan=robot_trajectory_msg)
-        if self.raise_on_failure and not planning_success:
-            raise RobotPlanningError(f"Jacobian planning failed")
-
-        execution_result = self.follow_arms_joint_trajectory(robot_trajectory_msg.joint_trajectory,
-                                                             stop_condition=stop_condition)
-        return PlanningAndExecutionResult(planning_result, execution_result)
 
     def get_joint_names(self, group_name: Optional[str] = None):
         # NOTE: Getting a list of joint names should not require anything besides a lookup on the ros parameter server.
