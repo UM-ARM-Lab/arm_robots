@@ -10,7 +10,7 @@ from arm_robots.robot_utils import PlanningResult, PlanningAndExecutionResult
 from franka_gripper.msg import GraspAction, MoveAction, HomingAction, StopAction, GraspGoal, MoveGoal, HomingGoal, \
     StopGoal
 from franka_msgs.msg import FrankaState, ErrorRecoveryActionGoal
-from geometry_msgs.msg import PoseStamped, Point
+from geometry_msgs.msg import PoseStamped, Point, WrenchStamped
 from rosgraph.names import ns_join
 from typing import List, Tuple, Union, Optional, Callable
 
@@ -24,6 +24,8 @@ from moveit_msgs.msg import PositionIKRequest, RobotState, MoveItErrorCodes, Rob
 from arc_utilities.transformation_helper import BuildMatrix, ExtractFromMatrix
 from tf.transformations import quaternion_from_euler
 
+from netft_rdt_driver.srv import Zero
+
 DEFAULT_JOINT_IMPEDANCE = [3000.0, 3000.0, 3000.0, 2500.0, 2500.0, 2000.0, 2000.0]
 SOFT_JOINT_IMPEDANCE = [100.0, 100.0, 100.0, 100.0, 50.0, 50.0, 10.0]
 DEFAULT_CARTESIAN_IMPEDANCE = [3000.0, 3000.0, 3000.0, 300.0, 300.0, 300.0]
@@ -35,7 +37,7 @@ class Panda(MoveitEnabledRobot):
                  arms_controller_name='position_joint_trajectory_controller',
                  controller_name='position_joint_trajectory_controller',
                  panda_name: str = "panda_1",
-                 has_gripper: bool = False, **kwargs):
+                 has_gripper: bool = False, has_ft: bool = True, **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
                                     robot_description=ns_join(robot_namespace, 'robot_description'),
@@ -44,6 +46,7 @@ class Panda(MoveitEnabledRobot):
                                     **kwargs)
         self.panda_name = panda_name
         self.has_gripper = has_gripper
+        self.has_ft = has_ft
 
         # Panda HW Services - for setting internal controller parameters.
         self.joint_impedance_srv = rospy.ServiceProxy(
@@ -78,6 +81,10 @@ class Panda(MoveitEnabledRobot):
             self.gripper = PandaGripper(self.robot_namespace, self.panda_name)
         else:
             self.gripper = None
+        if self.has_ft:
+            self.netft = PandaNetFT(self.robot_namespace, self.panda_name)
+        else:
+            self.netft = None
 
     def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
         # TODO: Fill in to send set point to controller.
@@ -295,6 +302,22 @@ class Panda(MoveitEnabledRobot):
         for _ in range(100):
             self.error_recovery_pub.publish(ErrorRecoveryActionGoal())
             rospy.sleep(0.01)
+
+
+class PandaNetFT:
+    def __init__(self, robot_ns, arm_id):
+        self.netft_ns = ns_join(robot_ns, f'{arm_id}_netft')
+        self.netft_zero = rospy.ServiceProxy(ns_join(self.netft_ns, 'zero'), Zero)
+        self.netft_data = None
+        self.netft_data_sub = rospy.Subscriber(ns_join(self.netft_ns, 'netft_data'), WrenchStamped, self.netft_data_cb,
+                                               queue_size=10)
+
+    def zero_netft(self):
+        self.netft_zero()
+
+    def netft_data_cb(self, wrench_msg):
+        self.netft_data = np.array((wrench_msg.wrench.force.x, wrench_msg.wrench.force.y, wrench_msg.wrench.force.z,
+                                    wrench_msg.wrench.torque.x, wrench_msg.wrench.torque.y, wrench_msg.wrench.torque.z))
 
 
 class PandaGripper:
