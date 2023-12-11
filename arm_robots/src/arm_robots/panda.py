@@ -209,38 +209,6 @@ class Panda(MoveitEnabledRobot):
         else:
             raise Exception("Wrong group name for get_ik")
 
-    def move_to_world_pose(self, tf2_wrapper, pose_from_base) -> None:
-        # TODO: Clean this up.
-        T_b2t = tf2_wrapper.get_transform(parent="base", child=f"{self.panda_name}_link0")
-
-        if len(pose_from_base) == 6:
-            q = quaternion_from_euler(pose_from_base[3], pose_from_base[4], pose_from_base[5])
-            pose_from_base = pose_from_base[:3] + [q[0], q[1], q[2], q[3]]
-
-        pose_from_base = np.linalg.inv(T_b2t) @ BuildMatrix(pose_from_base[:3],
-                                                            pose_from_base[3:7])
-
-        pose_from_base = ExtractFromMatrix(pose_from_base)
-
-        frame_id = f"{self.panda_name}_link0"
-        p = PoseStamped()
-        p.header.stamp = rospy.Time.now()
-        p.header.frame_id = frame_id
-
-        p.pose.position.x = pose_from_base[0][0]
-        p.pose.position.y = pose_from_base[0][1]
-        p.pose.position.z = pose_from_base[0][2]
-
-        p.pose.orientation.x = pose_from_base[1][0]
-        p.pose.orientation.y = pose_from_base[1][1]
-        p.pose.orientation.z = pose_from_base[1][2]
-        p.pose.orientation.w = pose_from_base[1][3]
-
-        goal_joint_state = self.get_ik(self.panda_name, p,
-                                       frame=f"{self.panda_name}_hand_tcp")
-
-        plan = self.plan_to_joint_config(self.panda_name, goal_joint_state)
-
     def plan_to_position_cartesian(self,
                                    group_name: str,
                                    ee_link_name: str,
@@ -273,14 +241,6 @@ class Panda(MoveitEnabledRobot):
                                                     velocity_scaling_factor=velocity_scaling_factor,
                                                     acceleration_scaling_factor=acceleration_scaling_factor)
         planning_result.plan = retimed_plan
-
-        # path_pub = rospy.Publisher("/retimed_path", DisplayTrajectory, queue_size=5)
-        # display_traj = DisplayTrajectory()
-        # display_traj.trajectory = [retimed_plan]
-        # display_traj.trajectory_start = move_group.get_current_state()
-        # for _ in range(10):
-        #     path_pub.publish(display_traj)
-        #     rospy.sleep(0.1)
 
         execution_result = self.follow_arms_joint_trajectory(retimed_plan.joint_trajectory, stop_condition)
         return PlanningAndExecutionResult(planning_result, execution_result)
