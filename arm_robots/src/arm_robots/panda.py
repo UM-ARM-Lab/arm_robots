@@ -16,8 +16,8 @@ from typing import List, Tuple, Union, Optional, Callable
 
 from arm_robots.robot import MoveitEnabledRobot, RobotPlanningError
 from sensor_msgs.msg import JointState
-from trajectory_msgs.msg import JointTrajectoryPoint
-from franka_msgs.srv import SetJointImpedance, SetLoad, SetCartesianImpedance
+from trajectory_msgs.msg import JointTrajectoryPoint, JointTrajectory
+from franka_msgs.srv import SetJointImpedance, SetLoad, SetCartesianImpedance, SetEEFrame, SetKFrame
 from controller_manager_msgs.srv import LoadController, SwitchController
 from moveit_msgs.srv import GetPositionIK, GetPositionFK, GetPositionFKRequest
 from moveit_msgs.msg import PositionIKRequest, RobotState, MoveItErrorCodes, RobotTrajectory, DisplayTrajectory
@@ -49,13 +49,11 @@ class Panda(MoveitEnabledRobot):
         self.has_ft = has_ft
 
         # Panda HW Services - for setting internal controller parameters.
-        self.joint_impedance_srv = rospy.ServiceProxy(
-            self.ns('%s/set_joint_impedance' % self.panda_name),
-            SetJointImpedance)
-        self.cartesian_impedance_srv = rospy.ServiceProxy(
-            self.ns('%s/set_cartesian_impedance' % self.panda_name),
-            SetCartesianImpedance)
+        self.joint_impedance_srv = rospy.ServiceProxy(self.ns('%s/set_joint_impedance' % self.panda_name), SetJointImpedance)
+        self.cartesian_impedance_srv = rospy.ServiceProxy(self.ns('%s/set_cartesian_impedance' % self.panda_name), SetCartesianImpedance)
         self.set_load_srv = rospy.ServiceProxy(self.ns('%s/set_load' % self.panda_name), SetLoad)
+        self.set_EE_frame_srv = rospy.ServiceProxy(self.ns(f'{self.panda_name}/set_EE_frame'), SetEEFrame)
+        self.set_K_frame_srv = rospy.ServiceProxy(self.ns(f'{self.panda_name}/set_K_frame'), SetKFrame)
 
         # Controller Manager Services - for loading/unloading/switching controllers.
         self.load_controller_srv = rospy.ServiceProxy(self.ns('controller_manager/load_controller'), LoadController)
@@ -69,6 +67,7 @@ class Panda(MoveitEnabledRobot):
         # Default position joint trajectory controller.
         self.active_controller_name = controller_name
 
+
         # Franka state listener.
         self.franka_state_listener = Listener(
             self.ns('%s/%s_state_controller/franka_states' % (self.robot_namespace, self.panda_name)), FrankaState)
@@ -76,6 +75,9 @@ class Panda(MoveitEnabledRobot):
         # Error recovery publisher.
         self.error_recovery_pub = rospy.Publisher(self.ns('error_recovery/goal'),
                                                   ErrorRecoveryActionGoal, queue_size=10)
+
+        # Joint command publisher
+        self.command_pub = rospy.Publisher(self.ns(f'{self.active_controller_name}/command'), JointTrajectory, queue_size=10)
 
         if self.has_gripper:
             self.gripper = PandaGripper(self.robot_namespace, self.panda_name)
@@ -86,11 +88,11 @@ class Panda(MoveitEnabledRobot):
         else:
             self.netft = None
 
-    def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint) -> Tuple[bool, str]:
-        # TODO: Fill in to send set point to controller.
-        pass
-
-    # TODO: Add gripper helpers.
+    def send_joint_command(self, joint_names: List[str], trajectory_point: JointTrajectoryPoint):
+        robot_command = JointTrajectory()
+        robot_command.joint_names = joint_names
+        robot_command.points.append(trajectory_point)
+        self.command_pub.publish(robot_command)
 
     def switch_controller(self, start_controllers=None, stop_controllers=None) -> bool:
         if stop_controllers is None:
@@ -183,6 +185,65 @@ class Panda(MoveitEnabledRobot):
         self.switch_controller(start_controllers=[self.active_controller_name])
 
         return set_load_resp.success
+
+    def set_EE_frame(self, NE_T_EE: List[float]) -> bool:
+        """
+        See also: setEE() in libfranka Robot class.
+
+        Parameters
+        ----------
+        NE_T_EE - Transformation from nominal end effector frame to end effector frame, transformation is represented as a 4x4 matrix in column-major format
+
+        Returns
+        -------
+        bool - whether service completed successfully.
+        """
+        # Start by switching off the current controller, if active.
+        if self.active_controller_name is not None:
+            self.switch_controller(stop_controllers=[self.active_controller_name])
+
+        if len(NE_T_EE) != 16:
+            raise Exception("Invalid transformation information provided.")
+
+        try:
+            set_EE_frame_resp = self.set_EE_frame_srv(NE_T_EE)
+        except rospy.ServiceException as e:
+            raise Exception("Failed to set EE frame info: %s" % e)
+
+        # Switch to joint position controller.
+        self.switch_controller(start_controllers=[self.active_controller_name])
+
+        return set_EE_frame_resp.success
+
+    def set_K_frame(self, EE_T_K: List[float]) -> bool:
+        """
+        See also: setK() in libfranka Robot class.
+
+        Parameters
+        ----------
+        EE_T_K - Transformation from end effector frame to stiffness frame, transformation is represented as a 4x4 matrix in column-major format
+
+        Returns
+        -------
+        bool - whether service completed successfully.
+        """
+        # Start by switching off the current controller, if active.
+        if self.active_controller_name is not None:
+            self.switch_controller(stop_controllers=[self.active_controller_name])
+
+        if len(EE_T_K) != 16:
+            raise Exception("Invalid transformation information provided.")
+
+        try:
+            set_K_frame_resp = self.set_K_frame_srv(EE_T_K)
+        except rospy.ServiceException as e:
+            raise Exception("Failed to set K frame info: %s" % e)
+
+        # Switch to joint position controller.
+        self.switch_controller(start_controllers=[self.active_controller_name])
+
+        return set_K_frame_resp.success
+
 
     def get_ik(self, group_name: str, pose: PoseStamped, frame: str = "panda_link8"):
         ik_request = PositionIKRequest()
