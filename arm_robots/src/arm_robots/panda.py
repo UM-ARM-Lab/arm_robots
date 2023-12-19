@@ -2,9 +2,11 @@
 import pdb
 
 import numpy as np
+import open3d as o3d
 
 import actionlib
 import rospy
+import moveit_commander
 from arc_utilities.listener import Listener
 from arm_robots.robot_utils import PlanningResult, PlanningAndExecutionResult
 from franka_gripper.msg import GraspAction, MoveAction, HomingAction, StopAction, GraspGoal, MoveGoal, HomingGoal, \
@@ -21,6 +23,8 @@ from franka_msgs.srv import SetJointImpedance, SetLoad, SetCartesianImpedance, S
 from controller_manager_msgs.srv import LoadController, SwitchController
 from moveit_msgs.srv import GetPositionIK, GetPositionFK, GetPositionFKRequest
 from moveit_msgs.msg import PositionIKRequest, RobotState, MoveItErrorCodes, RobotTrajectory, DisplayTrajectory
+from std_msgs.msg import Header
+from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from arc_utilities.transformation_helper import BuildMatrix, ExtractFromMatrix
 from tf.transformations import quaternion_from_euler
 
@@ -79,12 +83,15 @@ class Panda(MoveitEnabledRobot):
         # Joint command publisher
         self.command_pub = rospy.Publisher(self.ns(f'{self.active_controller_name}/command'), JointTrajectory, queue_size=10)
 
+        self.move_group = self.get_move_group_commander(self.panda_name)
+        self.scene = moveit_commander.PlanningSceneInterface(ns=self.robot_namespace)
+
         if self.has_gripper:
             self.gripper = PandaGripper(self.robot_namespace, self.panda_name)
         else:
             self.gripper = None
         if self.has_ft:
-            self.netft = PandaNetFT(self.robot_namespace, self.panda_name)
+            self.netft = PandaNetFT(self.panda_name)
         else:
             self.netft = None
 
@@ -324,14 +331,76 @@ class Panda(MoveitEnabledRobot):
             self.error_recovery_pub.publish(ErrorRecoveryActionGoal())
             rospy.sleep(0.01)
 
+    def attach_tool(self, cfg, add_bb=True):
+        """
+        Use Planning Scene Interface to attach collision objects at the gripper origin of the robot. Optionally,
+        add a bounding box with specified padding.
+
+        Parameters
+        ----------
+        cfg - dictionary containing several parameters: name, meshfile, and bb_padding (optional for use with bounding box)
+            name: str, name of tool
+            meshfile: str, path to meshfile
+            bb_padding, float, in meters, side length to add to bounding box (optional for use with bounding box)
+
+        add_bb - True/False, whether to add bounding box to tool mesh and attach to gripper origin
+
+        """
+        add_pose = PoseStamped(Header(frame_id=f'{self.panda_name}_gripper_origin'), Pose(Point(0, 0, 0), Quaternion(0, 0, 0, 1)))
+        self.scene.add_mesh(f'{self.panda_name}_{cfg["name"]}', add_pose, filename=cfg["meshfile"])
+        self.scene.attach_mesh(f'{self.panda_name}_gripper_origin', f'{self.panda_name}_{cfg["name"]}', touch_links=[f'{self.panda_name}_leftfinger', f'{self.panda_name}_rightfinger'])
+
+        if add_bb:
+            tool_mesh = o3d.io.read_triangle_mesh(cfg['meshfile'])
+            tool_bb = tool_mesh.get_axis_aligned_bounding_box()
+            tool_position = tool_bb.get_extent() / 2 + tool_bb.get_min_bound()
+            tool_pose = PoseStamped()
+            tool_pose.header.frame_id = f'{self.panda_name}_gripper_origin'
+            tool_pose.pose.position = Point(tool_position[0], tool_position[1], tool_position[2])
+            tool_pose.pose.orientation = Quaternion(0, 0, 0, 1)
+            bb_size = tuple(tool_bb.get_extent() + cfg['bb_padding'])
+            self.scene.add_box(f'{self.panda_name}_{cfg["name"]}_bb', tool_pose, bb_size)
+            self.scene.attach_box(f'{self.panda_name}_gripper_origin', f'{self.panda_name}_{cfg["name"]}_bb', size=bb_size, touch_links=[f'{self.panda_name}_leftfinger', f'{self.panda_name}_rightfinger'])
+
+    def detach_tool(self, name=None):
+        """
+        Use Planning Scene Interface to detach collision objects from the robot. Either detach every tool from the robot
+        by passing in no name parameter, or remove a specific tool by name. Won't remove tools from any other robots.
+
+        Parameters
+        ----------
+        name (Optional) - name of tool, doesn't include robot name (i.e. if you attached the tool with name 'hex', use name 'hex' again here
+
+        """
+        if name is not None:
+            if name in self.scene.get_attached_objects().keys() or name in self.scene.get_known_object_names():
+                self.scene.remove_attached_object(name=name)
+                self.scene.remove_world_object(name=name)
+            elif f'{self.panda_name}_{name}' in self.scene.get_attached_objects().keys() or f'{self.panda_name}_{name}' in self.scene.get_known_object_names():
+                self.scene.remove_attached_object(name=f'{self.panda_name}_{name}')
+                self.scene.remove_world_object(name=f'{self.panda_name}_{name}')
+
+            if f'{name}_bb' in self.scene.get_attached_objects().keys() or f'{name}_bb' in self.scene.get_known_object_names():
+                self.scene.remove_attached_object(name=f'{name}_bb')
+                self.scene.remove_world_object(name=f'{name}_bb')
+            elif f'{self.panda_name}_{name}_bb' in self.scene.get_attached_objects().keys() or f'{self.panda_name}_{name}_bb' in self.scene.get_known_object_names():
+                self.scene.remove_attached_object(name=f'{self.panda_name}_{name}_bb')
+                self.scene.remove_world_object(name=f'{self.panda_name}_{name}_bb')
+        else:
+            for collision_object in list(self.scene.get_attached_objects().keys()) + self.scene.get_known_object_names():
+                if self.panda_name in collision_object:
+                    self.scene.remove_attached_object(name=collision_object)
+                    self.scene.remove_world_object(name=collision_object)
+
 
 class PandaNetFT:
-    def __init__(self, robot_ns, arm_id):
-        self.netft_ns = ns_join(robot_ns, f'{arm_id}_netft')
+    def __init__(self, arm_id, stop_force=3.0, stop_torque=0.3):
+        self.netft_ns = f'{arm_id}_netft'
         self.netft_zero = rospy.ServiceProxy(ns_join(self.netft_ns, 'zero'), Zero)
         self.netft_data = None
-        self.netft_data_sub = rospy.Subscriber(ns_join(self.netft_ns, 'netft_data'), WrenchStamped, self.netft_data_cb,
-                                               queue_size=10)
+        self.netft_data_sub = rospy.Subscriber(ns_join(self.netft_ns, 'netft_data'), WrenchStamped, self.netft_data_cb, queue_size=10)
+        self.stop_force = stop_force
+        self.stop_torque = stop_torque
 
     def zero_netft(self):
         self.netft_zero()
@@ -339,6 +408,10 @@ class PandaNetFT:
     def netft_data_cb(self, wrench_msg):
         self.netft_data = np.array((wrench_msg.wrench.force.x, wrench_msg.wrench.force.y, wrench_msg.wrench.force.z,
                                     wrench_msg.wrench.torque.x, wrench_msg.wrench.torque.y, wrench_msg.wrench.torque.z))
+
+    def stop_condition(self, feedback):
+        force_magnitude = np.linalg.norm(self.netft_data[:3])
+        return force_magnitude > self.stop_force
 
 
 class PandaGripper:
