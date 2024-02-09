@@ -3,8 +3,8 @@
 <package format="3">
   <name>arm_robots</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="peter@thinkpad_t15">peter</maintainer>
+  <description>Python API for some of the armlab robots</description>
+  <maintainer email="pmitrano@umich.edu">peter</maintainer>
   <license>MIT</license>
 
   <test_depend>ament_copyright</test_depend>

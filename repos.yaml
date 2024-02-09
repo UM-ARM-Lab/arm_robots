@@ -1,0 +1,4 @@
+repositories:
+  arm_utilities:
+    type: git
+    uri: git@github.com:UM-ARM-Lab/arc_utilities.git

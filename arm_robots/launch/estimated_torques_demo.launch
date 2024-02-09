@@ -1,5 +1,0 @@
-<launch>
-    <node pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" name="joint_state_publisher_gui"/>
-    <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher"/>
-    <node pkg="arm_robots" type="estimated_torques_demo.py" name="estimated_torques_demo"/>
-</launch>
