@@ -1,0 +1,83 @@
+<launch>
+    <arg name="sim" default="false"/>
+    <arg name="gui" default="true"/>
+    <arg name="update_description" default="true"/>
+    <arg name="verbose" default="false"/>
+    <arg name="finger" default="wsg50_fmf"/>
+    <arg name="gamma_on_hand" default="false"/>
+    <arg name="med_scene" default="thanos"/>
+
+    <!-- Finger selection -->
+    <!--  OPTIONS WITHOUT GAMMA ON HAND -->
+    <arg name="moveit_config_path" default="$(find med_moveit_config)" if="$(eval arg('finger') == 'wsg50_fmf' and not arg('gamma_on_hand'))"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_bubbles_config)" if="$(eval arg('finger') == 'bubbles' and not arg('gamma_on_hand'))"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_bubbles_flipped_config)" if="$(eval arg('finger') == 'bubbles_flipped' and not arg('gamma_on_hand'))"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_gelslim_config)" if="$(eval arg('finger') == 'gelslim' and not arg('gamma_on_hand'))"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_no_fingers_config)" if="$(eval arg('finger') == 'none' and not arg('gamma_on_hand'))"/>
+    <!--  OPTIONS WITH GAMMA ON HAND -->
+    <arg name="moveit_config_path" default="$(find med_moveit_gamma_on_hand_bubble_config)" if="$(eval arg('finger') == 'bubbles' and arg('gamma_on_hand'))"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_gamma_on_hand_no_fingers_config)" if="$(eval arg('finger') == 'none' and arg('gamma_on_hand'))"/>
+    <arg name="moveit_config_path" default="$(find med_moveit_gamma_on_hand_gelslim_config)" if="$(eval arg('finger') == 'gelslim' and arg('gamma_on_hand'))"/>
+
+
+    <!-- Collision geometry -->
+    <node pkg="med_hardware_interface" type="med_collision_geometry.py" name="med_collision_geometry" if="$(eval arg('med_scene') == 'thanos')"/>
+    <node pkg="med_hardware_interface" type="medusa_collision_geometry.py" name="medusa_collision_geometry" if="$(eval arg('med_scene') == 'medusa')"/>
+
+    <group if="$(arg update_description)">
+        <!-- uploads robot description and setups up other parameters -->
+        <include file="$(arg moveit_config_path)/launch/planning_context.launch">
+            <arg name="load_robot_description" value="true"/>
+        </include>
+    </group>
+
+
+    <group if="$(arg sim)">
+        <!-- Start gazebo -->
+        <include file="$(find gazebo_ros)/launch/empty_world.launch">
+            <arg name="gui" value="$(arg gui)"/>
+            <arg name="paused" value="true"/>
+            <arg name="verbose" value="$(arg verbose)"/>
+        </include>
+
+        <!-- Spawn the robot in gazebo -->
+        <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+              args="-urdf -model med -param robot_description"/>
+
+        <!-- start the ROS controllers, only used in gazebo. This merges gripper and arm joint states -->
+        <include file="$(find med_control)/launch/med_control_gazebo.launch">
+            <arg name="robot_namespace" value="med"/>
+        </include>
+
+        <!-- Move it-->
+       <include ns="med" file="$(arg moveit_config_path)/launch/move_group.launch">
+            <arg name="allow_trajectory_execution" value="true"/>
+            <arg name="moveit_controller_manager" value="gazebo"/>
+        </include>
+
+    </group>
+    <group unless="$(arg sim)">
+        <!-- Start gazebo -->
+        <!-- <include file="$(find gazebo_ros)/launch/empty_world.launch"> -->
+        <!--     <arg name="gui" value="$(arg gui)"/> -->
+        <!--     <arg name="paused" value="false"/> -->
+        <!--     <arg name="verbose" value="$(arg verbose)"/> -->
+        <!--     <arg name="use_sim_time" value="false"/> -->
+        <!-- </include> -->
+
+        <!-- to let moveit send trajectories with the real robot -->
+        <include file="$(find arm_robots)/launch/trajectory_follower.launch">
+            <arg name="use_med" value="true"/>
+        </include>
+
+        <!-- MoveIt-->
+        <include ns="med" file="$(arg moveit_config_path)/launch/move_group.launch">
+            <arg name="allow_trajectory_execution" value="true"/>
+            <arg name="moveit_controller_manager" value="real"/>
+        </include>
+
+    </group>
+
+
+
+</launch>

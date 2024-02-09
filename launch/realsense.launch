@@ -1,0 +1,8 @@
+<launch>
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+    <arg name="enable_pointcloud" value="true" />
+  </include>
+
+  <include file="$(find lightweight_vicon_bridge)/launch/vicon_bridge.launch"/>
+  <include file="$(find lightweight_vicon_bridge)/launch/mocap_to_realsense_static_transforms.launch"/>
+</launch>

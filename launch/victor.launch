@@ -1,0 +1,81 @@
+<launch>
+    <env name="ROSCONSOLE_CONFIG_FILE"
+         value="$(find arm_robots)/config/victor_rosconsole.conf"/>
+
+    <arg name="sim" default="false"/>
+    <arg name="gui" default="true"/>
+    <arg name="update_description" default="true"/>
+    <arg name="verbose" default="false"/>
+    <arg name="gazebo_world" default="victor_table_and_walls"/>
+
+    <group if="$(arg update_description)">
+        <!-- uploads robot description and setups up other parameters -->
+        <include file="$(find victor_moveit_config)/launch/planning_context.launch">
+            <arg name="load_robot_description" value="true"/>
+        </include>
+    </group>
+
+
+    <group if="$(arg sim)">
+        <!-- Start gazebo -->
+        <group> <!-- this empty group tag creates a scope for the "remap" command -->
+            <!-- because we use ros_control only for the joints of the arms, not the grippers,
+                 this is used to rename the joint_states topic it published -->
+            <remap from="victor/joint_states" to="victor/arms_joint_states"/>
+            <include file="$(find gazebo_ros)/launch/empty_world.launch">
+                <arg name="world_name" value="$(find arm_robots)/world/$(arg gazebo_world)_sim.world"/>
+                <arg name="gui" value="$(arg gui)"/>
+                <arg name="paused" value="true"/>
+                <arg name="verbose" value="$(arg verbose)"/>
+            </include>
+        </group>
+
+        <!-- Spawn the robot in gazebo -->
+        <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+              args="-urdf -model victor -param robot_description"/>
+
+        <!-- start the ROS controllers, only used in gazebo. This merges gripper and arm joint states -->
+        <include file="$(find victor_control)/launch/victor_control_gazebo.launch">
+            <arg name="robot_namespace" value="victor"/>
+        </include>
+
+        <!-- start the fake control mode servics -->
+        <group ns="victor">
+            <node pkg="victor_fake_hardware_interface"
+                  name="minimal_fake_control_mode_interface_node"
+                  type="minimal_fake_control_mode_interface_node.py"/>
+        </group>
+
+        <!-- Move it-->
+        <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
+            <arg name="allow_trajectory_execution" value="true"/>
+            <arg name="moveit_controller_manager" value="gazebo"/>
+        </include>
+    </group>
+    <group unless="$(arg sim)">
+        <!-- Start gazebo -->
+        <include file="$(find gazebo_ros)/launch/empty_world.launch">
+            <arg name="world_name" value="$(find arm_robots)/world/$(arg gazebo_world).world"/>
+            <arg name="gui" value="$(arg gui)"/>
+            <arg name="paused" value="false"/>
+            <arg name="verbose" value="$(arg verbose)"/>
+            <arg name="use_sim_time" value="false"/>
+        </include>
+
+        <!-- to let moveit send trajectories with the real robot -->
+        <include file="$(find arm_robots)/launch/trajectory_follower.launch">
+            <arg name="use_victor" value="true"/>
+        </include>
+
+        <!-- ROS control for real victor, does nothing at the moment -->
+        <include file="$(find victor_control)/launch/victor_control.launch">
+            <arg name="robot_namespace" value="victor"/>
+        </include>
+
+        <!-- Move it-->
+        <include ns="victor" file="$(find victor_moveit_config)/launch/move_group.launch">
+            <arg name="allow_trajectory_execution" value="true"/>
+            <arg name="moveit_controller_manager" value="real"/>
+        </include>
+    </group>
+</launch>
