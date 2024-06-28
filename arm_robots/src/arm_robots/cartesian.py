@@ -5,7 +5,7 @@ import rospy
 import ros_numpy
 from geometry_msgs.msg import PoseStamped, Quaternion, Pose
 from victor_hardware_interface_msgs.msg import ControlMode, MotionCommand
-from tf.transformations import quaternion_from_euler
+from tf.transformations import quaternion_from_euler, quaternion_slerp
 
 
 def quaternion_angle_diff(q1: Quaternion, q2: Quaternion):
@@ -16,10 +16,12 @@ def quaternion_angle_diff(q1: Quaternion, q2: Quaternion):
     return np.arccos(2 * inner ** 2 - 1)
 
 
-def pose_distance(a: Pose, b: Pose, rot_weight=0):
-    pos_distance = np.linalg.norm(ros_numpy.numpify(a.position) - ros_numpy.numpify(b.position))
-    rot_distance = 0 if rot_weight == 0 else rot_weight * quaternion_angle_diff(a.orientation, b.orientation)
-    return pos_distance + rot_distance
+def pos_distance(a: Pose, b: Pose):
+    return np.linalg.norm(ros_numpy.numpify(a.position) - ros_numpy.numpify(b.position))
+
+
+def rot_distance(a: Pose, b: Pose):
+    return quaternion_angle_diff(a.orientation, b.orientation)
 
 
 class ControllerStatus:
@@ -36,12 +38,15 @@ class ControllerStatus:
         self.callback_stopped = False
         self.timed_out = False
 
+
 class CartesianImpedanceController:
     def __init__(self, tf_buffer, motion_status_listeners, motion_command_publisher, joint_lim_low, joint_lim_high,
                  world_frame_name, sensor_frame_names=None,
-                 position_close_enough=0.0025, timeout_per_m=500, intermediate_acceptance_factor=7.,
-                 joint_limit_boundary=0.03,
-                 pose_distance_fn=None):
+                 position_close_enough=0.0025, rotation_close_enough=0.01,
+                 timeout_per_m=500,
+                 timeout_per_radian=30,
+                 intermediate_acceptance_factor=7.,
+                 joint_limit_boundary=0.03):
         """
 
         :param tf_buffer: tf2 Buffer object
@@ -50,15 +55,12 @@ class CartesianImpedanceController:
         :param joint_lim_low: lower joint limits in radians
         :param joint_lim_high: upper joint limits in radians
         :param position_close_enough: Distance (m) to target position to be considered close enough
+        :param rotation_close_enough: Angle (radian) to target orientation to be considered close enough
         :param timeout_per_m: Allowed time (s) to execute before timing out per 1m of travel
         :param joint_limit_boundary: Angle (radian or list of radian) boundary of each joint limit to avoid by
-        :param pose_distance_fn: distance function acting on 2 Pose objects, default to euclidean distance
         returning to the previous pose for any entering. If this boundary is larger than what any single motion command
         will step, then we will not receive exceptions on the robot side.
         """
-        self.pose_distance = pose_distance_fn
-        if self.pose_distance is None:
-            self.pose_distance = pose_distance
         self.target_pose = None
         # for users to read after reaching goal
         self.status = ControllerStatus()
@@ -81,11 +83,13 @@ class CartesianImpedanceController:
         self._intermediate_target = None
         self._dists_to_goal = []
         self.position_close_enough = position_close_enough
-        self._intermediate_close_enough = position_close_enough * intermediate_acceptance_factor
+        self.rotation_close_enough = rotation_close_enough
+        self._intermediate_acceptance_factor = intermediate_acceptance_factor
         self._this_target_start_time = None
         self._goal_start_time = None
         self._init_goal_dist = None
         self._timeout_per_m = timeout_per_m
+        self._timeout_per_radian = timeout_per_radian
 
         # safety parameters
         self._joint_boundary = joint_limit_boundary
@@ -190,7 +194,9 @@ class CartesianImpedanceController:
                                f"target {target_pose.header.frame_id} current {current_pose.header.frame_id}")
 
         self.target_pose = copy.deepcopy(target_pose)
-        self._init_goal_dist = self.pose_distance(current_pose.pose, self.target_pose.pose)
+        a = current_pose.pose
+        b = self.target_pose.pose
+        self._init_goal_dist = (pos_distance(a, b), rot_distance(a, b))
         self._start_violation = self.joint_boundary_violation_amount()
         self._goal_start_time = rospy.get_time()
         self.status.reset()
@@ -205,33 +211,62 @@ class CartesianImpedanceController:
         high_violation = high[high > 0].sum()
         return low_violation + high_violation
 
-    def step(self, step_size=0.005, stop_on_force_threshold=None, stop_callback=None):
+    def step(self, step_size=0.005, stop_on_force_threshold=None, stop_callback=None, step_quaternion_size=0.1):
         """Take a non-blocking step and return whether false if we timed out; otherwise true"""
         if self.target_pose is None:
             return True
 
         cp = self.current_pose_in_frame(self.active_arm, reference_frame=self.target_pose.header.frame_id)
 
-        dist_to_goal = self.pose_distance(cp.pose, self.target_pose.pose)
+        a = cp.pose
+        b = self.target_pose.pose
+        dist_to_goal = (pos_distance(a, b), rot_distance(a, b))
         self._dists_to_goal.append(dist_to_goal)
         # rospy.loginfo("Dist to goal {}".format(dist_to_goal))
-        if dist_to_goal < self.position_close_enough:
+        if dist_to_goal[0] < self.position_close_enough and dist_to_goal[1] < self.rotation_close_enough:
             self.abort_goal()
             rospy.logdebug("Reached target\n{}".format(str(cp.pose.position).replace('\n', ' ')))
             return True
 
-        if self._intermediate_target is None or self.pose_distance(cp.pose,
-                                                                   self._intermediate_target.pose) < self._intermediate_close_enough:
+        if self._intermediate_target is not None:
+            b = self._intermediate_target.pose
+        if self._intermediate_target is None or (
+                (pos_distance(a, b) < self.position_close_enough * self._intermediate_acceptance_factor) and (
+                rot_distance(a, b) < self.rotation_close_enough * self._intermediate_acceptance_factor)):
+            # linearly interpolate both the position and orientation
             # take step along direction to goal
             diff = ros_numpy.numpify(self.target_pose.pose.position) - ros_numpy.numpify(cp.pose.position)
             diff_norm = np.linalg.norm(diff)
             this_step = min(step_size, diff_norm)
             diff *= this_step / diff_norm
-            # copy the target pose to get orientation
+
             self._intermediate_target = copy.deepcopy(self.target_pose)
             self._intermediate_target.pose.position.x = cp.pose.position.x + diff[0]
             self._intermediate_target.pose.position.y = cp.pose.position.y + diff[1]
             self._intermediate_target.pose.position.z = cp.pose.position.z + diff[2]
+            # interpolate orientation
+            q1 = cp.pose.orientation
+            q2 = self.target_pose.pose.orientation
+            quat_diff = quaternion_angle_diff(q1, q2)
+            this_quaternion_step = min(step_quaternion_size, quat_diff)
+            # if quat_diff < step_quaternion_size:
+            #     self._intermediate_target.pose.orientation = q2
+            # else:
+            #     # interpolate by a fixed step size
+            #     q1 = ros_numpy.numpify(q1)
+            #     q2 = ros_numpy.numpify(q2)
+            #     q2 = quaternion_slerp(q1, q2, step_quaternion_size / quat_diff)
+            #     q2 = ros_numpy.msgify(Quaternion, q2)
+            #     self._intermediate_target.pose.orientation = q2
+            q1 = ros_numpy.numpify(q1)
+            q2 = ros_numpy.numpify(q2)
+            q2 = quaternion_slerp(q1, q2, this_quaternion_step / quat_diff)
+            q2 = ros_numpy.msgify(Quaternion, q2)
+            self._intermediate_target.pose.orientation = q2
+
+            rospy.loginfo(
+                f"Intermediate target position t={this_step / diff_norm:.3f} rotation t={this_quaternion_step / quat_diff:.3f} pos diff {diff_norm:.3f} rot diff {quat_diff:.3f}")
+
             self._intermediate_target_start_pose = cp
             self._this_target_start_time = rospy.get_time()
 
@@ -253,8 +288,13 @@ class CartesianImpedanceController:
                 self.status.reached_joint_limit = True
 
         # abort if we take too long
-        if (now - self._this_target_start_time) > self._timeout_per_m * step_size or \
-                (now - self._goal_start_time) > self._timeout_per_m * self._init_goal_dist:
+        time_since_this_target = now - self._this_target_start_time
+        timeout_this_target = (time_since_this_target > self._timeout_per_m * step_size) and (
+                    time_since_this_target > self._timeout_per_radian * step_quaternion_size)
+        time_since_goal = now - self._goal_start_time
+        timeout_goal = (time_since_goal > self._timeout_per_m * self._init_goal_dist[0]) and (
+                    time_since_goal > self._timeout_per_radian * self._init_goal_dist[1])
+        if timeout_this_target or timeout_goal:
             rospy.loginfo("Goal aborted due to timeout: \ngoal    {} \ncurrent {}\ndist {}".format(
                 str(self._intermediate_target.pose.position).replace('\n', ' '),
                 str(cp.pose.position).replace('\n', ' '), dist_to_goal))

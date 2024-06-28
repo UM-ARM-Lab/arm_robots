@@ -28,7 +28,7 @@ class BaseRobot:
         self._joint_state_listener = Listener(self.joint_states_topic, JointState)
 
         self.tf_wrapper = TF2Wrapper()
-        self.cartesian = None
+        self.cartesian: CartesianImpedanceController = None
         try:
             self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace,
                                                                    robot_description=self.robot_description)
@@ -129,7 +129,11 @@ class BaseRobot:
                                                       lower, upper, world_frame_name, **kwargs)
 
     def move_delta_cartesian_impedance(self, arm, dx=0, dy=0, dz=0, target_z=None, target_orientation=None,
-                                       step_size=0.01, stop_on_force_threshold=None, stop_callback=None, blocking=True, **kwargs):
+                                       step_size=0.01,
+                                       step_quaternion_size=0.1,
+                                       stop_on_force_threshold=None,
+                                       stop_callback=None, blocking=True,
+                                       **kwargs):
         if self.cartesian is None:
             return False
 
@@ -143,5 +147,6 @@ class BaseRobot:
         succeeded = True
         # TODO add a rospy.Rate and sleep here?
         while self.cartesian.target_pose is not None:
-            succeeded = self.cartesian.step(step_size, stop_on_force_threshold=stop_on_force_threshold, stop_callback=stop_callback)
+            succeeded = self.cartesian.step(step_size, stop_on_force_threshold=stop_on_force_threshold,
+                                            stop_callback=stop_callback, step_quaternion_size=step_quaternion_size)
         return succeeded
