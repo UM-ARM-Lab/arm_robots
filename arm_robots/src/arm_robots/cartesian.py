@@ -264,8 +264,8 @@ class CartesianImpedanceController:
             q2 = ros_numpy.msgify(Quaternion, q2)
             self._intermediate_target.pose.orientation = q2
 
-            rospy.loginfo(
-                f"Intermediate target position t={this_step / diff_norm:.3f} rotation t={this_quaternion_step / quat_diff:.3f} pos diff {diff_norm:.3f} rot diff {quat_diff:.3f}")
+            # rospy.loginfo(
+            #     f"Intermediate target position t={this_step / diff_norm:.3f} rotation t={this_quaternion_step / quat_diff:.3f} pos diff {diff_norm:.3f} rot diff {quat_diff:.3f}")
 
             self._intermediate_target_start_pose = cp
             self._this_target_start_time = rospy.get_time()
