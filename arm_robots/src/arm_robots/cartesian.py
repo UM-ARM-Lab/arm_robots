@@ -39,6 +39,14 @@ class ControllerStatus:
         self.timed_out = False
 
 
+class MotionFrameTransformer:
+    def motion_status_to_ee(self, current_pose: PoseStamped) -> PoseStamped:
+        raise NotImplementedError
+
+    def ee_to_motion_command(self, target_pose: PoseStamped) -> PoseStamped:
+        raise NotImplementedError
+
+
 class CartesianImpedanceController:
     def __init__(self, tf_buffer, motion_status_listeners, motion_command_publisher, joint_lim_low, joint_lim_high,
                  world_frame_name, sensor_frame_names=None,
@@ -54,6 +62,8 @@ class CartesianImpedanceController:
         :param motion_command_publisher: ROS publisher for arm commands
         :param joint_lim_low: lower joint limits in radians
         :param joint_lim_high: upper joint limits in radians
+        :param world_frame_name: Name of the world frame
+        :param sensor_frame_names: Name of the sensor frames for each arm
         :param position_close_enough: Distance (m) to target position to be considered close enough
         :param rotation_close_enough: Angle (radian) to target orientation to be considered close enough
         :param timeout_per_m: Allowed time (s) to execute before timing out per 1m of travel
@@ -140,7 +150,7 @@ class CartesianImpedanceController:
         return self.tf_buffer.transform(tf_current_pose, reference_frame)
 
     def set_goal(self, dx=0, dy=0, dz=0, target_x=None, target_y=None, target_z=None, target_orientation=None,
-                 reference_frame=None):
+                 reference_frame=None, motion_frame_transformer: MotionFrameTransformer = None):
         """
         Set position and optionally orientation goals specified in the given reference frame (default to world frame)
         :param dx: desired change in x
@@ -151,6 +161,10 @@ class CartesianImpedanceController:
         :param target_z: desired absolute z, overriding any dz
         :param target_orientation:
         :param reference_frame:
+        :param motion_frame_transformer: If given, will transform between the measured motion status frame and an
+            end effector frame such that motion commands are sent in the motion status frame, but goals are set in the
+            end effector frame. Note that target positions and orientations are directly specified in the end effector
+            frame. The end effector frame is whatever frame the motion transformer transforms to.
         :return: Whether the goal was successfully set
         """
 
@@ -160,6 +174,9 @@ class CartesianImpedanceController:
             return False
 
         target_pose = copy.deepcopy(cp)
+        if motion_frame_transformer is not None:
+            target_pose = motion_frame_transformer.motion_status_to_ee(target_pose)
+
         target_pose.pose.position.x += dx
         target_pose.pose.position.y += dy
         target_pose.pose.position.z += dz
@@ -178,6 +195,10 @@ class CartesianImpedanceController:
                 if len(orientation) == 4:
                     orientation = Quaternion(*orientation)
             target_pose.pose.orientation = orientation
+
+        if motion_frame_transformer is not None:
+            target_pose = motion_frame_transformer.ee_to_motion_command(target_pose)
+            target_pose.header.frame_id = reference_frame or self.world_frame
 
         self.set_target_pose(target_pose, current_pose=None)  # re-get current pose in world frame
         return True
@@ -290,14 +311,14 @@ class CartesianImpedanceController:
         # abort if we take too long
         time_since_this_target = now - self._this_target_start_time
         timeout_this_target = (time_since_this_target > self._timeout_per_m * step_size) and (
-                    time_since_this_target > self._timeout_per_radian * step_quaternion_size)
+                time_since_this_target > self._timeout_per_radian * step_quaternion_size)
         time_since_goal = now - self._goal_start_time
         timeout_goal = (time_since_goal > self._timeout_per_m * self._init_goal_dist[0]) and (
-                    time_since_goal > self._timeout_per_radian * self._init_goal_dist[1])
+                time_since_goal > self._timeout_per_radian * self._init_goal_dist[1])
         if timeout_this_target or timeout_goal:
             rospy.loginfo("Goal aborted due to timeout: \ngoal    {} \ncurrent {}\ndist {}".format(
-                str(self._intermediate_target.pose.position).replace('\n', ' '),
-                str(cp.pose.position).replace('\n', ' '), dist_to_goal))
+                str(self._intermediate_target.pose).replace('\n', ' '),
+                str(cp.pose).replace('\n', ' '), dist_to_goal))
             self.status.timed_out = True
             self.abort_goal()
             return False
