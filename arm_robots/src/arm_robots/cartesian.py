@@ -3,7 +3,7 @@ import copy
 import numpy as np
 import rospy
 import ros_numpy
-from geometry_msgs.msg import PoseStamped, Quaternion, Pose
+from geometry_msgs.msg import PoseStamped, Quaternion, Pose, WrenchStamped
 from victor_hardware_interface_msgs.msg import ControlMode, MotionCommand
 from tf.transformations import quaternion_from_euler, quaternion_slerp
 
@@ -41,6 +41,9 @@ class ControllerStatus:
 
 class MotionFrameTransformer:
     def motion_status_to_ee(self, current_pose: PoseStamped) -> PoseStamped:
+        raise NotImplementedError
+
+    def motion_status_to_ee_wrench(self, current_wrench: WrenchStamped) -> WrenchStamped:
         raise NotImplementedError
 
     def ee_to_motion_command(self, target_pose: PoseStamped) -> PoseStamped:
