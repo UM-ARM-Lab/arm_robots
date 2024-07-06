@@ -55,7 +55,7 @@ class CartesianImpedanceController:
                  world_frame_name, sensor_frame_names=None,
                  position_close_enough=0.0025, rotation_close_enough=0.01,
                  timeout_per_m=500,
-                 timeout_per_radian=30,
+                 timeout_per_radian=100,
                  intermediate_acceptance_factor=7.,
                  joint_limit_boundary=0.03):
         """
