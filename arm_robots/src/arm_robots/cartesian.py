@@ -129,6 +129,9 @@ class CartesianImpedanceController:
         self.abort_goal()
 
     def abort_goal(self):
+        # otherwise continues executing last goal
+        self.command_cartesian_pose(
+            self.current_pose_in_frame(self.active_arm, reference_frame=self.target_pose.header.frame_id))
         self.target_pose = None
         self._intermediate_target = None
         self._dists_to_goal = []
