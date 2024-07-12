@@ -6,6 +6,7 @@ import ros_numpy
 from geometry_msgs.msg import PoseStamped, Quaternion, Pose, WrenchStamped
 from victor_hardware_interface_msgs.msg import ControlMode, MotionCommand
 from tf.transformations import quaternion_from_euler, quaternion_slerp
+from collections import deque
 
 
 def quaternion_angle_diff(q1: Quaternion, q2: Quaternion):
@@ -56,6 +57,8 @@ class CartesianImpedanceController:
                  position_close_enough=0.0025, rotation_close_enough=0.01,
                  timeout_per_m=500,
                  timeout_per_radian=100,
+                 timeout_min_m_per_s=0.001,
+                 timeout_min_radian_per_s=0.01,
                  intermediate_acceptance_factor=7.,
                  joint_limit_boundary=0.03):
         """
@@ -70,6 +73,8 @@ class CartesianImpedanceController:
         :param position_close_enough: Distance (m) to target position to be considered close enough
         :param rotation_close_enough: Angle (radian) to target orientation to be considered close enough
         :param timeout_per_m: Allowed time (s) to execute before timing out per 1m of travel
+        :param timeout_min_m_per_s: Minimum speed (m/s) to avoid timing out
+        :param timeout_min_radian_per_s: Minimum speed (radian/s) to avoid timing out
         :param joint_limit_boundary: Angle (radian or list of radian) boundary of each joint limit to avoid by
         returning to the previous pose for any entering. If this boundary is larger than what any single motion command
         will step, then we will not receive exceptions on the robot side.
@@ -104,6 +109,11 @@ class CartesianImpedanceController:
         self._timeout_per_m = timeout_per_m
         self._timeout_per_radian = timeout_per_radian
 
+        # min speed timeout
+        self._pose_history = deque(maxlen=5)
+        self._min_m_per_s = timeout_min_m_per_s
+        self._min_radian_per_s = timeout_min_radian_per_s
+
         # safety parameters
         self._joint_boundary = joint_limit_boundary
         if isinstance(self._joint_boundary, float):
@@ -135,6 +145,7 @@ class CartesianImpedanceController:
         self.target_pose = None
         self._intermediate_target = None
         self._dists_to_goal = []
+        self._pose_history.clear()
         self._goal_start_time = None
         self._init_goal_dist = None
         self._check_joint_limits = True
@@ -226,6 +237,7 @@ class CartesianImpedanceController:
         self._init_goal_dist = (pos_distance(a, b), rot_distance(a, b))
         self._start_violation = self.joint_boundary_violation_amount()
         self._goal_start_time = rospy.get_time()
+        self._pose_history.clear()
         self.status.reset()
         rospy.logdebug("Target\n{}".format(str(self.target_pose.pose).replace('\n', ' ')))
 
@@ -328,6 +340,19 @@ class CartesianImpedanceController:
             self.status.timed_out = True
             self.abort_goal()
             return False
+
+        # abort if we are too slow
+        if len(self._pose_history) == self._pose_history.maxlen:
+            prev_t, prev_a = self._pose_history.pop()
+            dt = now - prev_t
+            dp = pos_distance(prev_a, a)
+            dr = rot_distance(prev_a, a)
+            if dp / dt < self._min_m_per_s and dr / dt < self._min_radian_per_s:
+                rospy.loginfo("Goal aborted due to being too slow")
+                self.timed_out = False
+                self.abort_goal()
+                return False
+        self._pose_history.appendleft((now, a))
 
         # abort if there is a set wrench threshold and we reached it
         if stop_on_force_threshold is not None:
