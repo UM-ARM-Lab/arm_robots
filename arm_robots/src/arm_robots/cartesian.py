@@ -13,7 +13,7 @@ def quaternion_angle_diff(q1: Quaternion, q2: Quaternion):
     see https://math.stackexchange.com/a/90098/184113
     """
     inner = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w
-    return np.arccos(2 * inner ** 2 - 1)
+    return np.arccos(np.clip(2 * inner ** 2 - 1, -1, 1))
 
 
 def pos_distance(a: Pose, b: Pose):
