@@ -27,7 +27,7 @@ def main():
     colorama.init(autoreset=True)
 
     victor = Victor()
-    victor.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=0.1)
+    victor.set_controller(control_mode=ControlMode.JOINT_POSITION, vel=0.1)
     victor.connect()
 
     rospy.sleep(1)

@@ -36,7 +36,7 @@ def calc_kuka_speed_for_joint(victor, joint_number: int, relative_vel=0.1, motio
     victor.speak("Moving to zero position")
 
     def set_setup_control_mode():
-        victor.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=.1, accel=0.1)
+        victor.set_controller(control_mode=ControlMode.JOINT_POSITION, vel=.1, accel=0.1)
 
     def move(config):
         victor.plan_to_joint_config(arm_to_use, config)
@@ -51,7 +51,7 @@ def calc_kuka_speed_for_joint(victor, joint_number: int, relative_vel=0.1, motio
     p[joint_number] = -motion_distance
     move(p)
     p[joint_number] = motion_distance
-    victor.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=relative_vel, accel=1.0)
+    victor.set_controller(control_mode=ControlMode.JOINT_POSITION, vel=relative_vel, accel=1.0)
     time.sleep(1.0)
     t0 = time.time()
     victor.send_joint_command(joints_to_use, JointTrajectoryPoint(positions=p))
@@ -70,7 +70,7 @@ def calc_kuka_accel_for_joint(victor, joint_number: int, relative_accel=0.1, mot
     victor.speak("Moving to zero position")
 
     def set_setup_control_mode():
-        victor.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=0.2, accel=0.1)
+        victor.set_controller(control_mode=ControlMode.JOINT_POSITION, vel=0.2, accel=0.1)
 
     def move(config):
         victor.plan_to_joint_config(arm_to_use, config)
@@ -86,7 +86,7 @@ def calc_kuka_accel_for_joint(victor, joint_number: int, relative_accel=0.1, mot
     move(p)
     p[joint_number] = motion_distance
     # victor.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=1.0, accel=relative_accel)
-    victor.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=1, accel=0.01)
+    victor.set_controller(control_mode=ControlMode.JOINT_POSITION, vel=1, accel=0.01)
     time.sleep(1.0)
     t0 = time.time()
     victor.send_joint_command(joints_to_use, JointTrajectoryPoint(positions=p))

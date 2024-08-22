@@ -13,7 +13,7 @@ def main():
 
     med = Med(display_goals=False)
     med.connect()
-    med.set_control_mode(ControlMode.JOINT_POSITION, vel=0.1)
+    med.set_controller(ControlMode.JOINT_POSITION, vel=0.1)
 
     if not sim:
         med.set_grasping_force(40.0)

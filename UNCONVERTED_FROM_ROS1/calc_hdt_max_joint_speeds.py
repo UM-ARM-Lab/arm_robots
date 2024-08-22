@@ -58,7 +58,7 @@ def calc_kuka_accel_for_joint(val, joint_number: int, relative_accel=0.1, motion
     val.speak("Moving to zero position")
 
     def set_setup_control_mode():
-        val.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=0.2, accel=0.1)
+        val.set_controller(control_mode=ControlMode.JOINT_POSITION, vel=0.2, accel=0.1)
 
     def move(config):
         val.plan_to_joint_config(arm_to_use, config)
@@ -74,7 +74,7 @@ def calc_kuka_accel_for_joint(val, joint_number: int, relative_accel=0.1, motion
     move(p)
     p[joint_number] = motion_distance
     # val.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=1.0, accel=relative_accel)
-    val.set_control_mode(control_mode=ControlMode.JOINT_POSITION, vel=1, accel=0.01)
+    val.set_controller(control_mode=ControlMode.JOINT_POSITION, vel=1, accel=0.01)
     time.sleep(1.0)
     t0 = time.time()
     val.send_joint_command(joints_to_use, JointTrajectoryPoint(positions=p))

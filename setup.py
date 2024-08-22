@@ -22,7 +22,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'move_to_impedance_switch = arm_robots.scripts.utility.move_to_impedance_switch:main',
+            'camera_pose_publisher.py = arm_robots.camera_pose_publisher:main',
         ],
     },
 )
