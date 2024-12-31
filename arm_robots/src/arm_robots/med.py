@@ -20,7 +20,7 @@ from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, Motion
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
     GetControlModeResponse, SetControlModeResponse
 from wsg_50_utils.wsg_50_gripper import WSG50Gripper
-
+from arm_robots.robot_utils import PlanningResult
 
 # TODO: Since we have only one set of arms, this really just makes sure everythings in the right order. Could probably simplify but I'll keep it for now.
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
@@ -192,13 +192,47 @@ class Med(BaseMed, MoveitEnabledRobot):
     def release(self, width=110.0, speed=50.0):
         self.gripper.release(width=width, speed=speed)
 
-# class DualFRIMed(BaseRobot, MoveitEnabledRobot):
-#     def __init__(self, robot_namespace: str = 'med', force_trigger: float = -0.0, **kwargs):
-#         MoveitEnabledRobot.__init__(self,
-#                                     robot_namespace=robot_namespace,
-#                                     arms_controller_name='arm_trajectory_controller',
-#                                     force_trigger=force_trigger,
-#                                     **kwargs)
-#         base_kwargs = base_kwargs or {}
-#         BaseMed.__init__(self, robot_namespace=robot_namespace)
-#     pass
+from sensor_msgs.msg import JointState
+from moveit_msgs.msg import RobotState
+class DualFRIMed(MoveitEnabledRobot):
+    def __init__(self, robot_namespace: str = 'combined_med', force_trigger: float = -0.0, **kwargs):
+        MoveitEnabledRobot.__init__(self,
+                                    robot_namespace=robot_namespace,
+                                    arms_controller_name='arm_trajectory_controller',
+                                    force_trigger=force_trigger,
+                                    **kwargs)
+        self.move_group_name = 'combined_med'
+    def get_names(self):
+        return [f'thanos_kuka_joint_{i}' for i in range(1, 8)] + [f'medusa_kuka_joint_{i}' for i in range(1, 8)]
+    def joints_to_jointstate_msg(self, joints):
+        msg = JointState()
+        msg.header.stamp = rospy.Time.now()
+        msg.name = self.get_names()
+        msg.position = joints
+        msg.velocity = [0.0] * 14
+        msg.effort = [0.0] * 14
+        return msg
+    def jointstate_to_robotstate_msg(self, jointstate_msg):
+        robotstate_msg = RobotState()
+        robotstate_msg.joint_state = jointstate_msg
+        return robotstate_msg
+    def get_plan_from_joint(self, start_config, end_config):
+        move_group = self.get_move_group_commander(self.move_group_name)
+        jointstate_msg = self.joints_to_jointstate_msg(start_config)
+        robotstate_msg = self.jointstate_to_robotstate_msg(jointstate_msg)
+        move_group.set_start_state(robotstate_msg)
+        
+        joint_config = dict(zip(self.get_names(), end_config))
+        move_group.set_joint_value_target(joint_config)
+        
+        planning_result = PlanningResult(move_group.plan())
+        return planning_result
+    
+if __name__ == '__main__':
+    rospy.init_node('test_med')
+    dual_med = DualFRIMed()
+    start_config = [0.0] * 14
+    end_config   = [0.1] * 14
+    plan = dual_med.get_plan_from_joint(start_config, end_config)
+    print(plan.plan)
+    pass
