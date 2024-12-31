@@ -235,4 +235,3 @@ if __name__ == '__main__':
     end_config   = [0.1] * 14
     plan = dual_med.get_plan_from_joint(start_config, end_config)
     print(plan.plan)
-    pass
