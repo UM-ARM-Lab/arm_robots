@@ -18,6 +18,9 @@ class DualMedFRILCM:
         self.medusa_status_pub = rospy.Publisher('/medusa_med/motion_status', MotionStatus, queue_size=1)        
         self.medusa_joints_pub = rospy.Publisher('/medusa_med/joint_states', JointState, queue_size=1)
         
+        self.thanos_joint_state = JointState()
+        self.medusa_joint_state = JointState()
+        
     def thanos_msg_handler(self, channel, data):
         thanos_fri_msg = lcmt_iiwa_status.decode(data)
         
@@ -32,13 +35,20 @@ class DualMedFRILCM:
         
         thanos_joint_state = JointState()
         thanos_joint_state.header.stamp = rospy.Time.now()
-        thanos_joint_state.name = ['med_kuka_joint_1', 'med_kuka_joint_2', 'med_kuka_joint_3', 'med_kuka_joint_4', 'med_kuka_joint_5', 'med_kuka_joint_6', 'med_kuka_joint_7', 'wsg50_finger_left_joint', 'wsg50_finger_right_joint']
-        thanos_joint_state.position = list(thanos_fri_msg.joint_position_measured) + [0, 0]
+        thanos_joint_state.name = ['thanos_kuka_joint_1', 
+                                   'thanos_kuka_joint_2', 
+                                   'thanos_kuka_joint_3', 
+                                   'thanos_kuka_joint_4', 
+                                   'thanos_kuka_joint_5', 
+                                   'thanos_kuka_joint_6', 
+                                   'thanos_kuka_joint_7']
+        thanos_joint_state.position = list(thanos_fri_msg.joint_position_measured)
         
-        thanos_joint_state.velocity = list(thanos_fri_msg.joint_velocity_estimated) + [0, 0]
-        thanos_joint_state.effort = list(thanos_fri_msg.joint_torque_measured) + [0, 0]
+        thanos_joint_state.velocity = list(thanos_fri_msg.joint_velocity_estimated)
+        thanos_joint_state.effort = list(thanos_fri_msg.joint_torque_measured)
         self.thanos_joints_pub.publish(thanos_joint_state)
-        self.joint_states_pub.publish(thanos_joint_state) # this is for the joint_state_publisher node
+        
+        self.thanos_joint_state = thanos_joint_state
         
     def medusa_msg_handler(self, channel, data):
         medusa_fri_msg = lcmt_iiwa_status.decode(data)
@@ -54,18 +64,37 @@ class DualMedFRILCM:
         
         medusa_joint_state = JointState()
         medusa_joint_state.header.stamp = rospy.Time.now()
-        medusa_joint_state.name = ['med_kuka_joint_1', 'med_kuka_joint_2', 'med_kuka_joint_3', 'med_kuka_joint_4', 'med_kuka_joint_5', 'med_kuka_joint_6', 'med_kuka_joint_7', 'wsg50_finger_left_joint', 'wsg50_finger_right_joint']
-        medusa_joint_state.position = list(medusa_fri_msg.joint_position_measured) + [0, 0]
-        medusa_joint_state.velocity = list(medusa_fri_msg.joint_velocity_estimated) + [0, 0]
-        medusa_joint_state.effort = list(medusa_fri_msg.joint_torque_measured) + [0, 0]
+        medusa_joint_state.name = ['medusa_kuka_joint_1',
+                                    'medusa_kuka_joint_2',
+                                    'medusa_kuka_joint_3',
+                                    'medusa_kuka_joint_4',
+                                    'medusa_kuka_joint_5',
+                                    'medusa_kuka_joint_6',
+                                    'medusa_kuka_joint_7']
+        
+        medusa_joint_state.position = list(medusa_fri_msg.joint_position_measured)
+        medusa_joint_state.velocity = list(medusa_fri_msg.joint_velocity_estimated)
+        medusa_joint_state.effort = list(medusa_fri_msg.joint_torque_measured)
         self.medusa_joints_pub.publish(medusa_joint_state)
         
+        self.medusa_joint_state = medusa_joint_state
     def handle(self):
         self.lcm.handle()
+    def publish(self):
+        msg = JointState()
+        msg.name = self.thanos_joint_state.name + self.medusa_joint_state.name
+        msg.position = self.thanos_joint_state.position + self.medusa_joint_state.position
+        msg.velocity = self.thanos_joint_state.velocity + self.medusa_joint_state.velocity
+        msg.effort = self.thanos_joint_state.effort + self.medusa_joint_state.effort
+        
+        msg.header.stamp = rospy.Time.now()
+        self.joint_states_pub.publish(msg)
+        
 if __name__ == '__main__':
     rospy.init_node('joint_state_publisher')
     
-    fri_lcm = MedFRILCM()
+    fri_lcm = DualMedFRILCM()
     
     while not rospy.is_shutdown():
         fri_lcm.handle()
+        fri_lcm.publish()

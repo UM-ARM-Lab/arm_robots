@@ -192,4 +192,13 @@ class Med(BaseMed, MoveitEnabledRobot):
     def release(self, width=110.0, speed=50.0):
         self.gripper.release(width=width, speed=speed)
 
-
+# class DualFRIMed(BaseRobot, MoveitEnabledRobot):
+#     def __init__(self, robot_namespace: str = 'med', force_trigger: float = -0.0, **kwargs):
+#         MoveitEnabledRobot.__init__(self,
+#                                     robot_namespace=robot_namespace,
+#                                     arms_controller_name='arm_trajectory_controller',
+#                                     force_trigger=force_trigger,
+#                                     **kwargs)
+#         base_kwargs = base_kwargs or {}
+#         BaseMed.__init__(self, robot_namespace=robot_namespace)
+#     pass
