@@ -8,6 +8,7 @@ from arm_robots.robot_utils import PlanningResult
 from sensor_msgs.msg import JointState
 from moveit_msgs.msg import RobotState
 from arm_robots.robot import MoveitEnabledRobot
+from arm_robots.dual_arm_follower import dualarm_follow_traj_mp
 
 class DualFRIMed(MoveitEnabledRobot):
     def __init__(self, robot_namespace: str = 'combined_med', force_trigger: float = -0.0, **kwargs):
@@ -42,6 +43,8 @@ class DualFRIMed(MoveitEnabledRobot):
         
         planning_result = PlanningResult(move_group.plan())
         return planning_result
+    def follow_plan(self, planning_result: PlanningResult):
+        dualarm_follow_traj_mp(planning_result)
 
 class DualMedFRILCM:
     def __init__(self):
