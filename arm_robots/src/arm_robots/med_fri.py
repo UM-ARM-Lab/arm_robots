@@ -4,6 +4,44 @@ from drake import lcmt_iiwa_status
 from victor_hardware_interface_msgs.msg import MotionStatus
 from sensor_msgs.msg import JointState
 import lcm
+from arm_robots.robot_utils import PlanningResult
+from sensor_msgs.msg import JointState
+from moveit_msgs.msg import RobotState
+from arm_robots.robot import MoveitEnabledRobot
+
+class DualFRIMed(MoveitEnabledRobot):
+    def __init__(self, robot_namespace: str = 'combined_med', force_trigger: float = -0.0, **kwargs):
+        MoveitEnabledRobot.__init__(self,
+                                    robot_namespace=robot_namespace,
+                                    arms_controller_name='arm_trajectory_controller',
+                                    force_trigger=force_trigger,
+                                    **kwargs)
+        self.move_group_name = 'combined_med'
+    def get_names(self):
+        return [f'thanos_kuka_joint_{i}' for i in range(1, 8)] + [f'medusa_kuka_joint_{i}' for i in range(1, 8)]
+    def joints_to_jointstate_msg(self, joints):
+        msg = JointState()
+        msg.header.stamp = rospy.Time.now()
+        msg.name = self.get_names()
+        msg.position = joints
+        msg.velocity = [0.0] * 14
+        msg.effort = [0.0] * 14
+        return msg
+    def jointstate_to_robotstate_msg(self, jointstate_msg):
+        robotstate_msg = RobotState()
+        robotstate_msg.joint_state = jointstate_msg
+        return robotstate_msg
+    def get_plan_from_joint(self, start_config, end_config):
+        move_group = self.get_move_group_commander(self.move_group_name)
+        jointstate_msg = self.joints_to_jointstate_msg(start_config)
+        robotstate_msg = self.jointstate_to_robotstate_msg(jointstate_msg)
+        move_group.set_start_state(robotstate_msg)
+        
+        joint_config = dict(zip(self.get_names(), end_config))
+        move_group.set_joint_value_target(joint_config)
+        
+        planning_result = PlanningResult(move_group.plan())
+        return planning_result
 
 class DualMedFRILCM:
     def __init__(self):
