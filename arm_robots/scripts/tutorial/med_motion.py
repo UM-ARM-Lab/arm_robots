@@ -11,7 +11,7 @@ def main():
     # Are we in sim? Currently WSG50 gripper not supported in Gazebo.
     sim = rospy.get_param('~sim', default=True)
 
-    med = Med(display_goals=False)
+    med = Med(robot_namespace='med',display_goals=False)
     med.connect()
     med.set_control_mode(ControlMode.JOINT_POSITION, vel=0.1)
 

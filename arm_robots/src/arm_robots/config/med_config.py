@@ -12,6 +12,23 @@ ARM_JOINT_NAMES = (
     "med_kuka_joint_7",
 )
 
+COMBINED_ARM_JOINT_NAMES = (
+    'thanos_kuka_joint_1',
+    'thanos_kuka_joint_2',
+    'thanos_kuka_joint_3',
+    'thanos_kuka_joint_4',
+    'thanos_kuka_joint_5',
+    'thanos_kuka_joint_6',
+    'thanos_kuka_joint_7',
+    'medusa_kuka_joint_1',
+    'medusa_kuka_joint_2',
+    'medusa_kuka_joint_3',
+    'medusa_kuka_joint_4',
+    'medusa_kuka_joint_5',
+    'medusa_kuka_joint_6',
+    'medusa_kuka_joint_7'
+)
+
 # From Med manual 4.3.2 and copied to kuka_iiwa_interface joint_limits.yaml
 KUKA_MED_MAX_JOINT_VELOCITIES_DEG_S = (85.0, 85.0, 100.0, 75.0, 130.0, 135.0, 135.0)
 KUKA_MED_MAX_JOINT_VELOCITIES = list(s * np.pi / 180 for s in KUKA_MED_MAX_JOINT_VELOCITIES_DEG_S)

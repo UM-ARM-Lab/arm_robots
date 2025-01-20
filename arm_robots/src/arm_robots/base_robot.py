@@ -30,6 +30,7 @@ class BaseRobot:
         self.tf_wrapper = TF2Wrapper()
         self.cartesian = None
         try:
+            print("YOYO:", self.robot_description)
             self.robot_commander = moveit_commander.RobotCommander(ns=self.robot_namespace,
                                                                    robot_description=self.robot_description)
 
