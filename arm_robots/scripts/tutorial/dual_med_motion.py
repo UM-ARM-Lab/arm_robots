@@ -19,14 +19,27 @@ if __name__ == '__main__':
     
     joint_names = combined_med.get_arm_joints()
     default_pos = np.array([
-        -30.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-    ] * 2) * DEG2RAD
+        7.0,
+        28.0,
+        23.0,
+        -55.0,
+        73.0,
+        65.0,
+        11.0
+    ] + [
+        -7.0,
+         28.0,
+        -25.0,
+        -55.0,
+        -73.0,
+         65.0,
+        -11.0
+    ]) * DEG2RAD
     print(default_pos, joint_names)
+    input()
+    
+    result = combined_med.get_plan_from_goal_config(default_pos, joint_names)
+    print(result.plan, result.success)
+    
     combined_med.goto_config(default_pos, joint_names, control_mode)
     pass
