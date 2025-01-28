@@ -191,7 +191,7 @@ class DualMed(BaseRobot):
         all_joint_vals += jvq_to_list(self.medusa_arm_status_listener.get().measured_joint_position)
         return {n: val for n, val in zip(COMBINED_ARM_JOINT_NAMES, all_joint_vals)}
     
-    def reached_endpoint(self, target, joint_names=COMBINED_ARM_JOINT_NAMES, tol=1e-3):
+    def reached_endpoint(self, target, joint_names=COMBINED_ARM_JOINT_NAMES, tol=1e-2):
         target_joints = dict(zip(joint_names, target))
         current_joints = self.get_joint_positions_map()
         
@@ -246,7 +246,7 @@ class DualMed(BaseRobot):
                               positions['medusa'], velocities['medusa'])
         return False, ""
     
-    def goto_config(self, joint_positions, joint_names=COMBINED_ARM_JOINT_NAMES, control_mode=ControlMode.JOINT_POSITION, **kwargs):
+    def goto_config(self, joint_positions, joint_names=COMBINED_ARM_JOINT_NAMES, control_mode=ControlMode.JOINT_POSITION, tol=1e-3, **kwargs):
         '''
         NOTE: trajectory_point takes in thanos_joint0 -> thanos_joint7 + medusa_joint0 -> medusa_joint7
         '''
@@ -254,9 +254,8 @@ class DualMed(BaseRobot):
         traj_point.positions = joint_positions
         traj_point.velocities = np.zeros(len(joint_positions))
         
-        
         self.send_joint_command(joint_names, traj_point)
-        while not self.reached_endpoint(joint_positions):
+        while not self.reached_endpoint(joint_positions, joint_names=joint_names, tol=tol):
             time.sleep(1e-5)
         
         return False, ""
@@ -289,5 +288,9 @@ class DualMed(BaseRobot):
         planning_result = PlanningResult(commander.plan())
         return planning_result
     def follow_plan(self, planning_result: PlanningResult):
-        raise NotImplementedError
-    def 
+        traj = planning_result.plan.joint_trajectory
+        joint_names = traj.joint_names
+        for point in traj.points:
+            joints_i = point.positions
+            self.goto_config(joints_i, joint_names)
+        return False, ""
