@@ -20,6 +20,7 @@ from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, Motion
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
     GetControlModeResponse, SetControlModeResponse
 from wsg_50_utils.wsg_50_gripper import WSG50Gripper
+from wsg_50_utils.fake_wsg_50_gripper import FakeWSG50Gripper
 
 
 # TODO: Since we have only one set of arms, this really just makes sure everythings in the right order. Could probably simplify but I'll keep it for now.
@@ -160,8 +161,8 @@ class BaseMed(BaseRobot):
 
 
 class Med(BaseMed, MoveitEnabledRobot):
-
-    def __init__(self, robot_namespace: str = 'med', force_trigger: float = -0.0, base_kwargs=None, **kwargs):
+    
+    def __init__(self, robot_namespace: str = 'med', force_trigger: float = -0.0, base_kwargs=None, gripper_on=True, **kwargs):
         MoveitEnabledRobot.__init__(self,
                                     robot_namespace=robot_namespace,
                                     arms_controller_name='arm_trajectory_controller',
@@ -172,6 +173,8 @@ class Med(BaseMed, MoveitEnabledRobot):
         self.arm_group = 'kuka_arm'
         self.wrist = 'med_kuka_link_ee'
         self.gripper = WSG50Gripper()
+        self.gripper_on = gripper_on
+        self.gripper = self._get_gripper()
 
     def get_arm_joints(self):
         return ARM_JOINT_NAMES
@@ -192,4 +195,9 @@ class Med(BaseMed, MoveitEnabledRobot):
     def release(self, width=110.0, speed=50.0):
         self.gripper.release(width=width, speed=speed)
 
-
+    def _get_gripper(self):
+        if self.gripper_on:
+            gripper = WSG50Gripper()
+        else:
+            gripper = FakeWSG50Gripper()
+        return gripper
