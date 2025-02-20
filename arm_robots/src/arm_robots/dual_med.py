@@ -68,7 +68,7 @@ class DualMed(BaseRobot):
     def __init__(self, robot_namespace: str = 'combined_med', force_trigger: float = -0.0, base_kwargs=None, **kwargs):
         BaseRobot.__init__(self, robot_namespace=robot_namespace)
         
-        thanos_prefix = os.path.join('/', 'med')
+        thanos_prefix = os.path.join('/', 'thanos')
         medusa_prefix = os.path.join('/', 'medusa')
         self.thanos_arm_command_pub = rospy.Publisher(os.path.join(thanos_prefix, 'motion_command'), MotionCommand, queue_size=10)
         self.medusa_arm_command_pub = rospy.Publisher(os.path.join(medusa_prefix, 'motion_command'), MotionCommand, queue_size=10)
