@@ -65,27 +65,25 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
 
 
 class DualMed(BaseRobot):
-    def __init__(self, robot_namespace: str = 'combined_med', force_trigger: float = -0.0, base_kwargs=None, **kwargs):
+    def __init__(self, robot_namespace: str = 'combined_med', thanos_prefix='thanos', medusa_prefix='medusa', force_trigger: float = -0.0, base_kwargs=None, **kwargs):
         self._init_ros_node()
         BaseRobot.__init__(self, robot_namespace=robot_namespace, **kwargs)
         
-        thanos_prefix = os.path.join('/', 'thanos')
-        medusa_prefix = os.path.join('/', 'medusa')
-        self.thanos_arm_command_pub = rospy.Publisher(os.path.join(thanos_prefix, 'motion_command'), MotionCommand, queue_size=10)
-        self.medusa_arm_command_pub = rospy.Publisher(os.path.join(medusa_prefix, 'motion_command'), MotionCommand, queue_size=10)
+        self.thanos_prefix = thanos_prefix
+        self.medusa_prefix = medusa_prefix
+
+        self.thanos_arm_command_pub = rospy.Publisher( f'/{self.thanos_prefix}/motion_command', MotionCommand, queue_size=10)
+        self.medusa_arm_command_pub = rospy.Publisher(f'/{self.medusa_prefix}/motion_command', MotionCommand, queue_size=10)
         
-        self.thanos_arm_status_listener = Listener(os.path.join(thanos_prefix, 'motion_status'), MotionStatus)
-        self.medusa_arm_status_listener = Listener(os.path.join(medusa_prefix, 'motion_status'), MotionStatus)
+        self.thanos_arm_status_listener = Listener(f'/{self.thanos_prefix}/motion_status', MotionStatus)
+        self.medusa_arm_status_listener = Listener(f'/{self.medusa_prefix}/motion_status', MotionStatus)
         
-        self.thanos_set_control_mode_srv = rospy.ServiceProxy(os.path.join(thanos_prefix, 'set_control_mode_service'),
-                                                            SetControlMode)
-        self.medusa_set_control_mode_srv = rospy.ServiceProxy(os.path.join(medusa_prefix, 'set_control_mode_service'),
-                                                            SetControlMode)
-        
-        self.thanos_get_control_mode_srv = rospy.ServiceProxy(os.path.join(thanos_prefix, 'get_control_mode_service'),
-                                                            GetControlMode)
-        self.medusa_get_control_mode_srv = rospy.ServiceProxy(os.path.join(medusa_prefix, 'get_control_mode_service'),
-                                                            GetControlMode)
+        self.thanos_set_control_mode_srv = rospy.ServiceProxy(f'/{self.thanos_prefix}/set_control_mode_service', SetControlMode)
+        self.medusa_set_control_mode_srv = rospy.ServiceProxy(f'/{self.medusa_prefix}/set_control_mode_service', SetControlMode)
+
+        self.thanos_get_control_mode_srv = rospy.ServiceProxy(f'/{self.thanos_prefix}/get_control_mode_service', GetControlMode)
+        self.medusa_get_control_mode_srv = rospy.ServiceProxy(f'/{self.medusa_prefix}/get_control_mode_service', GetControlMode)
+
         self.ik_proxy = self._init_ik_client()
         
     def _init_ros_node(self):
