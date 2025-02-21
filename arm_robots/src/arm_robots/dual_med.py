@@ -66,9 +66,10 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
 
 class DualMed(BaseRobot):
     def __init__(self, robot_namespace: str = 'combined_med', force_trigger: float = -0.0, base_kwargs=None, **kwargs):
-        BaseRobot.__init__(self, robot_namespace=robot_namespace)
+        self._init_ros_node()
+        BaseRobot.__init__(self, robot_namespace=robot_namespace, **kwargs)
         
-        thanos_prefix = os.path.join('/', 'med')
+        thanos_prefix = os.path.join('/', 'thanos')
         medusa_prefix = os.path.join('/', 'medusa')
         self.thanos_arm_command_pub = rospy.Publisher(os.path.join(thanos_prefix, 'motion_command'), MotionCommand, queue_size=10)
         self.medusa_arm_command_pub = rospy.Publisher(os.path.join(medusa_prefix, 'motion_command'), MotionCommand, queue_size=10)
@@ -87,7 +88,12 @@ class DualMed(BaseRobot):
                                                             GetControlMode)
         self.ik_proxy = self._init_ik_client()
         
-        
+    def _init_ros_node(self):
+        try:
+            rospy.init_node('dual_med')
+        except (rospy.exceptions.ROSInitException, rospy.exceptions.ROSException):
+            pass
+
     def _init_ik_client(self):
         service_name = 'combined_med/compute_ik'
         rospy.wait_for_service(service_name)
@@ -96,12 +102,14 @@ class DualMed(BaseRobot):
             return ik_proxy
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
+
     def _call_ik_solver(self, srv_input):
         try:
             ik_resp = self.ik_proxy(srv_input)
             return ik_resp
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
+
     def compute_ik(self, target_pose, group_name=None, ee_link_name='grasp_frame', ref_frame='bimanual_base', init_state=None):
         if group_name is None:
             group_name = self.arm_group
@@ -123,6 +131,7 @@ class DualMed(BaseRobot):
         error_code = ik_out.error_code
         robot_joints = np.asarray(ik_solution.joint_state.position)[:7] # TODO: make this more general to get rid of the non-robot joints
         return robot_joints, error_code
+
     def compute_ik_fast(self, target_pose, group_name=None, ee_link_name='grasp_frame', ref_frame='bimanual_base', init_joints=None):
         """
         This method uses collision free ik. It is faster than compute_ik (by orders of mangitude).
@@ -151,8 +160,10 @@ class DualMed(BaseRobot):
         joint_solution = robot_state_ik.joint_state.position[:7] # TODO: make this more general to get rid of the non-robot joints
         joint_solution = np.asarray(joint_solution)
         return joint_solution
+
     def get_current_pose_thanos(self, frame_id='grasp_frame', ref_frame='bimanual_base'):
         pass
+
     def get_arm_joints(self):
         return COMBINED_ARM_JOINT_NAMES
     
@@ -181,8 +192,17 @@ class DualMed(BaseRobot):
             rospy.logerr("Failed to switch thanos arm to control mode: " + str(control_mode))
             rospy.logerr(res.message)
         return res
-    
-    
+
+    def set_thanos_joint_position_control(self, vel=0.1, **kwargs):
+        self.set_thanos_arm_control_mode(ControlMode.JOINT_POSITION, vel=vel, **kwargs)
+
+    def set_medusa_joint_position_control(self, vel=0.1, **kwargs):
+        self.set_medusa_arm_control_mode(ControlMode.JOINT_POSITION, vel=vel, **kwargs)
+
+    def set_joint_position_control(self, vel=0.1, **kwargs):
+        self.set_thanos_joint_position_control(vel=vel, **kwargs)
+        self.set_medusa_joint_position_control(vel=vel, **kwargs)
+
     def get_control_modes(self):
         return {'thanos': self.get_thanos_arm_control_mode(), 'medusa': self.get_medusa_arm_control_mode()}
     
@@ -257,8 +277,8 @@ class DualMed(BaseRobot):
         self.send_joint_command(joint_names, traj_point)
         while not self.reached_endpoint(joint_positions, joint_names=joint_names, tol=tol):
             time.sleep(1e-5)
-        
         return False, ""
+
     def joints_to_jointstate_msg(self, joints):
         msg = JointState()
         msg.header.stamp = rospy.Time.now()
@@ -267,10 +287,12 @@ class DualMed(BaseRobot):
         msg.velocity = [0.0] * 14
         msg.effort = [0.0] * 14
         return msg
+
     def jointstate_to_robotstate_msg(self, jointstate_msg):
         robotstate_msg = RobotState()
         robotstate_msg.joint_state = jointstate_msg
         return robotstate_msg
+
     def get_plan_from_goal_config(self, goal_config, joint_names = COMBINED_ARM_JOINT_NAMES):
         # NOTE: this is really for collision checking, get planning_result.success to check
         commander = moveit_commander.MoveGroupCommander('combined_med', ns='combined_med', robot_description=rospy.resolve_name('robot_description'))
@@ -287,10 +309,75 @@ class DualMed(BaseRobot):
         
         planning_result = PlanningResult(commander.plan())
         return planning_result
+
     def follow_plan(self, planning_result: PlanningResult):
         traj = planning_result.plan.joint_trajectory
+        # joint_names = traj.joint_names
+        # for point in traj.points:
+        #     joints_i = point.positions
+        #     self.goto_config(joints_i, joint_names)
+        # TODO: Interpolate the velocities as well, i.e. do a trajectory_follower
         joint_names = traj.joint_names
-        for point in traj.points:
-            joints_i = point.positions
-            self.goto_config(joints_i, joint_names)
+        joints_interpolated = interpolate_trajectory_joints(traj, num_steps=5)
+        for joint_i in joints_interpolated:
+            self.goto_config(joint_i, joint_names)
         return False, ""
+
+    def set_joints(self, desried_joints, joint_names=None):
+        """
+        Plans to the desired joints and executes the plan
+        :param desried_joints: (14,) list or np.array of desired joint positions for the robot. If joint_names is None, the order is given by COMBINED_ARM_JOINT_NAMES
+        :return:
+        """
+        desried_joints = np.asarray(desried_joints)
+        if joint_names is None:
+            joint_names = self.get_arm_joints()
+        result = self.get_plan_from_goal_config(desried_joints, joint_names)
+        if result.success:
+            self.follow_plan(result)
+        return result
+
+    def set_raw_joints(self, desried_joints, joint_names=None):
+        """
+        Sets the joints directly without planning
+        ---------------------------------------------------------------------------------
+        WARNING: This method does not check for collisions!!!! Use with caution!!!!!!!!!!!
+        ---------------------------------------------------------------------------------
+        :param desried_joints: (14,) list or np.array of desired joint positions for the robot. If joint_names is None, the order is given by COMBINED_ARM_JOINT_NAMES
+        :return:
+        """
+        desried_joints = np.asarray(desried_joints)
+        if joint_names is None:
+            joint_names = self.get_arm_joints()
+
+        positions, abort, msg = delegate_to_arms(positions=desried_joints.tolist(), joint_names=joint_names)
+        if abort:
+            return True, msg
+        thanos_joints = positions['thanos']
+        medusa_joints = positions['medusa']
+
+        # Get the current control mode
+        control_mode = self.get_control_modes()
+        thanos_arm_control_mode = control_mode['thanos']
+        medusa_arm_control_mode = control_mode['medusa']
+
+        self.send_arm_command(self.thanos_arm_command_pub, thanos_arm_control_mode, thanos_joints)
+        self.send_arm_command(self.medusa_arm_command_pub, medusa_arm_control_mode, medusa_joints)
+
+
+
+
+def interpolate_trajectory_joints(traj, num_steps=1):
+    all_points = np.array([point.positions for point in traj.points]) # (T, num_joints)
+    # interpolate the trajectory
+    interpolated_joints = []
+    for i in range(len(all_points) - 1):
+        start = all_points[i]
+        end = all_points[i + 1]
+        diff = end - start
+        for j in range(num_steps):
+            interpolated_joints.append(start + j * diff / num_steps)
+    interpolated_joints.append(all_points[-1])
+    interpolated_joints = np.stack(interpolated_joints, axis=0)
+    return interpolated_joints
+
