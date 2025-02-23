@@ -3,13 +3,23 @@ from typing import Tuple, Sequence
 
 import numpy as np
 from colorama import Fore
-from typing import List, Dict, Tuple, Sequence
+from typing import List, Union, Dict, Tuple, Sequence, Callable, Optional
+import pyjacobian_follower
 import rospy
+from arm_robots.robot import FollowJointTrajectoryError
+from arm_robots.trajectory_follower import TrajectoryFollower
+from rosgraph.names import ns_join
+from mik_tools import matrix_to_pose, pose_to_matrix
 from arc_utilities.conversions import convert_to_pose_msg
 from arc_utilities.listener import Listener
 from arm_robots.base_robot import BaseRobot
 from arm_robots.config.med_config import ARM_JOINT_NAMES, COMBINED_ARM_JOINT_NAMES
-from trajectory_msgs.msg import JointTrajectoryPoint
+from arm_robots.robot_utils import make_follow_joint_trajectory_goal, PlanningResult, PlanningAndExecutionResult, \
+    ExecutionResult, is_empty_trajectory, merge_joint_state_and_scene_msg
+from actionlib import SimpleActionClient
+from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryFeedback, FollowJointTrajectoryResult, \
+    FollowJointTrajectoryGoal
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from victor_hardware_interface.victor_utils import get_control_mode_params, list_to_jvq, jvq_to_list
 from victor_hardware_interface_msgs.msg import ControlMode, MotionStatus, MotionCommand
 from victor_hardware_interface_msgs.srv import SetControlMode, GetControlMode, GetControlModeRequest, \
@@ -20,12 +30,15 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 import pdb
 import moveit_commander
 from sensor_msgs.msg import JointState
-from moveit_msgs.msg import RobotState, PositionIKRequest
+from moveit_msgs.msg import RobotState, PositionIKRequest, PlanningScene
 from arm_robots.robot_utils import PlanningResult
 from moveit_msgs.srv import GetPositionIK
 from arc_utilities.transformation_helper import PoseFromComponents
 import copy
 from pyjacobian_follower import IkParams
+from arm_robots.robot_utils import get_ordered_tolerance_list, interpolate_joint_trajectory_points, is_waypoint_reached, \
+    waypoint_error
+
 
 def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[str, List], bool, str]:
     """
@@ -64,11 +77,88 @@ def delegate_to_arms(positions: List, joint_names: Sequence[str]) -> Tuple[Dict[
     return positions_by_interface, False, ""
 
 
+def follow_trajectory_goal(traj_msg: FollowJointTrajectoryGoal,
+                           robot: BaseRobot,
+                           stop_cb: Optional[Callable] = lambda: (False, "")):
+    if len(traj_msg.trajectory.points) == 0:
+        rospy.loginfo('Trajectory provided is empty -- ignoring it')
+        return
+    # construct a list of the tolerances in order of the joint names
+    trajectory_joint_names = traj_msg.trajectory.joint_names
+    tolerance = get_ordered_tolerance_list(trajectory_joint_names, traj_msg.path_tolerance)
+    goal_tolerance = get_ordered_tolerance_list(trajectory_joint_names, traj_msg.goal_tolerance, is_goal=True)
+    interpolated_points = interpolate_joint_trajectory_points(traj_msg.trajectory.points, max_step_size=0.01)
+
+    if len(interpolated_points) == 0:
+        rospy.loginfo('Trajectory is empty after interpolating -- ignoring it')
+        return
+
+    trajectory_point_idx = 0
+    t_0 = rospy.Time.now()
+    while True:
+        # tiny sleep lets the listeners process messages better, results in smoother following
+        rospy.sleep(1e-3)
+        dt = rospy.Time.now() - t_0
+        # get feedback
+        new_waypoint = False
+        actual_point = JointTrajectoryPoint(positions=robot.get_joint_positions(trajectory_joint_names), time_from_start=dt)
+        while trajectory_point_idx < len(interpolated_points) - 1 and is_waypoint_reached(actual_point, interpolated_points[trajectory_point_idx], tolerance):
+            trajectory_point_idx += 1
+            new_waypoint = True
+
+        desired_point = interpolated_points[trajectory_point_idx]
+
+        if trajectory_point_idx >= len(interpolated_points) - 1 and is_waypoint_reached(actual_point, desired_point, goal_tolerance):
+            return
+
+        if new_waypoint:
+            command_failed, command_failed_msg = robot.send_joint_command(trajectory_joint_names, desired_point)
+            if command_failed:
+                rospy.logwarn(f"Command failed with message: {command_failed}")
+                return FollowJointTrajectoryResult(error_code=-10, error_string=command_failed_msg)
+
+        # let the caller stop
+        stop, stop_msg = False, ""
+        # stop, stop_msg = stop_cb(actual_point)
+
+        error = waypoint_error(actual_point, desired_point)
+        rospy.logdebug_throttle(1, f"{error} {desired_point.time_from_start.to_sec()} {dt.to_sec()}")
+        if desired_point.time_from_start.to_sec() > 0 and dt > desired_point.time_from_start * 5.0:
+            stop = True
+            if trajectory_point_idx == len(interpolated_points) - 1:
+                stop_msg = f"timeout. expected t={desired_point.time_from_start.to_sec()} but t={dt.to_sec()}." \
+                           + f" error to waypoint is {error}, goal tolerance is {goal_tolerance}"
+            else:
+                stop_msg = f"timeout. expected t={desired_point.time_from_start.to_sec()} but t={dt.to_sec()}." \
+                           + f" error to waypoint is {error}, tolerance is {tolerance}"
+
+        if stop:
+            # command the current configuration
+            actual_point.velocities = [0.0] * len(actual_point.positions)
+            robot.send_joint_command(trajectory_joint_names, actual_point)
+            rospy.loginfo("Preempt requested, aborting.")
+            rospy.logwarn(f"Stopped with message: {stop_msg}")
+            return FollowJointTrajectoryResult(error_code=-10, error_string=stop_msg)
+
+
+
+
+
+
+
 class DualMed(BaseRobot):
-    def __init__(self, robot_namespace: str = 'combined_med', thanos_prefix='thanos', medusa_prefix='medusa', force_trigger: float = -0.0, base_kwargs=None, **kwargs):
+    def __init__(self, robot_namespace: str = 'combined_med', thanos_prefix='thanos', medusa_prefix='medusa', block=True, force_trigger: float = -0.0, base_kwargs=None, **kwargs):
         self._init_ros_node()
+        self.block = block
         BaseRobot.__init__(self, robot_namespace=robot_namespace, **kwargs)
-        
+
+        # self.trajectory_follower_client = None
+        # start the trajectory follower client --
+        self.controller_name = 'combined_med_trajectory_controller'
+        self.trajectory_follower_server = TrajectoryFollower(self, controller_name=self.controller_name)
+        self.trajectory_follower_server.start_server()
+        self.trajectory_follower_client = self._setup_trajectory_follower_client()
+
         self.thanos_prefix = thanos_prefix
         self.medusa_prefix = medusa_prefix
 
@@ -107,6 +197,61 @@ class DualMed(BaseRobot):
             return ik_resp
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
+
+    def follow_arms_joint_trajectory(self, trajectory: JointTrajectory,
+                                stop_condition: Optional[Callable] = lambda: (False, "")):
+        # PACK THE GOAL -
+        goal = self.make_follow_joint_trajectory_goal(trajectory)
+        follow_trajectory_goal(traj_msg=goal, robot=self, stop_cb=stop_condition)
+
+    def follow_arms_joint_trajectory_server(self,
+                                trajectory: JointTrajectory,
+                                stop_condition: Optional[Callable] = None):
+        client = self.trajectory_follower_client
+        if is_empty_trajectory(trajectory):
+            rospy.logdebug(f"ignoring empty trajectory")
+            result = FollowJointTrajectoryResult()
+            result.error_code = FollowJointTrajectoryResult.SUCCESSFUL
+            success = True
+        else:
+            rospy.logdebug(f"sending trajectory goal with f{len(trajectory.points)} points")
+            result: Optional[FollowJointTrajectoryResult] = None
+            if client is None:
+                raise ConnectionError("You asked to execute an action without calling connect() first!")
+
+            # PACK THE GOAL -
+            goal = self.make_follow_joint_trajectory_goal(trajectory)
+
+            def _feedback_cb(feedback: FollowJointTrajectoryFeedback):
+                if stop_condition is not None and stop_condition(feedback):
+                    client.cancel_all_goals()
+
+            # SEND THE GOAL -
+            client.send_goal(goal, feedback_cb=_feedback_cb)
+
+            if self.block:
+                client.wait_for_result()
+                result = client.get_result()
+
+            # Process the result ---
+            failure = (result is None or result.error_code != FollowJointTrajectoryResult.SUCCESSFUL)
+            if failure:
+                raise FollowJointTrajectoryError(f"Follow Joint Trajectory Failed: (???)")
+            success = result is not None and result.error_code == FollowJointTrajectoryResult.SUCCESSFUL
+
+       # return an execution result packed
+        if client is None:
+            action_client_state = None
+        else:
+            action_client_state = client.get_state()
+        return ExecutionResult(trajectory=trajectory,
+                               execution_result=result,
+                               action_client_state=action_client_state,
+                               success=success)
+
+
+    def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
+        return make_follow_joint_trajectory_goal(trajectory)
 
     def compute_ik(self, target_pose, group_name=None, ee_link_name='grasp_frame', ref_frame='bimanual_base', init_state=None):
         if group_name is None:
@@ -159,8 +304,27 @@ class DualMed(BaseRobot):
         joint_solution = np.asarray(joint_solution)
         return joint_solution
 
-    def get_current_pose_thanos(self, frame_id='grasp_frame', ref_frame='bimanual_base'):
-        pass
+    def get_current_pose(self, frame_id, ref_frame='bimanual_base', as_matrix=False):
+        """
+        Get the current pose of the frame frame_id in reference to ref_frame as [x,y,z, qx, qy, qz, qw]
+        """
+        rf_X_fid = self.tf_wrapper.get_transform(ref_frame, frame_id)  # current pose as a 4x4 matrix homogenous transformation
+        if as_matrix:
+            return rf_X_fid
+        rf_pose_fid = matrix_to_pose(rf_X_fid)  # current pose as [x,y,z, qx, qy, qz, qw]
+        return rf_pose_fid
+
+    def get_current_pose_thanos(self, frame_id='thanos_grasp_frame', ref_frame='bimanual_base', as_matrix=False):
+        """
+        Get the current pose of the frame frame_id in reference to ref_frame as [x,y,z, qx, qy, qz, qw]
+        """
+        return self.get_current_pose(frame_id=frame_id, ref_frame=ref_frame, as_matrix=as_matrix)
+
+    def get_current_pose_medusa(self, frame_id='medusa_grasp_frame', ref_frame='bimanual_base', as_matrix=False):
+        """
+        Get the current pose of the frame frame_id in reference to ref_frame as [x,y,z, qx, qy, qz, qw]
+        """
+        return self.get_current_pose(frame_id=frame_id, ref_frame=ref_frame, as_matrix=as_matrix)
 
     def get_arm_joints(self):
         return COMBINED_ARM_JOINT_NAMES
@@ -315,11 +479,25 @@ class DualMed(BaseRobot):
         #     joints_i = point.positions
         #     self.goto_config(joints_i, joint_names)
         # TODO: Interpolate the velocities as well, i.e. do a trajectory_follower
-        joint_names = traj.joint_names
-        joints_interpolated = interpolate_trajectory_joints(traj, num_steps=5)
-        for joint_i in joints_interpolated:
-            self.goto_config(joint_i, joint_names)
+
+        # execution_result = self.follow_arms_joint_trajectory_server(traj)
+        execution_result = self.follow_arms_joint_trajectory(traj)
+
+        # joint_names = traj.joint_names
+        # joints_interpolated = interpolate_trajectory_joints(traj, num_steps=5)
+        # for joint_i in joints_interpolated:
+        #     self.goto_config(joint_i, joint_names)
         return False, ""
+
+    def get_joints(self, joint_names=None):
+        """
+        :param joint_names: if provided, it will determine the order of the joints
+        :return joint_values: np.array of shape (num_joints,)
+        """
+        if joint_names is None:
+            joint_names = self.get_arm_joints()
+        joint_values = self.get_joint_positions(joint_names=joint_names)
+        return joint_values
 
     def set_joints(self, desried_joints, joint_names=None):
         """
