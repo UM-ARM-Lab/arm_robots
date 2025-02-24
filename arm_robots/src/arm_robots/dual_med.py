@@ -141,11 +141,6 @@ def follow_trajectory_goal(traj_msg: FollowJointTrajectoryGoal,
             return FollowJointTrajectoryResult(error_code=-10, error_string=stop_msg)
 
 
-
-
-
-
-
 class DualMed(BaseRobot):
     def __init__(self, robot_namespace: str = 'combined_med', thanos_prefix='thanos', medusa_prefix='medusa', block=True, force_trigger: float = -0.0, base_kwargs=None, **kwargs):
         self._init_ros_node()
@@ -175,7 +170,9 @@ class DualMed(BaseRobot):
         self.medusa_get_control_mode_srv = rospy.ServiceProxy(f'/{self.medusa_prefix}/get_control_mode_service', GetControlMode)
 
         self.ik_proxy = self._init_ik_client()
-        
+
+        self.scene_listener = Listener(f'/{self.robot_namespace}/move_group/monitored_planning_scene', PlanningScene)
+
     def _init_ros_node(self):
         try:
             rospy.init_node('dual_med')
@@ -191,12 +188,38 @@ class DualMed(BaseRobot):
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
 
+    def _setup_trajectory_follower_client(self):
+        controller_name = self.controller_name
+        action_name = ns_join(self.robot_namespace, ns_join(controller_name, "follow_joint_trajectory"))
+        client = SimpleActionClient(action_name, FollowJointTrajectoryAction)
+        resolved_action_name = rospy.resolve_name(action_name)
+        wait_msg = f"Waiting for joint trajectory follower server {resolved_action_name}..."
+        rospy.loginfo(wait_msg)
+        client.wait_for_server()
+        rospy.loginfo(f"Joint trajectory follower server connected.")
+        return client
+
     def _call_ik_solver(self, srv_input):
         try:
             ik_resp = self.ik_proxy(srv_input)
             return ik_resp
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
+
+    def _get_move_group_commander(self, group_name=None) -> moveit_commander.MoveGroupCommander:
+        group_name = group_name or 'combined_med'
+        move_group = moveit_commander.MoveGroupCommander(group_name, ns='combined_med',
+                                                         robot_description=rospy.resolve_name('robot_description'))
+        return move_group
+
+    def _unpack_joints(self, joints, joint_names, reference_joint_names=None):
+        if reference_joint_names is None:
+            reference_joint_names = self.get_arm_joints()
+        joints_out = []
+        for joint_name_i in reference_joint_names:
+            joint_indx = joint_names.index(joint_name_i)
+            joints_out.append(joints[joint_indx])
+        return joints_out
 
     def follow_arms_joint_trajectory(self, trajectory: JointTrajectory,
                                 stop_condition: Optional[Callable] = lambda: (False, "")):
@@ -253,56 +276,69 @@ class DualMed(BaseRobot):
     def make_follow_joint_trajectory_goal(self, trajectory) -> FollowJointTrajectoryGoal:
         return make_follow_joint_trajectory_goal(trajectory)
 
-    def compute_ik(self, target_pose, group_name=None, ee_link_name='grasp_frame', ref_frame='bimanual_base', init_state=None):
-        if group_name is None:
-            group_name = self.arm_group
+    def compute_ik_combined_med(self,
+                                thanos_target_pose=None,
+                                medusa_target_pose=None,
+                                thanos_ik_link_name:str='thanos_grasp_frame',
+                                medusa_ik_link_name:str='medusa_grasp_frame',
+                                ref_frame='bimanual_base',
+                                thanos_ref_frame=None,
+                                medusa_ref_frame=None,
+                                init_state=None, joint_names=None):
         # call the ik service:
-        move_group = self.get_move_group_commander(group_name=group_name)
+        # move_group = self.get_move_group_commander(group_name=group_name)
+        group_name = 'combined_med'
+        move_group = self._get_move_group_commander()
         ik_request = PositionIKRequest()
         ik_request.group_name = group_name  # string
         if init_state is None:
             ik_request.robot_state = move_group.get_current_state()
         else:
             ik_request.robot_state = init_state
-        target_pose_stamped = convert_to_pose_msg(target_pose)
-        target_pose_stamped.header.frame_id = ref_frame
-        ik_request.pose_stamped = target_pose_stamped
+
+        # solve the poses
+        if thanos_ref_frame is None:
+            thanos_ref_frame = ref_frame
+        if medusa_ref_frame is None:
+            medusa_ref_frame = ref_frame
+
+        if thanos_target_pose is None:
+            thanos_target_pose = self.get_current_pose_thanos(frame_id=thanos_ik_link_name, ref_frame=thanos_ref_frame, as_matrix=False)
+        if medusa_target_pose is None:
+            medusa_target_pose = self.get_current_pose_medusa(frame_id=medusa_ik_link_name, ref_frame=medusa_ref_frame, as_matrix=False)
+
+        if isinstance(thanos_target_pose, np.ndarray):
+            thanos_target_pose = thanos_target_pose.tolist()
+        if isinstance(medusa_target_pose, np.ndarray):
+            medusa_target_pose = medusa_target_pose.tolist()
+        thanos_target_pose_stamped = convert_to_pose_msg(thanos_target_pose)
+        medusa_target_pose_stamped = convert_to_pose_msg(medusa_target_pose)
+        thanos_target_pose_stamped.header.frame_id = thanos_ref_frame
+        medusa_target_pose_stamped.header.frame_id = medusa_ref_frame
+
         ik_request.avoid_collisions = True
-        ik_request.ik_link_name = ee_link_name
+        # single arm:
+        # ik_request.pose_stamped = target_pose_stamped
+        # ik_request.ik_link_name = ee_link_name
+        # multiple arms:
+        # NOTE: There is 'ik_link_names' which is a list of strings when there are multiple end effectors
+        # same for pose_stamped_vector which is a list of PoseStamped, one per ik_link_name
+        ik_request.ik_link_name = '' # empty so we let the node know that we will provide multiple frames
+        ik_request.ik_link_names = [medusa_ik_link_name, thanos_ik_link_name] # THE ORDER IS BACKWARDS FROM THE SRDF
+        ik_request.pose_stamped_vector = [medusa_target_pose_stamped, thanos_target_pose_stamped]
         ik_out = self._call_ik_solver(ik_request)
         ik_solution = ik_out.solution
         error_code = ik_out.error_code
-        robot_joints = np.asarray(ik_solution.joint_state.position)[:7] # TODO: make this more general to get rid of the non-robot joints
+        # reorder the joints to match the order of the combined_med group
+        joint_names = joint_names or self.get_arm_joints()
+        # if error_code.val != 1:
+        #     return None, error_code
+        try:
+            robot_joints = self._unpack_joints(ik_solution.joint_state.position, joint_names=ik_solution.joint_state.name, reference_joint_names=joint_names)
+        except Exception as e:
+            import pdb; pdb.set_trace()
+            print(e)
         return robot_joints, error_code
-
-    def compute_ik_fast(self, target_pose, group_name=None, ee_link_name='grasp_frame', ref_frame='bimanual_base', init_joints=None):
-        """
-        This method uses collision free ik. It is faster than compute_ik (by orders of mangitude).
-        :param target_pose:
-        :param group_name:
-        :param ee_link_name:
-        :param ref_frame:
-        :return:
-        """
-        # TESTING MODE ---------------------- Do not use in general
-        if group_name is None:
-            group_name = self.arm_group
-        move_group = self.get_move_group_commander(group_name=group_name)
-        scene_msg = self.scene_listener.get()
-        # transform the pose to be with respect to the end effector.
-        target_pose_msg = PoseFromComponents(target_pose[:3], target_pose[3:])
-        target_pose_msg.header.frame_id = ref_frame
-        robot_state = move_group.get_current_state()
-        current_joints = copy.deepcopy(robot_state.joint_state.position[:7])
-        if init_joints is not None:
-            assert len(init_joints) == 7, 'must be the 7 values of the 7 DoF KUKA MED'
-            robot_state.joint_state.position = tuple(init_joints) + robot_state.joint_state.position[7:]
-        ik_params = IkParams(rng_dist=0.001, max_collision_check_attempts=20)
-        robot_state_ik = self.jacobian_follower.compute_collision_free_pose_ik(robot_state, [target_pose_msg], group_name, tip_names=[ee_link_name], scene_msg=scene_msg, ik_params=ik_params)
-        # IkParams: {rng_dist=0.1, max_collision_check_attempts=100}
-        joint_solution = robot_state_ik.joint_state.position[:7] # TODO: make this more general to get rid of the non-robot joints
-        joint_solution = np.asarray(joint_solution)
-        return joint_solution
 
     def get_current_pose(self, frame_id, ref_frame='bimanual_base', as_matrix=False):
         """
@@ -457,7 +493,7 @@ class DualMed(BaseRobot):
 
     def get_plan_from_goal_config(self, goal_config, joint_names = COMBINED_ARM_JOINT_NAMES):
         # NOTE: this is really for collision checking, get planning_result.success to check
-        commander = moveit_commander.MoveGroupCommander('combined_med', ns='combined_med', robot_description=rospy.resolve_name('robot_description'))
+        commander = self._get_move_group_commander()
         
         start_config = self.get_joint_positions_map()
         start_config = np.array([start_config[joint] for joint in joint_names])
@@ -496,7 +532,7 @@ class DualMed(BaseRobot):
         """
         if joint_names is None:
             joint_names = self.get_arm_joints()
-        joint_values = self.get_joint_positions(joint_names=joint_names)
+        joint_values = np.asarray(self.get_joint_positions(joint_names=joint_names))
         return joint_values
 
     def set_joints(self, desried_joints, joint_names=None):
@@ -540,7 +576,52 @@ class DualMed(BaseRobot):
         self.send_arm_command(self.thanos_arm_command_pub, thanos_arm_control_mode, thanos_joints)
         self.send_arm_command(self.medusa_arm_command_pub, medusa_arm_control_mode, medusa_joints)
 
+    def set_poses(self, thanos_pose=None, medusa_pose=None, thanos_frame_id=None, medusa_frame_id=None, thanos_ref_frame=None, medusa_ref_frame=None):
+        # solve the None parameters with default values
+        if thanos_frame_id is None:
+            thanos_frame_id = 'thanos_grasp_frame'
+        if medusa_frame_id is None:
+            medusa_frame_id = 'medusa_grasp_frame'
+        if thanos_ref_frame is None:
+            # thanos_ref_frame = f'{self.robot_namespace}_base'
+            thanos_ref_frame = 'bimanual_base'
+        if medusa_ref_frame is None:
+            # medusa_ref_frame = f'{self.robot_namespace}_base'
+            medusa_ref_frame = 'bimanual_base'
+        # TODO: Fix for frames that are not ref_frame i.e. binamual_base
+        # Solve IK:
+        target_joints, error_code = self.compute_ik_combined_med(thanos_target_pose=thanos_pose,
+                                                     medusa_target_pose=medusa_pose,
+                                                     thanos_ik_link_name=thanos_frame_id,
+                                                     medusa_ik_link_name=medusa_frame_id,
+                                                     thanos_ref_frame=thanos_ref_frame,
+                                                     medusa_ref_frame=medusa_ref_frame,
+                                                     )
+        # set the joints
+        self.set_joints(target_joints) # This involves planning
 
+    def set_poses_raw(self, thanos_pose=None, medusa_pose=None, thanos_frame_id=None, medusa_frame_id=None, thanos_ref_frame=None, medusa_ref_frame=None):
+        # solve the None parameters with default values
+        if thanos_frame_id is None:
+            thanos_frame_id = 'thanos_grasp_frame'
+        if medusa_frame_id is None:
+            medusa_frame_id = 'medusa_grasp_frame'
+        if thanos_ref_frame is None:
+            # thanos_ref_frame = f'{self.robot_namespace}_base'
+            thanos_ref_frame = 'bimanual_base'
+        if medusa_ref_frame is None:
+            # medusa_ref_frame = f'{self.robot_namespace}_base'
+            medusa_ref_frame = 'bimanual_base'
+        # Solve IK:
+        target_joints, error_code = self.compute_ik_combined_med(thanos_target_pose=thanos_pose,
+                                                     medusa_target_pose=medusa_pose,
+                                                     thanos_ik_link_name=thanos_frame_id,
+                                                     medusa_ik_link_name=medusa_frame_id,
+                                                     thanos_ref_frame=thanos_ref_frame,
+                                                     medusa_ref_frame=medusa_ref_frame,
+                                                     )
+        # set the joints
+        self.set_raw_joints(target_joints)
 
 
 def interpolate_trajectory_joints(traj, num_steps=1):
