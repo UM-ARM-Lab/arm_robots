@@ -481,7 +481,7 @@ class PandaGripper:
         return True
 
     def open(self, wait_for_result=False):
-        self.move(self.MAX_WIDTH, wait_for_result=wait_for_result)
+        return self.move(self.MAX_WIDTH, wait_for_result=wait_for_result)
 
     def close(self, wait_for_result=False):
-        self.move(self.MIN_WIDTH, wait_for_result=wait_for_result)
+        return self.move(self.MIN_WIDTH, wait_for_result=wait_for_result)
