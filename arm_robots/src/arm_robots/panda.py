@@ -53,11 +53,11 @@ class Panda(MoveitEnabledRobot):
         self.has_ft = has_ft
 
         # Panda HW Services - for setting internal controller parameters.
-        self.joint_impedance_srv = rospy.ServiceProxy(self.ns('%s/set_joint_impedance' % self.panda_name), SetJointImpedance)
-        self.cartesian_impedance_srv = rospy.ServiceProxy(self.ns('%s/set_cartesian_impedance' % self.panda_name), SetCartesianImpedance)
-        self.set_load_srv = rospy.ServiceProxy(self.ns('%s/set_load' % self.panda_name), SetLoad)
-        self.set_EE_frame_srv = rospy.ServiceProxy(self.ns(f'{self.panda_name}/set_EE_frame'), SetEEFrame)
-        self.set_K_frame_srv = rospy.ServiceProxy(self.ns(f'{self.panda_name}/set_K_frame'), SetKFrame)
+        self.joint_impedance_srv = rospy.ServiceProxy(self.ns('franka_control/set_joint_impedance'), SetJointImpedance)
+        self.cartesian_impedance_srv = rospy.ServiceProxy(self.ns('franka_control/set_cartesian_impedance'), SetCartesianImpedance)
+        self.set_load_srv = rospy.ServiceProxy(self.ns('franka_control/set_load'), SetLoad)
+        self.set_EE_frame_srv = rospy.ServiceProxy(self.ns(f'franka_control/set_EE_frame'), SetEEFrame)
+        self.set_K_frame_srv = rospy.ServiceProxy(self.ns(f'franka_control/set_K_frame'), SetKFrame)
 
         # Controller Manager Services - for loading/unloading/switching controllers.
         self.load_controller_srv = rospy.ServiceProxy(self.ns('controller_manager/load_controller'), LoadController)
