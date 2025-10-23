@@ -54,7 +54,8 @@ class Panda(MoveitEnabledRobot):
 
         # Panda HW Services - for setting internal controller parameters.
         self.joint_impedance_srv = rospy.ServiceProxy(self.ns('franka_control/set_joint_impedance'), SetJointImpedance)
-        self.cartesian_impedance_srv = rospy.ServiceProxy(self.ns('franka_control/set_cartesian_impedance'), SetCartesianImpedance)
+        self.cartesian_impedance_srv = rospy.ServiceProxy(self.ns('franka_control/set_cartesian_impedance'),
+                                                          SetCartesianImpedance)
         self.set_load_srv = rospy.ServiceProxy(self.ns('franka_control/set_load'), SetLoad)
         self.set_EE_frame_srv = rospy.ServiceProxy(self.ns(f'franka_control/set_EE_frame'), SetEEFrame)
         self.set_K_frame_srv = rospy.ServiceProxy(self.ns(f'franka_control/set_K_frame'), SetKFrame)
@@ -71,7 +72,6 @@ class Panda(MoveitEnabledRobot):
         # Default position joint trajectory controller.
         self.active_controller_name = controller_name
 
-
         # Franka state listener.
         self.franka_state_listener = Listener(
             self.ns('%s/%s_state_controller/franka_states' % (self.robot_namespace, self.panda_name)), FrankaState)
@@ -81,7 +81,8 @@ class Panda(MoveitEnabledRobot):
                                                   ErrorRecoveryActionGoal, queue_size=10)
 
         # Joint command publisher
-        self.command_pub = rospy.Publisher(self.ns(f'{self.active_controller_name}/command'), JointTrajectory, queue_size=10)
+        self.command_pub = rospy.Publisher(self.ns(f'{self.active_controller_name}/command'), JointTrajectory,
+                                           queue_size=10)
 
         self.move_group = self.get_move_group_commander(self.panda_name)
         self.scene = moveit_commander.PlanningSceneInterface(ns=self.robot_namespace)
@@ -251,7 +252,6 @@ class Panda(MoveitEnabledRobot):
 
         return set_K_frame_resp.success
 
-
     def get_ik(self, group_name: str, pose: PoseStamped, frame: str = "panda_link8"):
         ik_request = PositionIKRequest()
         ik_request.group_name = group_name
@@ -346,9 +346,11 @@ class Panda(MoveitEnabledRobot):
         add_bb - True/False, whether to add bounding box to tool mesh and attach to gripper origin
 
         """
-        add_pose = PoseStamped(Header(frame_id=f'{self.panda_name}_gripper_origin'), Pose(Point(0, 0, 0), Quaternion(0, 0, 0, 1)))
+        add_pose = PoseStamped(Header(frame_id=f'{self.panda_name}_gripper_origin'),
+                               Pose(Point(0, 0, 0), Quaternion(0, 0, 0, 1)))
         self.scene.add_mesh(f'{self.panda_name}_{cfg["name"]}', add_pose, filename=cfg["meshfile"])
-        self.scene.attach_mesh(f'{self.panda_name}_gripper_origin', f'{self.panda_name}_{cfg["name"]}', touch_links=[f'{self.panda_name}_leftfinger', f'{self.panda_name}_rightfinger'])
+        self.scene.attach_mesh(f'{self.panda_name}_gripper_origin', f'{self.panda_name}_{cfg["name"]}',
+                               touch_links=[f'{self.panda_name}_leftfinger', f'{self.panda_name}_rightfinger'])
 
         if add_bb:
             tool_mesh = o3d.io.read_triangle_mesh(cfg['meshfile'])
@@ -360,7 +362,9 @@ class Panda(MoveitEnabledRobot):
             tool_pose.pose.orientation = Quaternion(0, 0, 0, 1)
             bb_size = tuple(tool_bb.get_extent() + cfg['bb_padding'])
             self.scene.add_box(f'{self.panda_name}_{cfg["name"]}_bb', tool_pose, bb_size)
-            self.scene.attach_box(f'{self.panda_name}_gripper_origin', f'{self.panda_name}_{cfg["name"]}_bb', size=bb_size, touch_links=[f'{self.panda_name}_leftfinger', f'{self.panda_name}_rightfinger'])
+            self.scene.attach_box(f'{self.panda_name}_gripper_origin', f'{self.panda_name}_{cfg["name"]}_bb',
+                                  size=bb_size,
+                                  touch_links=[f'{self.panda_name}_leftfinger', f'{self.panda_name}_rightfinger'])
 
     def detach_tool(self, name=None):
         """
@@ -387,7 +391,8 @@ class Panda(MoveitEnabledRobot):
                 self.scene.remove_attached_object(name=f'{self.panda_name}_{name}_bb')
                 self.scene.remove_world_object(name=f'{self.panda_name}_{name}_bb')
         else:
-            for collision_object in list(self.scene.get_attached_objects().keys()) + self.scene.get_known_object_names():
+            for collision_object in list(
+                    self.scene.get_attached_objects().keys()) + self.scene.get_known_object_names():
                 if self.panda_name in collision_object:
                     self.scene.remove_attached_object(name=collision_object)
                     self.scene.remove_world_object(name=collision_object)
@@ -398,7 +403,8 @@ class PandaNetFT:
         self.netft_ns = f'{arm_id}_netft'
         self.netft_zero = rospy.ServiceProxy(ns_join(self.netft_ns, 'zero'), Zero)
         self.netft_data = None
-        self.netft_data_sub = rospy.Subscriber(ns_join(self.netft_ns, 'netft_data'), WrenchStamped, self.netft_data_cb, queue_size=10)
+        self.netft_data_sub = rospy.Subscriber(ns_join(self.netft_ns, 'netft_data'), WrenchStamped, self.netft_data_cb,
+                                               queue_size=10)
         self.stop_force = stop_force
         self.stop_torque = stop_torque
 
@@ -427,7 +433,7 @@ class PandaGripper:
         self.homing_client.wait_for_server()
         self.stop_client.wait_for_server()
         self.gripper_width = None
-        rospy.Subscriber(ns_join(self.gripper_ns, 'joint_states'), JointState, self.gripper_cb)
+        Listener(ns_join(self.gripper_ns, 'joint_states'), JointState, wait_for_data=True, callback=self.gripper_cb)
         self.MIN_FORCE = 0.05
         self.MAX_FORCE = 50  # documentation says up to 70N is possible as continuous force
         self.MIN_WIDTH = 0.0
@@ -480,8 +486,8 @@ class PandaGripper:
             return result
         return True
 
-    def open(self, wait_for_result=False):
-        return self.move(self.MAX_WIDTH, wait_for_result=wait_for_result)
+    def open(self, speed=None, wait_for_result=False):
+        return self.move(self.MAX_WIDTH, speed=speed, wait_for_result=wait_for_result)
 
     def close(self, wait_for_result=False):
         return self.move(self.MIN_WIDTH, wait_for_result=wait_for_result)
